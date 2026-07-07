@@ -225,11 +225,17 @@ body {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  position: sticky;
+  top: 119px;
+  align-self: start;                    /* don't stretch to full grid height, or sticky can't move */
+  max-height: calc(100vh - 131px);
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .output-tabs {
   position: sticky;
-  top: 119px;
+  top: 0;
   z-index: 2;
   display: flex;
   gap: 4px;
@@ -261,4 +267,5 @@ body {
   .workflow-nav { top: 143px; }
   .studio-strip { grid-template-columns: 1fr; }
   .app-grid { grid-template-columns: 1fr; }
+  .workspace { position: static; max-height: none; overflow: visible; }
 }
