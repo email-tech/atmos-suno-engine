@@ -187,6 +187,41 @@ const STYLE_ENGINES = {
 
 const VOCAL_MODES = ["Instrumental", "Descriptor", "Persona"];
 
+/* Vocal descriptor pools, keyed by vocal gender. Used by the Descriptor vocal
+ * mode: the gender select lists the keys, the descriptor select lists that
+ * key's array. Delivery/timbre wording only (materially steers the vocal);
+ * mood/affect words are intentionally avoided (Suno ignores them). The first
+ * Female entry matches the default state so it stays selected on first load. */
+const VOCAL_DESCRIPTOR_OPTIONS = {
+  Female: [
+    "Airy female vocal with intimate tone and restrained delivery.",
+    "Breathy female vocal, close-mic, soft and hushed.",
+    "Warm female vocal with smooth legato phrasing.",
+    "Husky female vocal with relaxed low register.",
+    "Clear female vocal with controlled dynamics and gentle vibrato.",
+    "Ethereal layered female vocal with wide reverb and soft harmonies."
+  ],
+  Male: [
+    "Warm male vocal with intimate low-register delivery.",
+    "Breathy male vocal, close-mic, soft and restrained.",
+    "Smooth male vocal with relaxed legato phrasing.",
+    "Deep male vocal with calm controlled tone.",
+    "Clear male vocal with gentle dynamics and subtle grain.",
+    "Layered male vocal with wide reverb and soft harmony stacks."
+  ],
+  Androgynous: [
+    "Androgynous vocal with soft neutral timbre and restrained delivery.",
+    "Breathy androgynous vocal, close-mic and hushed.",
+    "Smooth androgynous vocal with even legato phrasing.",
+    "Ethereal androgynous vocal with wide reverb and layered harmonies."
+  ],
+  Duet: [
+    "Male and female duet, unified blend with female carrying the top line.",
+    "Male and female harmony pairing, close and layered, no call-and-response.",
+    "Layered mixed-gender vocal wash blended into the atmosphere."
+  ]
+};
+
 
 /* js/data-lyric-controls.js */
 const CONTROL_OPTIONS = {
