@@ -1,0 +1,1740 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Azure Solace - Prompt & Lyric App</title>
+  <style>
+    @font-face {
+      font-family: "Inter";
+      src: url("file:///C:/Users/Admin/Downloads/Azure%20Solace%20Design%20System/fonts/Inter-300-latin.woff2") format("woff2");
+      font-weight: 300;
+    }
+    @font-face {
+      font-family: "Inter";
+      src: url("file:///C:/Users/Admin/Downloads/Azure%20Solace%20Design%20System/fonts/Inter-400-latin.woff2") format("woff2");
+      font-weight: 400;
+    }
+    @font-face {
+      font-family: "Cormorant Garamond";
+      src: url("file:///C:/Users/Admin/Downloads/Azure%20Solace%20Design%20System/fonts/CormorantGaramond-400-latin.woff2") format("woff2");
+      font-weight: 400;
+    }
+    @font-face {
+      font-family: "JetBrains Mono";
+      src: url("file:///C:/Users/Admin/Downloads/Azure%20Solace%20Design%20System/fonts/JetBrainsMono-400-latin.woff2") format("woff2");
+      font-weight: 400;
+    }
+    :root {
+      --as-azure: #7FAFB2;
+      --as-azure-tint: #A9C8CA;
+      --as-azure-deep: #5E8F92;
+      --as-mist-white: #F5F7F6;
+      --as-coastal-fog: #E6ECEB;
+      --as-pale-sand: #DDD4C8;
+      --as-midnight-blue: #0D1B2A;
+      --as-deep-slate: #1E2C36;
+      --as-sunset-gold: #D8B98A;
+      --bg: var(--as-mist-white);
+      --panel: #FFFFFF;
+      --panel-2: var(--as-coastal-fog);
+      --line: rgba(13, 27, 42, 0.12);
+      --line-soft: rgba(13, 27, 42, 0.08);
+      --text: var(--as-midnight-blue);
+      --muted: #485058;
+      --dim: #6A7479;
+      --accent: var(--as-azure);
+      --accent-2: var(--as-sunset-gold);
+      --warn: #e6a25c;
+      --bad: #A95757;
+      --good: #5E8F72;
+      --radius: 0;
+      --mono: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      --serif: "Cormorant Garamond", "Times New Roman", Georgia, serif;
+      --sans: Inter, "Segoe UI", Arial, sans-serif;
+      --ease-glass: cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(180deg, var(--as-mist-white) 0, var(--as-coastal-fog) 820px);
+      color: var(--text);
+      font-family: var(--sans);
+      letter-spacing: 0;
+      font-weight: 300;
+    }
+    button, input, select, textarea { font: inherit; }
+    button {
+      border: 1px solid transparent;
+      border-bottom-color: var(--line);
+      background: transparent;
+      color: var(--text);
+      border-radius: 0;
+      cursor: pointer;
+      transition: border-color 480ms var(--ease-glass), color 480ms var(--ease-glass), background 480ms var(--ease-glass), opacity 240ms var(--ease-glass);
+    }
+    button:hover { border-bottom-color: var(--accent); color: var(--as-azure-deep); }
+    button.primary {
+      background: transparent;
+      border-color: var(--accent);
+      color: var(--text);
+      font-weight: 400;
+    }
+    button.danger { border-color: var(--bad); color: var(--bad); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .topbar {
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(245,247,246,.86);
+      backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .brand { display: flex; align-items: center; gap: 14px; min-width: 260px; }
+    .logo {
+      width: 116px;
+      height: 45px;
+      border: 0;
+      border-radius: 0;
+      background: url("file:///C:/Users/Admin/Downloads/Azure%20Solace%20Design%20System/assets/logo-azure-solace-azure.svg") left center / contain no-repeat;
+      color: transparent;
+      overflow: hidden;
+    }
+    .brand h1 { margin: 0; font-size: 13px; font-weight: 300; letter-spacing: .22em; text-transform: uppercase; }
+    .brand p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .top-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .top-actions button { padding: 8px 10px; font-size: 13px; }
+    .key-btn { display: inline-flex; align-items: center; gap: 7px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); }
+    .dot.good { background: var(--good); }
+    .app {
+      display: grid;
+      grid-template-columns: minmax(360px, 430px) minmax(0, 1fr);
+      min-height: calc(100vh - 64px);
+    }
+    .left {
+      border-right: 1px solid var(--line);
+      background: var(--panel);
+      overflow: auto;
+      max-height: calc(100vh - 64px);
+    }
+    .right {
+      overflow: auto;
+      max-height: calc(100vh - 64px);
+      padding: 22px;
+    }
+    .section {
+      padding: 18px 18px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .section h2 {
+      margin: 0 0 13px;
+      color: var(--dim);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .22em;
+      font-weight: 400;
+    }
+    .field { margin-bottom: 13px; }
+    .field:last-child { margin-bottom: 0; }
+    label, .label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 7px;
+      font-weight: 300;
+    }
+    input[type="text"], input[type="password"], select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.72);
+      color: var(--text);
+      border-radius: 0;
+      padding: 9px 10px;
+      outline: none;
+    }
+    textarea {
+      min-height: 180px;
+      resize: vertical;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+    .seg.two { grid-template-columns: repeat(2, 1fr); }
+    .seg.four { grid-template-columns: repeat(4, 1fr); }
+    .seg button, .pill, .chip {
+      min-height: 34px;
+      padding: 7px 9px;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 0;
+    }
+    .seg button.active, .pill.active, .chip.active {
+      color: var(--text);
+      border-color: var(--accent);
+      background: rgba(127,175,178,.10);
+    }
+    .moods {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .mood-card {
+      text-align: left;
+      padding: 11px;
+      border-radius: 0;
+      min-height: 54px;
+    }
+    .mood-card strong { display: block; font-size: 13px; }
+    .mood-card span { color: var(--dim); font-size: 12px; }
+    .chip-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+    .chip { min-height: 30px; font-size: 12px; }
+    .chip.disabled { opacity: .35; cursor: not-allowed; }
+    .inline-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .sticky-generate {
+      position: sticky;
+      bottom: 0;
+      padding: 14px 18px;
+      background: rgba(255,255,255,.90);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid var(--line);
+    }
+    .sticky-actions { display: grid; grid-template-columns: 1fr 1.2fr; gap: 10px; }
+    .sticky-generate button { width: 100%; padding: 12px; }
+    .output-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .song-title {
+      font-family: var(--serif);
+      font-size: clamp(34px, 5vw, 70px);
+      line-height: 1.05;
+      margin: 0 0 6px;
+      font-weight: 300;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .subtitle { color: var(--muted); margin: 0; }
+    .card {
+      background: var(--panel);
+      border: 0;
+      border-radius: var(--radius);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .card-head h3 { margin: 0; font-size: 12px; letter-spacing: .22em; text-transform: uppercase; font-weight: 400; color: var(--dim); }
+    .card-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+    .card-actions button { padding: 7px 9px; font-size: 12px; }
+    .card-body { padding: 14px; }
+    .meter { color: var(--dim); font-size: 12px; margin-top: 7px; }
+    .warning-strip {
+      display: none;
+      border: 1px solid rgba(230,162,92,.5);
+      background: rgba(230,162,92,.09);
+      color: #6b4a20;
+      padding: 10px 12px;
+      border-radius: 0;
+      margin-bottom: 16px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .warning-strip.show { display: block; }
+    .score-row, .meta-row { display: flex; flex-wrap: wrap; gap: 7px; }
+    .score, .meta {
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: rgba(255,255,255,.72);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    details { border-top: 1px solid var(--line-soft); padding: 11px 14px; }
+    summary { color: var(--accent-2); cursor: pointer; font-size: 13px; }
+    details p { color: var(--muted); line-height: 1.55; font-size: 13px; }
+    .drawer, .modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 40;
+      background: rgba(0,0,0,.55);
+    }
+    .drawer.show, .modal.show { display: block; }
+    .drawer-panel {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: min(520px, 96vw);
+      background: var(--panel);
+      border-left: 1px solid var(--line);
+      padding: 18px;
+      overflow: auto;
+    }
+    .modal-box {
+      width: min(560px, calc(100vw - 30px));
+      max-height: calc(100vh - 40px);
+      overflow: auto;
+      margin: 60px auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 0;
+      padding: 18px;
+    }
+    .modal-head, .drawer-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .modal-head h2, .drawer-head h2 { margin: 0; font-size: 18px; }
+    .ref-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+    .ref-card {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.72);
+      border-radius: 0;
+      padding: 11px;
+    }
+    .ref-card strong { display: block; }
+    .ref-card span { color: var(--muted); font-size: 12px; }
+    .automation { display: none; }
+    .automation.show { display: block; }
+    .manual-output.hide { display: none; }
+    .progress {
+      height: 10px;
+      background: var(--as-coastal-fog);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 10px 0 16px;
+    }
+    .bar { height: 100%; width: 0%; background: var(--accent); transition: width 480ms var(--ease-glass); }
+    .queue { display: grid; gap: 8px; }
+    .queue-row {
+      display: grid;
+      grid-template-columns: 42px 1fr 96px;
+      gap: 10px;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.72);
+      border-radius: 0;
+      padding: 9px 10px;
+      font-size: 13px;
+    }
+    .status { color: var(--dim); text-align: right; }
+    .status.done { color: var(--good); }
+    .status.running { color: var(--accent); }
+    .status.failed { color: var(--bad); }
+    .hidden { display: none !important; }
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .left { max-height: none; border-right: 0; }
+      .right { max-height: none; }
+      .output-header { flex-direction: column; }
+    }
+    @media (max-width: 560px) {
+      .topbar { height: auto; align-items: flex-start; flex-direction: column; padding: 13px; }
+      .brand { min-width: 0; }
+      .seg, .seg.two, .seg.four, .inline-grid { grid-template-columns: 1fr; }
+      .right { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">AS</div>
+      <div>
+        <h1>Prompt Architect</h1>
+        <p>Manual and automated composition drafting</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="key-btn" id="keyBtn" type="button"><span class="dot" id="keyDot"></span><span id="keyLabel">API key</span></button>
+      <button id="themeBtn" type="button">Theme</button>
+      <button id="refsBtn" type="button">Reference Tracks</button>
+      <button id="historyBtn" type="button">Session History</button>
+      <button id="autoToggle" type="button">Automation Mode</button>
+    </div>
+  </header>
+
+  <main class="app">
+    <aside class="left" id="controls">
+      <section class="section">
+        <h2>Track Type</h2>
+        <div class="seg" data-bind="trackType">
+          <button data-value="instrumental" class="active" type="button">Pure Instrumental</button>
+          <button data-value="sparse" type="button">Sparse Vocal</button>
+          <button data-value="full" type="button">Full Vocal</button>
+        </div>
+      </section>
+
+      <section class="section vocal-only">
+        <h2>Vocal Persona</h2>
+        <div class="seg two" data-bind="vocalGender">
+          <button data-value="male" class="active" type="button">Male</button>
+          <button data-value="female" type="button">Female</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Atmosphere</h2>
+        <div class="field">
+          <label for="timeOfDay">Time of Day</label>
+          <select id="timeOfDay"></select>
+        </div>
+        <div class="field vocal-only">
+          <label for="storyMode">Story Mode</label>
+          <select id="storyMode"></select>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Mood Preset</h2>
+        <div class="moods" id="moodCards"></div>
+      </section>
+
+      <section class="section">
+        <h2>Tempo Feel</h2>
+        <div class="field">
+          <label for="bpm">BPM <strong id="bpmVal">85</strong> <span id="bpmZone"></span></label>
+          <input id="bpm" type="range" min="70" max="115" value="85">
+        </div>
+        <div class="inline-grid">
+          <label><input id="halftime" type="checkbox"> Half-time</label>
+          <label><input id="swing" type="checkbox"> Swing</label>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Groove & Harmony</h2>
+        <div class="field">
+          <label for="drum">Drum Feel</label>
+          <select id="drum"></select>
+        </div>
+        <div class="field">
+          <label for="bass">Bass Style</label>
+          <select id="bass"></select>
+        </div>
+        <div class="field">
+          <label for="harm">Harmonic Mood</label>
+          <select id="harm"></select>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Texture Palette <span id="texCount"></span></h2>
+        <div class="chip-grid" id="textureChips"></div>
+      </section>
+
+      <section class="section">
+        <h2>Arrangement Structure</h2>
+        <div id="instrumentalStructure" class="meta-row"></div>
+        <div id="vocalStructureWrap" class="vocal-only">
+          <div class="field">
+            <label for="songStructure">Song Structure</label>
+            <select id="songStructure"></select>
+          </div>
+          <div class="field hidden" id="customStructureWrap">
+            <label for="customStructure">Custom Structure</label>
+            <input id="customStructure" type="text" placeholder="Intro / Verse 1 / Chorus / Outro">
+          </div>
+        </div>
+      </section>
+
+      <section class="section vocal-only">
+        <h2>Lyric Density</h2>
+        <div class="seg four" data-bind="lyricDensity">
+          <button data-value="Sparse" type="button">Sparse</button>
+          <button data-value="Semi-Sparse" type="button">Semi-Sparse</button>
+          <button data-value="Semi-Dense" class="active" type="button">Semi-Dense</button>
+          <button data-value="Dense" type="button">Dense</button>
+        </div>
+      </section>
+
+      <section class="section vocal-only">
+        <h2>Keywords</h2>
+        <div class="field">
+          <label for="keywords">Include themes</label>
+          <input id="keywords" type="text" placeholder="e.g. late checkout, old flame, salt on skin">
+        </div>
+        <div class="field">
+          <label for="negKeywords">Exclude / Avoid</label>
+          <input id="negKeywords" type="text" placeholder="e.g. beach cliches, party language">
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Artist Reference Blend <span id="artistCount"></span></h2>
+        <div class="chip-grid" id="artistChips"></div>
+      </section>
+
+      <section class="section">
+        <details open>
+          <summary>Advanced</summary>
+          <div class="field" style="margin-top:12px">
+            <label for="era">Production Era</label>
+            <select id="era"></select>
+          </div>
+          <div class="field">
+            <label for="mix">Mix Character</label>
+            <select id="mix"></select>
+          </div>
+          <div class="field">
+            <label for="energyArc">Energy Arc</label>
+            <select id="energyArc"></select>
+          </div>
+          <div class="field">
+            <label for="reverb">Reverb Character</label>
+            <select id="reverb"></select>
+          </div>
+          <div class="field">
+            <label for="model">Claude Model</label>
+            <select id="model">
+              <option value="claude-opus-4-7">Claude Opus 4.7</option>
+              <option value="claude-sonnet-4-5">Claude Sonnet 4.5</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="sunoVer">Suno Version</label>
+            <select id="sunoVer">
+              <option value="v4" selected>Current / v4+</option>
+              <option value="v3">Older / short style prompt</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="custom">Custom Style Additions</label>
+            <textarea id="custom" style="min-height:80px" placeholder="Optional production notes"></textarea>
+          </div>
+        </details>
+      </section>
+
+      <div class="sticky-generate">
+        <div class="sticky-actions">
+          <button id="randomizeBtn" type="button">Randomize</button>
+          <button id="generateBtn" class="primary" type="button">Generate Instrumental Prompt</button>
+        </div>
+      </div>
+    </aside>
+
+    <section class="right">
+      <div id="manualOutput" class="manual-output">
+        <div class="output-header">
+          <div>
+            <h2 class="song-title" id="songTitle">Untitled Azure Solace Study</h2>
+            <p class="subtitle" id="songConcept">Style prompt updates live. Vocal lyrics are generated on demand.</p>
+          </div>
+          <div class="card-actions">
+            <button id="exportSingleBtn" type="button">Export Pack</button>
+            <button id="copyBothBtn" type="button">Copy Both</button>
+          </div>
+        </div>
+        <div class="warning-strip" id="warnings"></div>
+
+        <article class="card">
+          <div class="card-head">
+            <h3>Style Prompt</h3>
+            <div class="card-actions">
+              <button id="copyStyleBtn" type="button">Copy</button>
+              <button id="variationBtn" type="button">Variation</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <textarea id="styleOutput" readonly></textarea>
+            <div class="meter" id="styleMeter"></div>
+          </div>
+          <details>
+            <summary>Why this works</summary>
+            <p id="whyStyle"></p>
+          </details>
+        </article>
+
+        <article class="card vocal-card">
+          <div class="card-head">
+            <h3>Lyrics with Metatags</h3>
+            <div class="card-actions">
+              <button id="copyLyricsBtn" type="button">Copy</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <textarea id="lyricsOutput" readonly placeholder="Awaiting generation"></textarea>
+          </div>
+          <details>
+            <summary>Why this works</summary>
+            <p>Metatags are checked against the approved instrument and effect list derived from the style prompt controls. If a banned instrument appears, the app retries once with a stricter prompt.</p>
+          </details>
+        </article>
+
+        <article class="card vocal-card">
+          <div class="card-head"><h3>Title Concept</h3></div>
+          <div class="card-body">
+            <p id="titleConcept">Awaiting generation.</p>
+            <div class="score-row" id="scorePills"></div>
+          </div>
+        </article>
+      </div>
+
+      <div id="automationOutput" class="automation">
+        <div class="output-header">
+          <div>
+            <h2 class="song-title">Automation Queue</h2>
+            <p class="subtitle" id="autoSub">Generate 10 instrumental and 10 vocal songs, then download two HTML output files.</p>
+          </div>
+          <div class="card-actions">
+            <button id="runBatchBtn" class="primary" type="button">Run Batch Now</button>
+            <button id="dryRunBtn" type="button">Dry Run</button>
+            <button id="cancelBatchBtn" class="danger" type="button" disabled>Cancel</button>
+          </div>
+        </div>
+        <article class="card">
+          <div class="card-head"><h3>Batch Controls</h3></div>
+          <div class="card-body">
+            <div class="inline-grid">
+              <div class="field">
+                <label for="moodLock">Mood lock</label>
+                <select id="moodLock"></select>
+              </div>
+              <div class="field">
+                <label for="storyLock">Story Mode lock</label>
+                <select id="storyLock"></select>
+              </div>
+            </div>
+            <div class="field">
+              <label for="textureAdventure">Texture style <span id="textureAdventureVal">Balanced</span></label>
+              <input id="textureAdventure" type="range" min="0" max="2" value="1">
+            </div>
+            <div class="meta-row" id="lastRunMeta"></div>
+          </div>
+        </article>
+        <article class="card">
+          <div class="card-head"><h3 id="progressTitle">Ready</h3></div>
+          <div class="card-body">
+            <div class="progress"><div class="bar" id="progressBar"></div></div>
+            <div class="queue" id="queue"></div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal" id="keyModal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>Anthropic API Key</h2>
+        <button data-close="keyModal" type="button">Close</button>
+      </div>
+      <p class="subtitle">Stored locally in this browser under azure_solace_anthropic_key and only sent to api.anthropic.com.</p>
+      <div class="field" style="margin-top:14px">
+        <label for="apiKeyInput">API key</label>
+        <input id="apiKeyInput" type="password" placeholder="sk-ant-...">
+      </div>
+      <div class="card-actions">
+        <button id="saveKeyBtn" class="primary" type="button">Save Key</button>
+        <button id="clearKeyBtn" type="button">Clear Key</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="refsModal">
+    <div class="modal-box" style="width:min(900px, calc(100vw - 30px))">
+      <div class="modal-head">
+        <h2>Reference Track Browser</h2>
+        <button data-close="refsModal" type="button">Close</button>
+      </div>
+      <div class="chip-grid" id="refFilters" style="margin-bottom:12px"></div>
+      <div class="ref-grid" id="refGrid"></div>
+    </div>
+  </div>
+
+  <div class="drawer" id="historyDrawer">
+    <div class="drawer-panel">
+      <div class="drawer-head">
+        <h2>Session History</h2>
+        <button data-close="historyDrawer" type="button">Close</button>
+      </div>
+      <div id="historyList"></div>
+    </div>
+  </div>
+
+  <script>
+    const APP_VERSION = "1.0.0";
+    const DEFAULT_CLAUDE_MODEL = "claude-opus-4-7";
+    const KEY_STORAGE = "azure_solace_anthropic_key";
+    const STATE_STORAGE = "azure_solace_state_v1";
+    const HISTORY_STORAGE = "azure_solace_history_v1";
+
+    const labels = {
+      mood: {
+        melancholic: ["Melancholic Drift", "bittersweet, cinematic, restrained"],
+        euphoric: ["Ibiza Euphoria", "open, warm, sunset-lifted"],
+        dark: ["Dark Noir", "after-midnight, modal, brooding"],
+        meditative: ["Meditative Void", "minimal, spacious, suspended"],
+        golden: ["Golden Hour", "sun-faded, unhurried, glowing"]
+      },
+      drum: {
+        brushed: "Brushed Organic",
+        congas: "Congas First",
+        electronic: "Electronic Balearic",
+        nearbeat: "Near-Beatless",
+        motorik: "Motorik"
+      },
+      bass: {
+        fm: "FM Warm Sub",
+        fretless: "Fretless Melodic",
+        dub: "Dub Pulse",
+        walking: "Walking Jazz",
+        drone: "Static Drone"
+      },
+      harm: {
+        minor7: "Minor 7th",
+        major9: "Major 9th",
+        sus4: "Suspended",
+        dorian: "Dorian",
+        mixo: "Mixolydian",
+        chromatic: "Chromatic Noir",
+        onechord: "One-Chord Hypnosis"
+      },
+      era: { classic: "Classic", modern: "Modern", contemporary: "Contemporary" },
+      mix: { intimate: "Intimate", expansive: "Expansive", deep: "Deep" },
+      energyArc: { rising: "Rising", plateau: "Plateau", descending: "Descending", cyclic: "Cyclic" },
+      reverb: { room: "Room", hall: "Hall", plate: "Plate", cathedral: "Cathedral", dub: "Dub" }
+    };
+
+    const timeOptions = ["Dawn","Sunrise","Morning","Golden Hour","Afternoon","Dusk","Sunset","Twilight","Blue Hour","Evening","Night","Late Night","Pre-Dawn"];
+    const storyOptions = ["Auto Storyline","Romance","Reflection","Night Drive","Coastal Memory","Healing / Escape","Luxury Leisure","Desire / Longing","Solitude","Reunion","Dream State"];
+    const structures = [
+      "Intro / Verse / Chorus / Outro",
+      "Intro / Verse 1 / Chorus / Verse 2 / Chorus / Outro",
+      "Verse 1 / Chorus / Verse 2 / Chorus / Bridge / Outro",
+      "Intro / Verse 1 / Pre-Chorus / Chorus / Verse 2 / Pre-Chorus / Chorus / Bridge / Outro",
+      "Intro / Verse 1 / Verse 2 / Pre-Chorus / Chorus / Verse 3 / Pre-Chorus / Chorus / Bridge / Outro",
+      "Intro / Verse 1 / Verse 2 / Pre-Chorus / Chorus / Verse 3 / Pre-Chorus / Chorus / Instrumental Break / Chorus / Outro",
+      "Intro / Verse 1 / Verse 2 / Chorus / Instrumental Break / Verse 3 / Chorus / Bridge / Outro",
+      "Intro / Verse 1 / Verse 2 / Pre-Chorus / Chorus / Instrumental Break / Verse 3 / Pre-Chorus / Chorus / Bridge / Outro / Fade",
+      "Custom..."
+    ];
+
+    const drumPrompts = {
+      brushed: "brushed organic drums, shaker groove, ghost note snare, half-time feel",
+      congas: "congas-first rhythm, bongo accents, kick secondary, Afro-Latin groove",
+      electronic: "TR-909 kick low-passed, clap on 2 and 4, swing grid, electronic Balearic drums",
+      nearbeat: "near-beatless, micro percussion, minimal rhythm, atmospheric pulse",
+      motorik: "motorik steady pulse, deadpan groove, no fills, krautrock rhythm"
+    };
+    const bassPrompts = {
+      fm: "FM warm sub bass, slow attack, sine carrier, minimal movement",
+      fretless: "fretless melodic bass, portamento slides, fluid movement, 7th chord tones",
+      dub: "dub sub bass pulse, spacious, reggae-influenced, low-end weight",
+      walking: "walking jazz bass, acoustic double-bass feel, stepwise movement",
+      drone: "static bass drone, sustained root note, hypnotic tension"
+    };
+    const harmPrompts = {
+      minor7: "melancholic minor 7th harmony, Am7 Dm7, dark and warm",
+      major9: "euphoric major 9th harmony, Cmaj9 Gmaj9, open and uplifting",
+      sus4: "suspended floating chords, Asus4 Dsus4, unresolved and dreaming",
+      dorian: "modal Dorian harmony, raised 6th, modal jazz feeling",
+      mixo: "modal Mixolydian, flat 7th, Balearic summer warmth",
+      chromatic: "chromatic noir harmony, descending bass line, cinematic tension",
+      onechord: "one-chord hypnosis, sustained major 7th, texture creates motion"
+    };
+    const texLabels = {
+      "fender-rhodes": "Fender Rhodes electric piano",
+      "nylon-guitar": "nylon string acoustic guitar",
+      "detuned-pads": "lush detuned synth pads",
+      "vocal-pad": "vocal pad breathy choir",
+      "strings": "orchestral strings slow attack",
+      "prepared-piano": "prepared piano plucked keys",
+      "vibraphone": "vibraphone marimba shimmer",
+      "wah-guitar": "wah electric guitar",
+      "muted-guitar": "muted clean electric guitar",
+      "hang-drum": "hang drum hand pan",
+      "field-rec": "field recordings ambient sound",
+      "tabla": "tabla hand percussion",
+      "dub-delay": "dub delay echo chamber",
+      "arp-synth": "dotted eighth arp synth",
+      "vocoder": "vocoder talkbox",
+      "vinyl": "vinyl crackle tape hiss warmth"
+    };
+    const eraPrompts = {
+      classic: "tape warmth, analogue texture, classic Balearic production",
+      modern: "clean digital production, modern mix, streaming quality",
+      contemporary: "wide stereo image, hi-fi contemporary, streaming-optimised"
+    };
+    const mixPrompts = {
+      intimate: "close intimate mix, warm and near",
+      expansive: "wide reverberant mix, spacious and open",
+      deep: "sub-forward mix, deep low-end, club-adjacent"
+    };
+    const revPrompts = {
+      room: "room reverb",
+      hall: "hall reverb",
+      plate: "plate reverb",
+      cathedral: "cathedral reverb, vast and open",
+      dub: "dub echo chamber, long decay"
+    };
+    const moodAtmospheres = {
+      melancholic: "bittersweet emotional restraint, slow cinematic build, no hard drops",
+      euphoric: "Ibiza sunset euphoria, warm and open, no hard drops",
+      dark: "after-midnight noir atmosphere, cinematic and brooding, no hard drops",
+      meditative: "meditative stillness, breathing space, minimal and vast, no hard drops",
+      golden: "golden hour warmth, sun-faded Balearic glow, unhurried, no hard drops"
+    };
+    const moodDefaults = {
+      melancholic: { bpm: 85, harm: "minor7", drum: "brushed", bass: "fm", textures: ["fender-rhodes","detuned-pads","strings","field-rec"], artists: ["Bonobo","Air"] },
+      euphoric: { bpm: 95, harm: "major9", drum: "congas", bass: "fretless", textures: ["fender-rhodes","nylon-guitar","vocal-pad","field-rec"], artists: ["Zero 7","Bonobo"] },
+      dark: { bpm: 90, harm: "dorian", drum: "electronic", bass: "fretless", textures: ["vinyl","dub-delay","detuned-pads","prepared-piano"], artists: ["Chromatics","Nicolas Jaar"] },
+      meditative: { bpm: 78, harm: "onechord", drum: "nearbeat", bass: "drone", textures: ["detuned-pads","strings","field-rec","prepared-piano"], artists: ["Olafur Arnalds","Nicolas Jaar"] },
+      golden: { bpm: 98, harm: "mixo", drum: "brushed", bass: "fm", textures: ["nylon-guitar","fender-rhodes","detuned-pads","vinyl"], artists: ["Khruangbin","Max Essa"] }
+    };
+    const synonyms = {
+      "lazy swing groove": ["laidback Balearic groove","loose swing feel","languid groove"],
+      "floating pad": ["suspended synth pad","drifting chord pad","ambient pad wash"],
+      "Ibiza sunset": ["Balearic dusk","Mediterranean twilight","golden hour atmosphere"],
+      "warm sub bass": ["deep warm sub","analogue bass warmth","low-frequency warmth"],
+      "emotional restraint": ["emotional understatement","restrained feeling","subtle emotional depth"],
+      "slow cinematic build": ["unhurried cinematic arc","slow-building atmosphere","gradual cinematic reveal"],
+      "no hard drops": ["no sudden drops","no hard transitions","seamless flow"],
+      "lush detuned pads": ["layered detuned chords","rich analogue pad wash","warm detuned synth texture"],
+      "tape warmth": ["analogue warmth","vintage tape character","warm analogue colouring"],
+      "hall reverb": ["large hall reverb","spacious hall reverb","open hall reverb"]
+    };
+    const densityGuide = {
+      Sparse: "short refrain fragments, long instrumental space, no dense verses",
+      "Semi-Sparse": "lean verses, concise chorus, repeated memorable phrase",
+      "Semi-Dense": "balanced verse and chorus writing with room for arrangement",
+      Dense: "complete lyric with developed verses, chorus, bridge, and clear arc"
+    };
+    const storyGuide = {
+      "Auto Storyline": "choose the strongest story implied by the title, mood, and time of day",
+      Romance: "intimate attraction, restraint, and emotional risk",
+      Reflection: "memory, distance, quiet self-inventory",
+      "Night Drive": "motion through city lights, private thoughts, late momentum",
+      "Coastal Memory": "salt air, old places, sensory fragments without beach cliches",
+      "Healing / Escape": "release, recovery, gentleness, leaving pressure behind",
+      "Luxury Leisure": "elegant leisure, warm detail, restraint, afterglow",
+      "Desire / Longing": "yearning, unresolved closeness, magnetism",
+      Solitude: "private space, self-possession, quiet ache",
+      Reunion: "return, recognition, tenderness after time apart",
+      "Dream State": "surreal, drifting images, blurred emotional logic"
+    };
+    const refTracks = [
+      { rank:1, track:"La Femme d'Argent", artist:"Air", bpm:98, mood:"melancholic", drum:"nearbeat", bass:"fretless", harm:"minor7", textures:["Fender Rhodes","Synth pads","Fretless bass"] },
+      { rank:2, track:"Kiara", artist:"Bonobo", bpm:85, mood:"melancholic", drum:"brushed", bass:"walking", harm:"minor7", textures:["Nylon guitar","Fender Rhodes","Broken beat"] },
+      { rank:3, track:"Destiny", artist:"Zero 7", bpm:88, mood:"euphoric", drum:"brushed", bass:"fm", harm:"major9", textures:["Strings","Female vocal","Gospel chords"] },
+      { rank:4, track:"Two Thousand and Seventeen", artist:"Four Tet", bpm:100, mood:"euphoric", drum:"electronic", bass:"fm", harm:"major9", textures:["Tabla","Micro-programmed house","Warm pads"] },
+      { rank:5, track:"Lady and Man", artist:"Khruangbin", bpm:82, mood:"golden", drum:"brushed", bass:"dub", harm:"mixo", textures:["Featherlight guitar","Reggae bass","Ghost-note groove"] },
+      { rank:6, track:"Lebanese Blonde", artist:"Thievery Corporation", bpm:90, mood:"dark", drum:"congas", bass:"fretless", harm:"dorian", textures:["Tabla","Hang drum","Modal mood"] },
+      { rank:7, track:"Running (Four Tet Remix)", artist:"Jessie Ware", bpm:96, mood:"euphoric", drum:"electronic", bass:"fm", harm:"major9", textures:["Vocal texture","Balearic house structure"] },
+      { rank:8, track:"Can't Do Without You", artist:"Caribou", bpm:118, mood:"meditative", drum:"electronic", bass:"drone", harm:"onechord", textures:["Vocoder stacking","One-chord hypnosis"] },
+      { rank:9, track:"Near Light", artist:"Olafur Arnalds", bpm:80, mood:"meditative", drum:"nearbeat", bass:"drone", harm:"minor7", textures:["Strings","Prepared piano","Micro beats"] },
+      { rank:10, track:"Space Is Only Noise If You Can See", artist:"Nicolas Jaar", bpm:75, mood:"dark", drum:"nearbeat", bass:"drone", harm:"chromatic", textures:["Noir minor","Near-beatless","Atmospheric"] },
+      { rank:11, track:"Cherry", artist:"Chromatics", bpm:90, mood:"dark", drum:"motorik", bass:"dub", harm:"chromatic", textures:["Motorik groove","Italo-noir","No builds"] },
+      { rank:12, track:"Gold Hush", artist:"Max Essa", bpm:105, mood:"golden", drum:"electronic", bass:"fm", harm:"major9", textures:["FM bass","Warm major","DJ-friendly"] }
+    ];
+    const artists = ["Bonobo","Air","Zero 7","Four Tet","Khruangbin","Thievery Corporation","Nicolas Jaar","Caribou","Olafur Arnalds","Chromatics","Max Essa","Floating Points","Nightmares on Wax","DJ Cam","Jose Padilla"];
+    const bannedMeta = /\b(saxophone|trumpet|violin|cello|electric guitar lead|synth lead|808|trap|EDM drop|dubstep|rock|metal|rap|hip hop)\b/gi;
+
+    let state = {
+      generatedAt: new Date().toISOString(),
+      trackType: "instrumental",
+      timeOfDay: "Golden Hour",
+      storyMode: "Auto Storyline",
+      mood: "melancholic",
+      bpm: 85,
+      halftime: false,
+      swing: false,
+      drum: "brushed",
+      bass: "fm",
+      harm: "minor7",
+      textures: ["fender-rhodes","detuned-pads","strings","field-rec"],
+      artists: ["Bonobo","Air"],
+      era: "classic",
+      mix: "intimate",
+      energyArc: "plateau",
+      reverb: "hall",
+      custom: "",
+      vocalMode: "sparse",
+      vocalGender: "male",
+      lyricDensity: "Semi-Dense",
+      songStructure: "Verse 1 / Chorus / Verse 2 / Chorus / Bridge / Outro",
+      structureExpanded: "Verse 1 / Chorus / Verse 2 / Chorus / Bridge / Outro",
+      keywords: "",
+      negKeywords: "",
+      model: DEFAULT_CLAUDE_MODEL,
+      sunoVer: "v4",
+      songTitle: "Untitled Azure Solace Study",
+      titleConcept: "",
+      titleScores: {},
+      stylePrompt: "",
+      lyricMetatagField: ""
+    };
+    let synonymVariant = 0;
+    let automationMode = false;
+    let cancelRequested = false;
+
+    function init() {
+      loadState();
+      state.model = DEFAULT_CLAUDE_MODEL;
+      populateControls();
+      bindEvents();
+      renderAll();
+      renderHistory();
+      updateKeyStatus();
+      renderRefs("all");
+      const params = new URLSearchParams(location.search);
+      if (params.get("auto") === "1" || params.get("dryRun") === "1") {
+        setAutomationMode(true);
+        setTimeout(() => runBatch(params.get("dryRun") === "1"), 250);
+      }
+    }
+
+    function populateControls() {
+      fillSelect("timeOfDay", timeOptions);
+      fillSelect("storyMode", storyOptions);
+      fillSelect("drum", labels.drum, true);
+      fillSelect("bass", labels.bass, true);
+      fillSelect("harm", labels.harm, true);
+      fillSelect("era", labels.era, true);
+      fillSelect("mix", labels.mix, true);
+      fillSelect("energyArc", labels.energyArc, true);
+      fillSelect("reverb", labels.reverb, true);
+      fillSelect("songStructure", structures.map(s => [s, s]));
+      fillSelect("moodLock", [["", "All moods"], ...Object.entries(labels.mood).map(([k,v]) => [k, v[0]])]);
+      fillSelect("storyLock", [["", "All stories"], ...storyOptions.map(s => [s, s])]);
+      document.getElementById("moodCards").innerHTML = Object.entries(labels.mood).map(([key, val]) =>
+        `<button type="button" class="mood-card" data-mood="${key}"><strong>${esc(val[0])}</strong><span>${esc(val[1])}</span></button>`
+      ).join("");
+      document.getElementById("textureChips").innerHTML = Object.entries(texLabels).map(([key, val]) =>
+        `<button type="button" class="chip" data-texture="${key}">${esc(val)}</button>`
+      ).join("");
+      document.getElementById("artistChips").innerHTML = artists.map(a =>
+        `<button type="button" class="chip" data-artist="${esc(a)}">${esc(a)}</button>`
+      ).join("");
+      document.getElementById("instrumentalStructure").innerHTML = ["Arrival","Ground","Bloom","Break","Fade"].map(x => `<span class="meta">${x}</span>`).join("");
+      const refFilters = ["all","melancholic","euphoric","dark","meditative","golden"];
+      document.getElementById("refFilters").innerHTML = refFilters.map(f => `<button type="button" class="chip${f==="all" ? " active" : ""}" data-ref-filter="${f}">${f === "all" ? "All" : labels.mood[f][0]}</button>`).join("");
+    }
+
+    function fillSelect(id, data, objectMode) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      let entries = objectMode ? Object.entries(data) : data;
+      el.innerHTML = entries.map(item => {
+        const value = Array.isArray(item) ? item[0] : item;
+        const label = Array.isArray(item) ? item[1] : item;
+        return `<option value="${esc(value)}">${esc(label)}</option>`;
+      }).join("");
+    }
+
+    function bindEvents() {
+      document.querySelectorAll("[data-close]").forEach(btn => btn.addEventListener("click", () => closeOverlay(btn.dataset.close)));
+      document.getElementById("keyBtn").addEventListener("click", () => openOverlay("keyModal"));
+      document.getElementById("saveKeyBtn").addEventListener("click", saveKey);
+      document.getElementById("clearKeyBtn").addEventListener("click", clearKey);
+      document.getElementById("refsBtn").addEventListener("click", () => openOverlay("refsModal"));
+      document.getElementById("historyBtn").addEventListener("click", () => openOverlay("historyDrawer"));
+      document.getElementById("autoToggle").addEventListener("click", () => setAutomationMode(!automationMode));
+      document.getElementById("themeBtn").addEventListener("click", () => document.body.classList.toggle("light"));
+      document.getElementById("generateBtn").addEventListener("click", manualGenerate);
+      document.getElementById("randomizeBtn").addEventListener("click", randomizeManual);
+      document.getElementById("copyStyleBtn").addEventListener("click", () => copyText(state.stylePrompt, "copyStyleBtn"));
+      document.getElementById("copyLyricsBtn").addEventListener("click", () => copyText(state.lyricMetatagField, "copyLyricsBtn"));
+      document.getElementById("copyBothBtn").addEventListener("click", () => copyText(`${state.stylePrompt}\n\n${state.lyricMetatagField || ""}`.trim(), "copyBothBtn"));
+      document.getElementById("variationBtn").addEventListener("click", () => { synonymVariant++; renderAll(); });
+      document.getElementById("exportSingleBtn").addEventListener("click", exportSingle);
+      document.getElementById("runBatchBtn").addEventListener("click", () => runBatch(false));
+      document.getElementById("dryRunBtn").addEventListener("click", () => runBatch(true));
+      document.getElementById("cancelBatchBtn").addEventListener("click", () => { cancelRequested = true; });
+      document.getElementById("textureAdventure").addEventListener("input", e => {
+        document.getElementById("textureAdventureVal").textContent = ["Mood-faithful","Balanced","Adventurous"][Number(e.target.value)];
+      });
+      document.querySelectorAll("[data-bind]").forEach(group => {
+        group.addEventListener("click", e => {
+          const btn = e.target.closest("button[data-value]");
+          if (!btn) return;
+          const key = group.dataset.bind;
+          group.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          setState(key, btn.dataset.value);
+        });
+      });
+      document.getElementById("moodCards").addEventListener("click", e => {
+        const btn = e.target.closest("[data-mood]");
+        if (!btn) return;
+        applyMood(btn.dataset.mood);
+      });
+      document.getElementById("textureChips").addEventListener("click", e => {
+        const btn = e.target.closest("[data-texture]");
+        if (!btn || btn.classList.contains("disabled")) return;
+        const key = btn.dataset.texture;
+        state.textures = state.textures.includes(key) ? state.textures.filter(x => x !== key) : [...state.textures, key].slice(0, 6);
+        persistAndRender();
+      });
+      document.getElementById("artistChips").addEventListener("click", e => {
+        const btn = e.target.closest("[data-artist]");
+        if (!btn || btn.classList.contains("disabled")) return;
+        const key = btn.dataset.artist;
+        state.artists = state.artists.includes(key) ? state.artists.filter(x => x !== key) : [...state.artists, key].slice(0, 4);
+        persistAndRender();
+      });
+      document.getElementById("refFilters").addEventListener("click", e => {
+        const btn = e.target.closest("[data-ref-filter]");
+        if (!btn) return;
+        document.querySelectorAll("[data-ref-filter]").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        renderRefs(btn.dataset.refFilter);
+      });
+      ["timeOfDay","storyMode","bpm","drum","bass","harm","era","mix","energyArc","reverb","songStructure","customStructure","keywords","negKeywords","model","sunoVer","custom"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("input", () => setState(id, id === "bpm" ? Number(el.value) : el.value));
+      });
+      ["halftime","swing"].forEach(id => document.getElementById(id).addEventListener("change", e => setState(id, e.target.checked)));
+    }
+
+    function setState(key, value) {
+      if (key === "trackType") {
+        state.trackType = value === "instrumental" ? "instrumental" : "vocal";
+        state.vocalMode = value === "sparse" ? "sparse" : "full";
+      } else if (key === "songStructure") {
+        state.songStructure = value;
+        state.structureExpanded = value === "Custom..." ? (document.getElementById("customStructure").value || structures[0]) : value;
+      } else if (key === "customStructure") {
+        state.structureExpanded = value || structures[0];
+      } else {
+        state[key] = value;
+      }
+      state.generatedAt = new Date().toISOString();
+      persistAndRender();
+    }
+
+    function applyMood(mood) {
+      const d = moodDefaults[mood];
+      Object.assign(state, { mood, bpm: d.bpm, harm: d.harm, drum: d.drum, bass: d.bass, textures: [...d.textures], artists: [...d.artists] });
+      persistAndRender();
+    }
+
+    function randomizeManual() {
+      const keepVocal = state.trackType === "vocal";
+      const seed = keepVocal
+        ? {
+            trackType: "vocal",
+            vocalGender: pick(["male", "female"]),
+            lyricDensity: pick(["Sparse", "Semi-Sparse", "Semi-Dense", "Dense"])
+          }
+        : { trackType: "instrumental" };
+      const randomized = randomizeSong(seed);
+      Object.assign(state, {
+        generatedAt: new Date().toISOString(),
+        trackType: randomized.trackType,
+        timeOfDay: randomized.timeOfDay,
+        storyMode: randomized.storyMode,
+        mood: randomized.mood,
+        bpm: randomized.bpm,
+        halftime: Math.random() < 0.18,
+        swing: Math.random() < 0.32,
+        drum: randomized.drum,
+        bass: randomized.bass,
+        harm: randomized.harm,
+        textures: randomized.textures,
+        artists: randomized.artists,
+        era: pick(["classic", "modern", "contemporary"]),
+        mix: pick(["intimate", "expansive", "deep"]),
+        energyArc: pick(["rising", "plateau", "descending", "cyclic"]),
+        reverb: pick(["room", "hall", "plate", "cathedral", "dub"]),
+        vocalMode: keepVocal ? (randomized.lyricDensity === "Sparse" ? "sparse" : pick(["sparse", "full"])) : state.vocalMode,
+        vocalGender: randomized.vocalGender,
+        lyricDensity: randomized.lyricDensity,
+        songStructure: randomized.songStructure,
+        structureExpanded: randomized.structureExpanded,
+        songTitle: "Untitled Azure Solace Study",
+        titleConcept: "Randomized manual setup. Style prompt is ready; generation remains explicit.",
+        titleScores: {},
+        lyricMetatagField: ""
+      });
+      persistAndRender();
+    }
+
+    function persistAndRender() {
+      saveState();
+      renderAll();
+    }
+
+    function renderAll() {
+      state.stylePrompt = buildStylePrompt(state);
+      syncControls();
+      renderWarnings();
+      renderOutputs();
+      renderChipStates();
+    }
+
+    function syncControls() {
+      document.querySelectorAll('[data-bind="trackType"] button').forEach(b => b.classList.toggle("active", b.dataset.value === (state.trackType === "instrumental" ? "instrumental" : state.vocalMode)));
+      document.querySelectorAll('[data-bind="vocalGender"] button').forEach(b => b.classList.toggle("active", b.dataset.value === state.vocalGender));
+      document.querySelectorAll('[data-bind="lyricDensity"] button').forEach(b => b.classList.toggle("active", b.dataset.value === state.lyricDensity));
+      ["timeOfDay","storyMode","bpm","drum","bass","harm","era","mix","energyArc","reverb","songStructure","keywords","negKeywords","model","sunoVer","custom"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.value !== String(state[id] || "")) el.value = state[id] || "";
+      });
+      document.getElementById("halftime").checked = state.halftime;
+      document.getElementById("swing").checked = state.swing;
+      document.getElementById("bpmVal").textContent = state.bpm;
+      document.getElementById("bpmZone").textContent = bpmZoneLabel(state.bpm);
+      document.querySelectorAll(".vocal-only").forEach(el => el.classList.toggle("hidden", state.trackType === "instrumental"));
+      document.querySelectorAll(".vocal-card").forEach(el => el.classList.toggle("hidden", state.trackType === "instrumental"));
+      document.getElementById("customStructureWrap").classList.toggle("hidden", state.songStructure !== "Custom...");
+      document.getElementById("generateBtn").textContent = state.trackType === "instrumental" ? "Generate Instrumental Prompt" : "Generate Vocal Song";
+      document.querySelectorAll("[data-mood]").forEach(b => b.classList.toggle("active", b.dataset.mood === state.mood));
+    }
+
+    function renderChipStates() {
+      document.querySelectorAll("[data-texture]").forEach(btn => {
+        const active = state.textures.includes(btn.dataset.texture);
+        btn.classList.toggle("active", active);
+        btn.classList.toggle("disabled", !active && state.textures.length >= 6);
+      });
+      document.getElementById("texCount").textContent = `(${state.textures.length}/6)`;
+      document.querySelectorAll("[data-artist]").forEach(btn => {
+        const active = state.artists.includes(btn.dataset.artist);
+        btn.classList.toggle("active", active);
+        btn.classList.toggle("disabled", !active && state.artists.length >= 4);
+      });
+      document.getElementById("artistCount").textContent = `(${state.artists.length}/4)`;
+    }
+
+    function renderWarnings() {
+      const warnings = validateState(state);
+      const el = document.getElementById("warnings");
+      el.classList.toggle("show", warnings.length > 0);
+      el.innerHTML = warnings.map(w => `<div>${esc(w)}</div>`).join("");
+    }
+
+    function renderOutputs() {
+      document.getElementById("songTitle").textContent = state.songTitle || "Untitled Azure Solace Study";
+      document.getElementById("songConcept").textContent = state.titleConcept || "Style prompt updates live. Vocal lyrics are generated on demand.";
+      document.getElementById("styleOutput").value = state.stylePrompt;
+      document.getElementById("styleMeter").textContent = `${state.stylePrompt.length} characters. Soft target: 100-130.`;
+      document.getElementById("lyricsOutput").value = state.lyricMetatagField || "";
+      document.getElementById("titleConcept").textContent = state.titleConcept || "Awaiting generation.";
+      document.getElementById("scorePills").innerHTML = scorePills(state.titleScores);
+      document.getElementById("whyStyle").textContent = `The Balearic chillout anchor establishes genre, ${state.bpm} BPM sits in the ${bpmZoneLabel(state.bpm)} zone, and the ${labels.mood[state.mood][0]} preset keeps rhythm, harmony, texture, and references coherent.`;
+    }
+
+    function buildStylePrompt(song) {
+      const parts = ["Balearic chillout"];
+      let bpmStr = `${song.bpm} BPM`;
+      if (song.halftime) bpmStr += " half-time";
+      if (song.swing) bpmStr += " swing";
+      parts.push(bpmStr);
+      parts.push(applyVariants(drumPrompts[song.drum]));
+      parts.push(applyVariants(bassPrompts[song.bass]));
+      const texParts = song.textures.map(t => texLabels[t]).filter(Boolean).join(", ");
+      if (texParts) parts.push(texParts);
+      parts.push(harmPrompts[song.harm]);
+      if (song.sunoVer !== "v3") {
+        parts.push(eraPrompts[song.era]);
+        parts.push(mixPrompts[song.mix]);
+        parts.push(revPrompts[song.reverb]);
+      }
+      if (song.artists.length) parts.push(song.artists.join(" / ") + " influence");
+      parts.push(applyVariants(moodAtmospheres[song.mood]));
+      if (song.custom) parts.push(song.custom);
+      let prompt = parts.filter(Boolean).join(", ");
+      if (song.sunoVer === "v3") {
+        prompt = [parts[0], parts[1], parts[2], parts[3], song.artists.slice(0,2).join(" / ") + " influence", moodAtmospheres[song.mood]].filter(Boolean).join(", ");
+      }
+      return prompt;
+    }
+
+    function applyVariants(str) {
+      let result = str || "";
+      Object.keys(synonyms).forEach(key => {
+        if (result.includes(key)) {
+          const options = synonyms[key];
+          result = result.replace(key, options[synonymVariant % options.length]);
+        }
+      });
+      return result;
+    }
+
+    function buildInstrumentalMetatags(song) {
+      const tex = song.textures.slice(0,3).map(t => texLabels[t].split(" ").slice(0,2).join(" ")).join(", ");
+      return [
+        `[intro - ambient, no drums, ${tex}, ${bassPrompts[song.bass].split(",")[0]}, mood established]`,
+        `[build - ${drumPrompts[song.drum].split(",")[0]}, texture enters slowly, harmonic motif begins]`,
+        `[bloom - full texture, ${tex}, main melody implied, ${revPrompts[song.reverb]}]`,
+        `[breakdown - strip to pads and bass, ${harmPrompts[song.harm].split(",")[0]}, emotional peak]`,
+        `[outro - gradual fade, field texture returns, elements dissolve]`
+      ].join("\n\n");
+    }
+
+    function validateState(song) {
+      const out = [];
+      if (song.mood === "meditative" && song.bpm > 90) out.push("Meditative mood typically sits below 88 BPM. Consider lowering BPM.");
+      if (song.mood === "euphoric" && song.bpm < 85) out.push("Euphoric mood typically sits above 90 BPM.");
+      if (song.mood === "dark" && song.harm === "major9") out.push("Dark mood typically pairs with Minor 7th, Dorian, or Chromatic Noir.");
+      if (song.mood === "dark" && song.storyMode === "Luxury Leisure") out.push("Dark mood and Luxury Leisure may pull the lyric in opposite directions.");
+      if (song.mood === "meditative" && song.storyMode === "Night Drive") out.push("Meditative mood and Night Drive can work, but the motion should stay restrained.");
+      if (song.harm === "onechord" && song.bass === "walking") out.push("One-Chord Hypnosis and Walking Jazz Bass can dilute each other.");
+      if (song.textures.length > 5 && song.sunoVer === "v3") out.push("Older Suno versions may respond better with five or fewer textures.");
+      return out;
+    }
+
+    function buildWhitelist(song) {
+      const list = [
+        ...song.textures.map(t => texLabels[t]),
+        drumPrompts[song.drum],
+        bassPrompts[song.bass],
+        revPrompts[song.reverb]
+      ];
+      if (song.trackType !== "instrumental") {
+        list.push(`${song.vocalGender} voice`, `${song.vocalGender} vocal`, "soft harmony", "vocal pad");
+      }
+      return list.join(", ");
+    }
+
+    function validateMetatags(text, song) {
+      const violations = [];
+      const tags = String(text || "").match(/\[[^\]]+\]/g) || [];
+      tags.forEach(tag => {
+        const banned = tag.match(bannedMeta);
+        if (banned) violations.push(...banned.map(x => `${x} in ${tag}`));
+        if (song.vocalGender === "female" && /\b(male|tenor|baritone)\b/i.test(tag)) violations.push(`male voice descriptor in ${tag}`);
+        if (song.vocalGender === "male" && /\b(female|alto|soprano)\b/i.test(tag)) violations.push(`female voice descriptor in ${tag}`);
+      });
+      return [...new Set(violations)];
+    }
+
+    async function manualGenerate() {
+      if (state.trackType === "instrumental") {
+        state.songTitle = titleFromState(state);
+        state.titleConcept = "An instrumental Balearic study shaped from the current mood, time, and production palette.";
+        state.lyricMetatagField = "";
+        state.titleScores = mockScores();
+        addHistory();
+        persistAndRender();
+        return;
+      }
+      if (!getApiKey()) { openOverlay("keyModal"); return; }
+      setBusy(true);
+      try {
+        const title = await generateTitleForSong(state);
+        Object.assign(state, titleToState(title));
+        let lyrics = await generateLyricsForSong(state);
+        let violations = validateMetatags(lyrics, state);
+        if (violations.length) {
+          lyrics = await generateLyricsForSong(state, violations);
+          violations = validateMetatags(lyrics, state);
+        }
+        state.lyricMetatagField = lyrics;
+        if (violations.length) state.titleConcept += ` Validation note: ${violations.join("; ")}`;
+        addHistory();
+        persistAndRender();
+      } catch (err) {
+        alert(`Generation failed: ${err.message || err}`);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function setBusy(isBusy) {
+      document.getElementById("generateBtn").disabled = isBusy;
+      document.getElementById("generateBtn").textContent = isBusy ? "Generating..." : (state.trackType === "instrumental" ? "Generate Instrumental Prompt" : "Generate Vocal Song");
+    }
+
+    async function generateTitleForSong(song) {
+      const system = song.trackType === "instrumental"
+        ? "You are a creative director for Azure Solace, a premium Balearic chillout instrumental music brand. Generate one evocative, poetic, original instrumental track title. Avoid cliches: no paradise, vibes, waves, free, beach, summer. Return ONLY valid JSON."
+        : "You are a creative director and lyricist for Azure Solace, a premium Balearic chillout vocal music brand. Generate one evocative, poetic, original vocal track title strong enough to anchor a full lyric. Return ONLY valid JSON.";
+      const user = `Generate exactly 1 title for Azure Solace.
+Mood: ${song.mood}
+Time of Day: ${song.timeOfDay}
+BPM: ${song.bpm}
+Harmonic: ${labels.harm[song.harm]}
+Track type: ${song.trackType}
+${song.trackType !== "instrumental" ? `Gender: ${song.vocalGender}\nDensity: ${song.lyricDensity}\nStory: ${song.storyMode}` : ""}
+Return this exact JSON shape:
+{"titles":[{"title":"Evocative Title Here","concept":"One-sentence sensory description.","scores":{"memorability":8,"elegance":8,"brandFit":8,"emotionalEvocativeness":8,"commercialAppeal":8,"originality":8},"totalScore":48}]}`;
+      const json = parseJsonResponse(await callClaude(system, user, 900));
+      if (!json || !Array.isArray(json.titles) || !json.titles[0]) throw new Error("Could not parse title JSON.");
+      return json.titles[0];
+    }
+
+    async function generateLyricsForSong(song, violations) {
+      const whitelist = buildWhitelist(song);
+      const system = `You are a lyricist for Azure Solace, a premium Balearic chillout vocal music brand.
+You write poetic lyrics and Suno-format metatags in [square brackets] before each section.
+CRITICAL CONSTRAINTS:
+- METATAGS may reference ONLY instruments and effects from this approved list: ${whitelist}
+- DO NOT invent or mention any other instrument.
+- METATAGS describing the voice must match the gender: ${song.vocalGender}.
+- ENERGY descriptors in metatags must match the energy arc: ${song.energyArc}.
+- BPM context: ${song.bpm} BPM ${song.halftime ? "half-time" : ""}.
+- Mood: ${song.mood}. Lyrics should embody this mood without naming it.
+${violations ? `Previous output violated these constraints: ${violations.join("; ")}. Correct them strictly.` : ""}
+Output only the lyrics block. No prose.`;
+      const user = `Title: "${song.songTitle}"
+Concept: ${song.titleConcept}
+Song Structure: ${song.structureExpanded}
+Vocal Gender: ${song.vocalGender}
+Vocal Mode: ${song.vocalMode} (${song.vocalMode === "sparse" ? "scattered phrases, lots of space" : "full sung verses and choruses"})
+Lyric Density: ${song.lyricDensity} (${densityGuide[song.lyricDensity]})
+Mood: ${song.mood}
+Time of Day: ${song.timeOfDay}
+Story Mode: ${song.storyMode} (${storyGuide[song.storyMode]})
+BPM: ${song.bpm} ${song.halftime ? "half-time" : ""}
+Energy Arc: ${song.energyArc}
+Approved instruments / effects for metatags: ${whitelist}
+Themes to weave in: ${song.keywords || "none specified - use mood and story as your compass"}
+Themes to avoid: ${song.negKeywords || "none specified"}
+Write the song now.`;
+      return callClaude(system, user, 2400);
+    }
+
+    async function callClaude(system, user, maxTokens) {
+      const key = getApiKey();
+      const started = performance.now();
+      const body = {
+        model: state.model || DEFAULT_CLAUDE_MODEL,
+        max_tokens: maxTokens || 2048,
+        system,
+        messages: [{ role: "user", content: user }]
+      };
+      console.log("Azure Solace API call", { body });
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      const elapsed = Math.round(performance.now() - started);
+      console.log("Azure Solace API response time", elapsed);
+      if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+      const data = await res.json();
+      return (data.content || []).map(c => c.text || "").join("\n").trim();
+    }
+
+    function parseJsonResponse(text) {
+      let t = String(text || "").replace(/^```(?:json)?\s*/gm, "").replace(/```\s*$/gm, "").trim();
+      try { return JSON.parse(t); } catch {}
+      const m = t.match(/\{[\s\S]*\}/);
+      if (m) { try { return JSON.parse(m[0]); } catch {} }
+      return null;
+    }
+
+    function buildAutomationBatch() {
+      const songs = [];
+      for (let i = 0; i < 10; i++) songs.push(randomizeSong({ trackType: "instrumental" }));
+      const vocalPlan = [
+        ["male","Dense"],["male","Dense"],["female","Dense"],["female","Dense"],
+        ["male","Semi-Sparse"],["male","Semi-Sparse"],["female","Semi-Sparse"],
+        ["male","Sparse"],["female","Sparse"],["female","Sparse"]
+      ];
+      vocalPlan.forEach(([gender, density]) => songs.push(randomizeSong({ trackType: "vocal", vocalGender: gender, lyricDensity: density })));
+      return songs.map((song, index) => ({ ...song, index: index + 1, stylePrompt: buildStylePrompt(song), status: "pending" }));
+    }
+
+    function randomizeSong(seed) {
+      const moodLock = document.getElementById("moodLock").value;
+      const storyLock = document.getElementById("storyLock").value;
+      const adventure = Number(document.getElementById("textureAdventure").value);
+      const mood = moodLock || pick(Object.keys(moodDefaults));
+      const base = moodDefaults[mood];
+      const song = {
+        ...state,
+        generatedAt: new Date().toISOString(),
+        trackType: seed.trackType,
+        vocalGender: seed.vocalGender || "male",
+        lyricDensity: seed.lyricDensity || "Semi-Dense",
+        vocalMode: seed.lyricDensity === "Sparse" ? "sparse" : "full",
+        mood,
+        bpm: clamp(base.bpm + randInt(-5, 5), 70, 115),
+        harm: base.harm,
+        drum: base.drum,
+        bass: base.bass,
+        textures: jitterTextures(base.textures, adventure),
+        artists: jitterArtists(base.artists),
+        timeOfDay: weightedPick(timeByMood(mood)),
+        storyMode: seed.trackType === "vocal" ? (storyLock || weightedPick(storyByMood(mood))) : "Auto Storyline",
+        songStructure: pick(structures.slice(0, -1)),
+        keywords: "",
+        negKeywords: "",
+        songTitle: "",
+        titleConcept: "",
+        titleScores: {},
+        lyricMetatagField: ""
+      };
+      song.structureExpanded = song.songStructure;
+      return song;
+    }
+
+    async function runBatch(dryRun) {
+      if (!dryRun && !getApiKey()) { openOverlay("keyModal"); return; }
+      cancelRequested = false;
+      const batch = buildAutomationBatch();
+      renderQueue(batch);
+      setAutoRunning(true);
+      try {
+        for (let i = 0; i < batch.length; i++) {
+          if (cancelRequested) throw new Error("Batch cancelled.");
+          const song = batch[i];
+          song.status = "running";
+          updateQueue(batch, i, `Generating song ${i + 1} of ${batch.length}`);
+          try {
+            if (dryRun) {
+              mockSong(song, i);
+            } else {
+              const title = await withRetry(() => generateTitleForSong(song));
+              Object.assign(song, titleToState(title));
+              if (song.trackType === "vocal") {
+                let lyrics = await withRetry(() => generateLyricsForSong(song));
+                let violations = validateMetatags(lyrics, song);
+                if (violations.length) lyrics = await withRetry(() => generateLyricsForSong(song, violations));
+                song.lyricMetatagField = lyrics;
+              }
+            }
+            song.status = "done";
+          } catch (err) {
+            song.status = "failed";
+            song.error = err.message || String(err);
+          }
+          updateQueue(batch, i + 1, `Completed ${i + 1} of ${batch.length}`);
+        }
+        document.getElementById("progressTitle").textContent = "Writing output files";
+        downloadOutputFiles(batch);
+        const summary = { at: new Date().toISOString(), vocal: batch.filter(s => s.trackType === "vocal" && s.status === "done").length, instrumental: batch.filter(s => s.trackType === "instrumental" && s.status === "done").length };
+        localStorage.setItem("azure_solace_last_run", JSON.stringify(summary));
+        renderLastRun();
+        document.getElementById("progressTitle").textContent = dryRun ? "Dry run complete" : "Run complete";
+      } catch (err) {
+        document.getElementById("progressTitle").textContent = err.message || "Batch stopped";
+      } finally {
+        setAutoRunning(false);
+      }
+    }
+
+    function mockSong(song, i) {
+      song.songTitle = titleFromState(song, i);
+      song.titleConcept = `Mock ${song.trackType} concept for ${labels.mood[song.mood][0]} at ${song.timeOfDay}.`;
+      song.titleScores = mockScores();
+      if (song.trackType === "vocal") song.lyricMetatagField = mockLyrics(song);
+    }
+
+    function mockLyrics(song) {
+      const voice = `${song.vocalGender} voice`;
+      return `[INTRO - ${texLabels[song.textures[0]]}, ${revPrompts[song.reverb]}, no vocals]
+
+[VERSE 1 - ${voice}, ${bassPrompts[song.bass].split(",")[0]}, restrained energy]
+I left the light on by the window
+For a version of us that knew the way
+
+[CHORUS - ${voice} opens, ${drumPrompts[song.drum].split(",")[0]}, ${revPrompts[song.reverb]}]
+Hold me in the blue between the hours
+Say my name like the night can stay
+
+[OUTRO - ${texLabels[song.textures[1] || song.textures[0]]}, elements fade]
+We become the quiet afterglow`;
+    }
+
+    function downloadOutputFiles(batch) {
+      const date = new Date().toISOString().slice(0,10);
+      const vocal = batch.filter(s => s.trackType === "vocal");
+      const instrumental = batch.filter(s => s.trackType === "instrumental");
+      downloadText(`azure-solace-vocal-${date}.html`, buildOutputHtml("Vocal Batch", vocal, true));
+      downloadText(`azure-solace-instrumental-${date}.html`, buildOutputHtml("Instrumental Batch", instrumental, false));
+    }
+
+    function buildOutputHtml(title, songs, isVocal) {
+      const now = new Date().toLocaleString();
+      const cards = songs.map(song => {
+        const failed = song.status === "failed";
+        const meta = Object.entries({
+          mood: song.mood, BPM: song.bpm, time: song.timeOfDay, story: song.storyMode,
+          gender: isVocal ? song.vocalGender : "", density: isVocal ? song.lyricDensity : "",
+          drum: !isVocal ? labels.drum[song.drum] : "", bass: !isVocal ? labels.bass[song.bass] : "",
+          harm: !isVocal ? labels.harm[song.harm] : "", mix: labels.mix[song.mix],
+          era: labels.era[song.era], reverb: labels.reverb[song.reverb], arc: labels.energyArc[song.energyArc]
+        }).filter(([,v]) => v !== "").map(([k,v]) => `<span>${esc(k)}: ${esc(String(v))}</span>`).join("");
+        return `<section class="song">
+          <h2>${esc(song.songTitle || "Generation failed")}</h2>
+          ${failed ? `<p class="error">Generation failed: ${esc(song.error || "Unknown error")}</p>` : ""}
+          <p class="concept">${esc(song.titleConcept || "")}</p>
+          <div class="scores">${scorePills(song.titleScores)}</div>
+          <div class="boxes">
+            <div><div class="box-head">Style Prompt <button onclick="copyBlock(this)">Copy</button></div><pre>${esc(song.stylePrompt || buildStylePrompt(song))}</pre></div>
+            ${isVocal ? `<div><div class="box-head">Lyrics + Metatags <button onclick="copyBlock(this)">Copy</button></div><pre>${esc(song.lyricMetatagField || "")}</pre></div>` : ""}
+          </div>
+          <footer>${meta}</footer>
+        </section>`;
+      }).join("");
+      return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Azure Solace - ${esc(title)}</title><style>
+        body{margin:0;background:#111417;color:#eef1ee;font-family:Segoe UI,Arial,sans-serif}main{max-width:1180px;margin:0 auto;padding:28px 18px}header{border-bottom:1px solid #2d353b;margin-bottom:22px;padding-bottom:18px}h1{font-family:Georgia,serif;font-weight:400;font-size:42px;margin:0}h2{font-family:Georgia,serif;font-weight:400;font-size:30px;margin:0 0 8px}.song{border:1px solid #2d353b;background:#171c20;border-radius:8px;padding:18px;margin:0 0 16px}.concept{color:#aab3b0;font-style:italic}.boxes{display:grid;grid-template-columns:repeat(${isVocal ? 2 : 1},minmax(0,1fr));gap:14px}.box-head{display:flex;justify-content:space-between;align-items:center;color:#d8b86b;margin-bottom:6px}pre{white-space:pre-wrap;background:#0f1316;border:1px solid #2d353b;border-radius:7px;padding:12px;line-height:1.5;min-height:120px}button{background:#d8b86b;border:0;border-radius:6px;padding:7px 10px;color:#17130a;font-weight:700;cursor:pointer}.scores,footer{display:flex;flex-wrap:wrap;gap:7px}.score,footer span{border:1px solid #2d353b;border-radius:999px;color:#aab3b0;padding:4px 8px;font-size:12px}.error{color:#e07575}@media(max-width:800px){.boxes{grid-template-columns:1fr}h1{font-size:32px}}</style></head><body><main>
+        <header><h1>Azure Solace - ${esc(title)} - ${new Date().toISOString().slice(0,10)}</h1><p>${songs.length} songs generated ${esc(now)}. App version ${APP_VERSION}.</p></header>
+        ${cards}
+      </main><script>function copyBlock(btn){const text=btn.parentElement.nextElementSibling.textContent;navigator.clipboard.writeText(text);const old=btn.textContent;btn.textContent='Copied!';setTimeout(()=>btn.textContent=old,1500)}<\/script></body></html>`;
+    }
+
+    function renderQueue(batch) {
+      document.getElementById("queue").innerHTML = batch.map((song, i) => `<div class="queue-row" id="q${i}">
+        <strong>#${i + 1}</strong><span>${song.trackType === "instrumental" ? "Instrumental" : `${song.vocalGender} ${song.lyricDensity} vocal`} - ${labels.mood[song.mood][0]}</span><span class="status">pending</span>
+      </div>`).join("");
+      updateQueue(batch, 0, "Ready");
+    }
+
+    function updateQueue(batch, completed, title) {
+      document.getElementById("progressTitle").textContent = title;
+      document.getElementById("progressBar").style.width = `${Math.round((completed / batch.length) * 100)}%`;
+      batch.forEach((song, i) => {
+        const row = document.getElementById(`q${i}`);
+        if (!row) return;
+        const status = row.querySelector(".status");
+        status.textContent = song.status;
+        status.className = `status ${song.status}`;
+      });
+    }
+
+    function setAutoRunning(running) {
+      document.getElementById("runBatchBtn").disabled = running;
+      document.getElementById("dryRunBtn").disabled = running;
+      document.getElementById("cancelBatchBtn").disabled = !running;
+    }
+
+    function setAutomationMode(on) {
+      automationMode = on;
+      document.getElementById("manualOutput").classList.toggle("hide", on);
+      document.getElementById("automationOutput").classList.toggle("show", on);
+      document.getElementById("autoToggle").textContent = on ? "Manual Mode" : "Automation Mode";
+      renderLastRun();
+    }
+
+    function renderLastRun() {
+      const raw = localStorage.getItem("azure_solace_last_run");
+      const el = document.getElementById("lastRunMeta");
+      if (!raw) { el.innerHTML = `<span class="meta">No previous run stored</span>`; return; }
+      const r = JSON.parse(raw);
+      el.innerHTML = `<span class="meta">Last run: ${esc(new Date(r.at).toLocaleString())}</span><span class="meta">${r.instrumental} instrumental</span><span class="meta">${r.vocal} vocal</span>`;
+    }
+
+    async function withRetry(fn) {
+      try { return await fn(); } catch (err) { return await fn(); }
+    }
+
+    function titleToState(t) {
+      const scores = t.scores || {};
+      return {
+        songTitle: String(t.title || "Untitled Azure Solace Study").trim(),
+        titleConcept: String(t.concept || "").trim(),
+        titleScores: {
+          memorability: Number(scores.memorability || 0),
+          elegance: Number(scores.elegance || 0),
+          brandFit: Number(scores.brandFit || 0),
+          emotionalEvocativeness: Number(scores.emotionalEvocativeness || 0),
+          commercialAppeal: Number(scores.commercialAppeal || 0),
+          originality: Number(scores.originality || 0),
+          total: Number(t.totalScore || Object.values(scores).reduce((a,b) => a + (Number(b) || 0), 0))
+        }
+      };
+    }
+
+    function scorePills(scores) {
+      const s = scores || {};
+      const entries = [["Mem",s.memorability],["Eleg",s.elegance],["Brand",s.brandFit],["Emot",s.emotionalEvocativeness],["App",s.commercialAppeal],["Orig",s.originality],["Total",s.total || s.totalScore]];
+      return entries.filter(([,v]) => Number(v) > 0).map(([k,v]) => `<span class="score">${esc(k)} ${Number(v)}</span>`).join("");
+    }
+
+    function addHistory() {
+      const history = JSON.parse(localStorage.getItem(HISTORY_STORAGE) || "[]");
+      history.unshift({
+        at: new Date().toISOString(),
+        title: state.songTitle,
+        type: state.trackType,
+        stylePrompt: state.stylePrompt,
+        lyrics: state.lyricMetatagField
+      });
+      localStorage.setItem(HISTORY_STORAGE, JSON.stringify(history.slice(0, 10)));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const history = JSON.parse(localStorage.getItem(HISTORY_STORAGE) || "[]");
+      document.getElementById("historyList").innerHTML = history.length ? history.map(h => `<article class="ref-card" style="margin-bottom:10px">
+        <strong>${esc(h.title || "Untitled")}</strong>
+        <span>${esc(h.type)} - ${esc(new Date(h.at).toLocaleString())}</span>
+        <button style="margin-top:8px" type="button" onclick="copyText(${JSON.stringify(`${h.stylePrompt}\n\n${h.lyrics || ""}`)}, null)">Copy Pack</button>
+      </article>`).join("") : `<p class="subtitle">No manual generations yet.</p>`;
+    }
+
+    function renderRefs(filter) {
+      const refs = filter === "all" ? refTracks : refTracks.filter(r => r.mood === filter);
+      document.getElementById("refGrid").innerHTML = refs.map(r => `<article class="ref-card">
+        <strong>#${r.rank} ${esc(r.track)}</strong>
+        <span>${esc(r.artist)} - ${r.bpm} BPM - ${esc(labels.mood[r.mood][0])}</span>
+        <div class="meta-row" style="margin:9px 0">${r.textures.map(t => `<span class="meta">${esc(t)}</span>`).join("")}</div>
+        <button type="button" onclick="loadRef(${r.rank})">Load Reference</button>
+      </article>`).join("");
+    }
+
+    function loadRef(rank) {
+      const r = refTracks.find(x => x.rank === rank);
+      if (!r) return;
+      state.mood = r.mood;
+      state.bpm = clamp(r.bpm, 70, 115);
+      state.drum = r.drum;
+      state.bass = r.bass;
+      state.harm = r.harm;
+      persistAndRender();
+      closeOverlay("refsModal");
+    }
+
+    function saveState() {
+      localStorage.setItem(STATE_STORAGE, JSON.stringify(state));
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STATE_STORAGE);
+        if (raw) state = { ...state, ...JSON.parse(raw) };
+      } catch {}
+    }
+
+    function getApiKey() { return localStorage.getItem(KEY_STORAGE) || ""; }
+    function saveKey() {
+      const val = document.getElementById("apiKeyInput").value.trim();
+      if (val) localStorage.setItem(KEY_STORAGE, val);
+      updateKeyStatus();
+      closeOverlay("keyModal");
+    }
+    function clearKey() {
+      localStorage.removeItem(KEY_STORAGE);
+      document.getElementById("apiKeyInput").value = "";
+      updateKeyStatus();
+    }
+    function updateKeyStatus() {
+      const has = !!getApiKey();
+      document.getElementById("keyDot").classList.toggle("good", has);
+      document.getElementById("keyLabel").textContent = has ? "API key ready" : "API key missing";
+    }
+
+    function exportSingle() {
+      const song = { ...state, status: "done" };
+      downloadText(`azure-solace-${state.trackType}-${new Date().toISOString().slice(0,10)}.html`, buildOutputHtml("Single Song", [song], state.trackType === "vocal"));
+    }
+
+    function downloadText(filename, text) {
+      const blob = new Blob([text], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    async function copyText(text, btnId) {
+      await navigator.clipboard.writeText(text || "");
+      if (btnId) {
+        const btn = document.getElementById(btnId);
+        const old = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => btn.textContent = old, 1500);
+      }
+    }
+
+    function openOverlay(id) { document.getElementById(id).classList.add("show"); }
+    function closeOverlay(id) { document.getElementById(id).classList.remove("show"); }
+    function esc(value) {
+      return String(value == null ? "" : value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+    }
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+    function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+    function weightedPick(arr) { return pick(arr.concat(arr.slice(0, 3))); }
+    function bpmZoneLabel(bpm) {
+      if (bpm < 80) return "Floating";
+      if (bpm < 92) return "Lazy Groove";
+      if (bpm < 105) return "Warm Pulse";
+      return "Balearic House";
+    }
+    function timeByMood(mood) {
+      const map = {
+        melancholic: ["Late Night","Blue Hour","Pre-Dawn","Twilight","Dusk"],
+        euphoric: ["Sunset","Golden Hour","Afternoon","Evening","Sunrise"],
+        dark: ["Night","Late Night","Blue Hour","Dusk","Pre-Dawn"],
+        meditative: ["Dawn","Pre-Dawn","Morning","Blue Hour","Twilight"],
+        golden: ["Golden Hour","Sunset","Afternoon","Sunrise","Dusk"]
+      };
+      return map[mood] || timeOptions;
+    }
+    function storyByMood(mood) {
+      const map = {
+        melancholic: ["Reflection","Coastal Memory","Desire / Longing","Solitude","Reunion"],
+        euphoric: ["Romance","Reunion","Luxury Leisure","Dream State","Healing / Escape"],
+        dark: ["Night Drive","Solitude","Desire / Longing","Reflection","Dream State"],
+        meditative: ["Healing / Escape","Solitude","Dream State","Reflection","Coastal Memory"],
+        golden: ["Luxury Leisure","Romance","Coastal Memory","Reunion","Healing / Escape"]
+      };
+      return map[mood] || storyOptions;
+    }
+    function jitterTextures(base, adventure) {
+      const all = Object.keys(texLabels);
+      let textures = [...base];
+      const drops = adventure === 0 ? 0 : randInt(0, 2);
+      for (let i = 0; i < drops; i++) textures.splice(randInt(0, Math.max(0, textures.length - 1)), 1);
+      const adds = adventure === 0 ? randInt(0, 1) : randInt(1, 2);
+      while (adds && textures.length < 6) {
+        const next = pick(all);
+        if (!textures.includes(next)) textures.push(next);
+        if (textures.length >= base.length + adds) break;
+      }
+      return textures.slice(0, 6);
+    }
+    function jitterArtists(base) {
+      const pool = artists.filter(a => !base.includes(a));
+      return [...base.slice(0,2), pick(pool), pick(pool)].filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 4);
+    }
+    function titleFromState(song, i) {
+      const words = {
+        melancholic: ["Blue", "Afterimage", "Low", "Still"],
+        euphoric: ["Open", "Gold", "Radiant", "Lift"],
+        dark: ["Nocturne", "Glass", "Shadow", "Velvet"],
+        meditative: ["Quiet", "Drift", "Breath", "Horizon"],
+        golden: ["Amber", "Sunlit", "Terrace", "Warm"]
+      };
+      return `${pick(words[song.mood])} ${pick(["Signal","Rooms","Return","Distance","Mirage","Embers"])}${i != null ? ` ${i + 1}` : ""}`;
+    }
+    function mockScores() {
+      return { memorability: 8, elegance: 8, brandFit: 9, emotionalEvocativeness: 8, commercialAppeal: 7, originality: 8, total: 48 };
+    }
+
+    window.copyText = copyText;
+    window.loadRef = loadRef;
+    init();
+  </script>
+</body>
+</html>

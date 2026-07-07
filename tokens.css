@@ -1,0 +1,34 @@
+:root {
+  --bg: #f4f1ec;
+  --page-tint: #e7f6f4;
+  --canvas: #ffffff;
+  --canvas-subtle: #f8fafc;
+  --canvas-raised: #ffffff;
+  --border: #d8dee8;
+  --border-muted: rgba(216, 222, 232, 0.72);
+  --text: #172033;
+  --text-muted: #667085;
+  --accent: #087f8c;
+  --accent-soft: #dff7f4;
+  --success: #16833a;
+  --warning: #ad6f00;
+  --danger: #d12f45;
+  --balearic: #087f8c;
+  --enigma: #7257d6;
+  --delerium: #25856f;
+  --era: #b26b25;
+  --coral: #ef6f61;
+  --sun: #f7b801;
+  --plum: #6f4e7c;
+  --sky: #2f80ed;
+  --mint: #2bb3a3;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow: 0 18px 45px rgba(23, 32, 51, 0.12);
+  color-scheme: light;
+}
+
+[data-engine="Balearic"] { --accent: var(--balearic); --accent-soft: #dff7f4; --page-tint: #e4f6f3; }
+[data-engine="Enigma"] { --accent: var(--enigma); --accent-soft: #f0ebff; --page-tint: #f3efff; }
+[data-engine="Delerium"] { --accent: var(--delerium); --accent-soft: #e2f8ef; --page-tint: #e9f8f1; }
+[data-engine="Era"] { --accent: var(--era); --accent-soft: #fff2d8; --page-tint: #fff3dd; }
