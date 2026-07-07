@@ -7,6 +7,7 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const files = [
   "js/data-style-engines.js",
   "js/data-lyric-controls.js",
+  "js/engine-extras.js",
   "js/state.js",
   "js/storage.js",
   "js/prompt-style-builder.js",

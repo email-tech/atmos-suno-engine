@@ -1,5 +1,6 @@
 import { STYLE_ENGINES, VOCAL_DESCRIPTOR_OPTIONS, VOCAL_MODES } from "./data-style-engines.js";
 import { CONTROL_OPTIONS, STRUCTURE_TEMPLATES } from "./data-lyric-controls.js";
+import { EngineExtras } from "./engine-extras.js";
 import { buildStylePrompt, buildNegativePrompt } from "./prompt-style-builder.js";
 import { buildGenerationPrompt } from "./prompt-lyric-builder.js";
 import { buildAdLibPlan, buildSunoMetatagPlan, buildVocalArrangementPlan, formatAdLibPlan, formatMetatagPlan, formatVocalArrangementPlan } from "./metatag-builder.js";
@@ -92,6 +93,20 @@ export function renderControls(state) {
     addSelect(vocalGrid, "Descriptor", "style.vocalDescriptor", VOCAL_DESCRIPTOR_OPTIONS[state.style.vocalGender], state.style.vocalDescriptor);
   }
   addToggle(els.styleControls, "Max Mode", "style.maxMode", state.style.maxMode);
+  // Flavour-cluster mode (Balearic-validated). Only shown for engines that have
+  // authored clusters; Electronic is the proven default palette. Classic stays
+  // the default build mode so existing behaviour is unchanged until opted in.
+  const clusters = (EngineExtras[state.engine] || {}).flavourClusters || {};
+  const clusterKeys = Object.keys(clusters);
+  if (clusterKeys.length) {
+    els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Flavour cluster (${clusterKeys.length})</summary><div class="control-stack detail-body" id="clusterPanel"></div></details>`);
+    const cp = document.getElementById("clusterPanel");
+    addSelect(cp, "Build mode", "style.buildMode", [{ value: "classic", label: "Classic slots" }, { value: "cluster", label: "Flavour cluster" }], state.style.buildMode);
+    addSelect(cp, "Palette", "style.palette", [{ value: "electronic", label: "Electronic (default)" }, { value: "acoustic", label: "Acoustic" }, { value: "blend", label: "Blend" }], state.style.palette);
+    addSelect(cp, "Cluster", "style.cluster", clusterKeys.map((k) => ({ value: k, label: clusters[k].label || k })), state.style.cluster);
+    addToggle(cp, "Arrangement language", "style.arrangement", state.style.arrangement);
+    addInput(cp, "BPM override (optional)", "style.bpmOverride", state.style.bpmOverride);
+  }
   els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Fine tune arrangement</summary><div class="control-stack detail-body" id="styleFineTune"></div></details>`);
   const styleFineTune = document.getElementById("styleFineTune");
   addSelect(styleFineTune, "Pad / texture", "style.pad", engine.pads, state.style.pad);

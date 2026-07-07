@@ -13,7 +13,12 @@ export const defaultState = {
     vocalGender: "Female",
     vocalDescriptor: "Airy female vocal with intimate tone and restrained delivery.",
     maxMode: true,
-    negativePrompt: ""
+    negativePrompt: "",
+    buildMode: "classic",
+    palette: "electronic",
+    cluster: "organic",
+    arrangement: false,
+    bpmOverride: ""
   },
   song: {
     title: "",
