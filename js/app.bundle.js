@@ -68,7 +68,7 @@ const STYLE_ENGINES = {
   Enigma: {
     accent: "violet",
     genre: "ethereal world-electronic downtempo",
-    presets: ["MCMXC Single", "Cross Groove", "Le Roi Balance", "Screen Cinematic", "Voyageur Modern"],
+    presets: ["Gregorian sacred (MCMXC)", "Ethnic (Cross of Changes)", "Cinematic distorted (Screen)", "Ethereal ambient", "Modern (Voyageur)", "Breakbeat drive"],
     phases: [
       "Mid-low Tempo 84-90 BPM, low energy.",
       "Mid-low Tempo 88-92 BPM, low energy.",
@@ -778,6 +778,18 @@ const EngineExtras = {
   // ---- Stubs: same shape, empty for now. Fleshed out in later sessions. ----
   // The batch generator reads these identically and simply skips empty parts.
     Enigma: {
+    // presetMap: the human-facing Engine Preset (a recognizable Enigma character/
+    // era) drives the whole sound. Each preset selects a flavour cluster (which
+    // carries the instrumentation + vocal texture + genre anchor) and a default
+    // palette, so instruments are set behind the scenes. Phase controls tempo.
+    presetMap: {
+      "Gregorian sacred (MCMXC)":     { cluster: "sacred",    palette: "electronic" },
+      "Ethnic (Cross of Changes)":    { cluster: "ethnic",    palette: "blend" },
+      "Cinematic distorted (Screen)": { cluster: "cinematic", palette: "electronic" },
+      "Ethereal ambient":             { cluster: "ambient",   palette: "electronic" },
+      "Modern (Voyageur)":            { cluster: "modern",    palette: "electronic" },
+      "Breakbeat drive":              { cluster: "breakbeat", palette: "electronic" }
+    },
     // Corrected against the real catalogue: Enigma writes SONGS, not soundscapes.
     // Core = hypnotic sensual downtempo beat + deep bass + lush SYNTH pads + a
     // melodic HOOK (motif slot, always on, instrumental). Chant/choir = signature
@@ -1344,9 +1356,11 @@ function buildClusterPrompt(clusterId, state) {
     }
     return pick(E[name]); // electronic
   }
+  const presetDriven = !!(engine.presetMap);
   let tempo;
-  if (c.beatless) tempo = c.phase;
+  if (c.beatless) tempo = c.phase;                                   // beatless: tempo is moot
   else if (s.bpmOverride) tempo = s.bpmOverride + " BPM, " + (c.energy || "medium energy");
+  else if (presetDriven && s.phase) tempo = s.phase;                 // Preset sets character, Phase sets tempo
   else tempo = c.phase;
   const arrangement = (s.arrangement && c.interplay)
     ? drawInterplay(engineName, clusterId).join(", ") : null;
@@ -1422,13 +1436,26 @@ function clusterActive(state) {
   return !!(engine.flavourClusters || {})[s.cluster];
 }
 
+/* Preset-driven engines (those with a presetMap, e.g. Enigma): the Engine Preset
+ * IS the character selector and maps to a flavour cluster, so instrumentation is
+ * set behind the scenes. Returns the cluster id for the current preset, or null. */
+function presetCluster(state) {
+  const map = (EngineExtras[state.engine] || {}).presetMap;
+  const hit = map && map[state.style.preset];
+  return hit ? hit.cluster : null;
+}
+
 /* ---- entry points (app.js calls these) ---------------------------------- */
 function buildStylePrompt(state) {
+  const pc = presetCluster(state);
+  if (pc) return buildClusterPrompt(pc, state);
   if (clusterActive(state)) return buildClusterPrompt(state.style.cluster, state);
   return buildClassicStyle(state);
 }
 
 function buildNegativePrompt(state) {
+  const pc = presetCluster(state);
+  if (pc) return buildClusterNegative(pc, state);
   if (clusterActive(state)) return buildClusterNegative(state.style.cluster, state);
   const e = STYLE_ENGINES[state.engine];
   return [e.sourceNegative || e.negatives, state.style.negativePrompt].filter(Boolean).join(", ");
@@ -2514,29 +2541,43 @@ function renderControls(state) {
     addSelect(vocalGrid, "Descriptor", "style.vocalDescriptor", VOCAL_DESCRIPTOR_OPTIONS[state.style.vocalGender], state.style.vocalDescriptor);
   }
   addToggle(els.styleControls, "Max Mode", "style.maxMode", state.style.maxMode);
-  // Flavour-cluster mode (Balearic-validated). Only shown for engines that have
-  // authored clusters; Electronic is the proven default palette. Classic stays
-  // the default build mode so existing behaviour is unchanged until opted in.
-  const clusters = (EngineExtras[state.engine] || {}).flavourClusters || {};
+
+  const ex = EngineExtras[state.engine] || {};
+  const presetDriven = !!ex.presetMap;
+  const clusters = ex.flavourClusters || {};
   const clusterKeys = Object.keys(clusters);
-  if (clusterKeys.length) {
-    els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Flavour cluster (${clusterKeys.length})</summary><div class="control-stack detail-body" id="clusterPanel"></div></details>`);
-    const cp = document.getElementById("clusterPanel");
-    addSelect(cp, "Build mode", "style.buildMode", [{ value: "classic", label: "Classic slots" }, { value: "cluster", label: "Flavour cluster" }], state.style.buildMode);
-    addSelect(cp, "Palette", "style.palette", [{ value: "electronic", label: "Electronic (default)" }, { value: "acoustic", label: "Acoustic" }, { value: "blend", label: "Blend" }], state.style.palette);
-    addSelect(cp, "Cluster", "style.cluster", clusterKeys.map((k) => ({ value: k, label: clusters[k].label || k })), state.style.cluster);
-    addToggle(cp, "Arrangement language", "style.arrangement", state.style.arrangement);
-    addInput(cp, "BPM override (optional)", "style.bpmOverride", state.style.bpmOverride);
+
+  if (presetDriven) {
+    // Preset-driven engine (e.g. Enigma): the Engine Preset above IS the character
+    // selector and sets instrumentation behind the scenes; Phase sets tempo. Only
+    // optional fine levers are exposed, tucked into an Advanced section.
+    els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Advanced sound (optional)</summary><div class="control-stack detail-body" id="advSound"></div></details>`);
+    const adv = document.getElementById("advSound");
+    addSelect(adv, "Palette", "style.palette", [{ value: "electronic", label: "Electronic" }, { value: "acoustic", label: "Acoustic" }, { value: "blend", label: "Blend" }], state.style.palette);
+    addToggle(adv, "Arrangement language", "style.arrangement", state.style.arrangement);
+    addInput(adv, "BPM override (optional)", "style.bpmOverride", state.style.bpmOverride);
+    addTextarea(adv, "Extra negative prompt", "style.negativePrompt", state.style.negativePrompt, 3);
+  } else {
+    // Engines without a presetMap: optional flavour-cluster panel + classic slots.
+    if (clusterKeys.length) {
+      els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Flavour cluster (${clusterKeys.length})</summary><div class="control-stack detail-body" id="clusterPanel"></div></details>`);
+      const cp = document.getElementById("clusterPanel");
+      addSelect(cp, "Build mode", "style.buildMode", [{ value: "classic", label: "Classic slots" }, { value: "cluster", label: "Flavour cluster" }], state.style.buildMode);
+      addSelect(cp, "Palette", "style.palette", [{ value: "electronic", label: "Electronic (default)" }, { value: "acoustic", label: "Acoustic" }, { value: "blend", label: "Blend" }], state.style.palette);
+      addSelect(cp, "Cluster", "style.cluster", clusterKeys.map((k) => ({ value: k, label: clusters[k].label || k })), state.style.cluster);
+      addToggle(cp, "Arrangement language", "style.arrangement", state.style.arrangement);
+      addInput(cp, "BPM override (optional)", "style.bpmOverride", state.style.bpmOverride);
+    }
+    els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Fine tune arrangement</summary><div class="control-stack detail-body" id="styleFineTune"></div></details>`);
+    const styleFineTune = document.getElementById("styleFineTune");
+    addSelect(styleFineTune, "Pad / texture", "style.pad", engine.pads, state.style.pad);
+    addSelect(styleFineTune, "Bass / tempo support", "style.bass", engine.bass, state.style.bass);
+    addSelect(styleFineTune, "Rhythm / hook", "style.rhythm", engine.rhythm, state.style.rhythm);
+    addSelect(styleFineTune, "Strings / vocal blend / density", "style.percussion", engine.percussion, state.style.percussion);
+    addSelect(styleFineTune, "Motif", "style.motif", engine.motifs, state.style.motif);
+    addSelect(styleFineTune, "Movement", "style.movement", engine.movement, state.style.movement);
+    addTextarea(styleFineTune, "Extra negative prompt", "style.negativePrompt", state.style.negativePrompt, 3);
   }
-  els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Fine tune arrangement</summary><div class="control-stack detail-body" id="styleFineTune"></div></details>`);
-  const styleFineTune = document.getElementById("styleFineTune");
-  addSelect(styleFineTune, "Pad / texture", "style.pad", engine.pads, state.style.pad);
-  addSelect(styleFineTune, "Bass / tempo support", "style.bass", engine.bass, state.style.bass);
-  addSelect(styleFineTune, "Rhythm / hook", "style.rhythm", engine.rhythm, state.style.rhythm);
-  addSelect(styleFineTune, "Strings / vocal blend / density", "style.percussion", engine.percussion, state.style.percussion);
-  addSelect(styleFineTune, "Motif", "style.motif", engine.motifs, state.style.motif);
-  addSelect(styleFineTune, "Movement", "style.movement", engine.movement, state.style.movement);
-  addTextarea(styleFineTune, "Extra negative prompt", "style.negativePrompt", state.style.negativePrompt, 3);
 
   els.songControls.innerHTML = "";
   addInput(els.songControls, "Optional title seed", "song.title", state.song.title);
@@ -2824,6 +2865,7 @@ function handleChoiceClick(event) {
   const button = event.target.closest("[data-choice-path]");
   if (!button) return;
   setPath(appState, button.dataset.choicePath, button.dataset.choiceValue);
+  if (button.dataset.choicePath === "style.preset") applyPresetMap();
   normalizeCompatibility(button.dataset.choicePath);
   renderControls(appState);
   rebuildOutputs();
@@ -3012,6 +3054,15 @@ function settings(prompt) {
   };
 }
 
+// Preset-driven engines (presetMap, e.g. Enigma): the Engine Preset sets the
+// flavour cluster + palette behind the scenes so instrumentation follows the
+// chosen character. No-op for engines without a presetMap.
+function applyPresetMap() {
+  const map = (EngineExtras[appState.engine] || {}).presetMap;
+  const hit = map && map[appState.style.preset];
+  if (hit) { appState.style.cluster = hit.cluster; appState.style.palette = hit.palette; }
+}
+
 function syncEngineDefaults() {
   const engine = STYLE_ENGINES[appState.engine];
   appState.style.preset = engine.presets[0];
@@ -3023,6 +3074,7 @@ function syncEngineDefaults() {
   appState.style.motif = engine.motifs[0];
   appState.style.movement = engine.movement[0];
   appState.outputs.negativePrompt = "";
+  applyPresetMap();
 }
 
 function normalizeEngineState() {

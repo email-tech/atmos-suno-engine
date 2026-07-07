@@ -497,6 +497,18 @@ export const EngineExtras = {
   // ---- Stubs: same shape, empty for now. Fleshed out in later sessions. ----
   // The batch generator reads these identically and simply skips empty parts.
     Enigma: {
+    // presetMap: the human-facing Engine Preset (a recognizable Enigma character/
+    // era) drives the whole sound. Each preset selects a flavour cluster (which
+    // carries the instrumentation + vocal texture + genre anchor) and a default
+    // palette, so instruments are set behind the scenes. Phase controls tempo.
+    presetMap: {
+      "Gregorian sacred (MCMXC)":     { cluster: "sacred",    palette: "electronic" },
+      "Ethnic (Cross of Changes)":    { cluster: "ethnic",    palette: "blend" },
+      "Cinematic distorted (Screen)": { cluster: "cinematic", palette: "electronic" },
+      "Ethereal ambient":             { cluster: "ambient",   palette: "electronic" },
+      "Modern (Voyageur)":            { cluster: "modern",    palette: "electronic" },
+      "Breakbeat drive":              { cluster: "breakbeat", palette: "electronic" }
+    },
     // Corrected against the real catalogue: Enigma writes SONGS, not soundscapes.
     // Core = hypnotic sensual downtempo beat + deep bass + lush SYNTH pads + a
     // melodic HOOK (motif slot, always on, instrumental). Chant/choir = signature

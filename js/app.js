@@ -1,5 +1,6 @@
 import { appState, defaultState } from "./state.js";
 import { STYLE_ENGINES, VOCAL_DESCRIPTOR_OPTIONS, VOCAL_MODES } from "./data-style-engines.js";
+import { EngineExtras } from "./engine-extras.js";
 import { CLAUDE_MODELS, testClaudeConnection, callClaude } from "./claude-client.js";
 import { buildStylePrompt, buildNegativePrompt } from "./prompt-style-builder.js";
 import { applyCompatibilityRules } from "./compatibility-rules.js";
@@ -122,6 +123,7 @@ function handleChoiceClick(event) {
   const button = event.target.closest("[data-choice-path]");
   if (!button) return;
   setPath(appState, button.dataset.choicePath, button.dataset.choiceValue);
+  if (button.dataset.choicePath === "style.preset") applyPresetMap();
   normalizeCompatibility(button.dataset.choicePath);
   renderControls(appState);
   rebuildOutputs();
@@ -310,6 +312,15 @@ function settings(prompt) {
   };
 }
 
+// Preset-driven engines (presetMap, e.g. Enigma): the Engine Preset sets the
+// flavour cluster + palette behind the scenes so instrumentation follows the
+// chosen character. No-op for engines without a presetMap.
+function applyPresetMap() {
+  const map = (EngineExtras[appState.engine] || {}).presetMap;
+  const hit = map && map[appState.style.preset];
+  if (hit) { appState.style.cluster = hit.cluster; appState.style.palette = hit.palette; }
+}
+
 function syncEngineDefaults() {
   const engine = STYLE_ENGINES[appState.engine];
   appState.style.preset = engine.presets[0];
@@ -321,6 +332,7 @@ function syncEngineDefaults() {
   appState.style.motif = engine.motifs[0];
   appState.style.movement = engine.movement[0];
   appState.outputs.negativePrompt = "";
+  applyPresetMap();
 }
 
 function normalizeEngineState() {

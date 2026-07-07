@@ -93,29 +93,43 @@ export function renderControls(state) {
     addSelect(vocalGrid, "Descriptor", "style.vocalDescriptor", VOCAL_DESCRIPTOR_OPTIONS[state.style.vocalGender], state.style.vocalDescriptor);
   }
   addToggle(els.styleControls, "Max Mode", "style.maxMode", state.style.maxMode);
-  // Flavour-cluster mode (Balearic-validated). Only shown for engines that have
-  // authored clusters; Electronic is the proven default palette. Classic stays
-  // the default build mode so existing behaviour is unchanged until opted in.
-  const clusters = (EngineExtras[state.engine] || {}).flavourClusters || {};
+
+  const ex = EngineExtras[state.engine] || {};
+  const presetDriven = !!ex.presetMap;
+  const clusters = ex.flavourClusters || {};
   const clusterKeys = Object.keys(clusters);
-  if (clusterKeys.length) {
-    els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Flavour cluster (${clusterKeys.length})</summary><div class="control-stack detail-body" id="clusterPanel"></div></details>`);
-    const cp = document.getElementById("clusterPanel");
-    addSelect(cp, "Build mode", "style.buildMode", [{ value: "classic", label: "Classic slots" }, { value: "cluster", label: "Flavour cluster" }], state.style.buildMode);
-    addSelect(cp, "Palette", "style.palette", [{ value: "electronic", label: "Electronic (default)" }, { value: "acoustic", label: "Acoustic" }, { value: "blend", label: "Blend" }], state.style.palette);
-    addSelect(cp, "Cluster", "style.cluster", clusterKeys.map((k) => ({ value: k, label: clusters[k].label || k })), state.style.cluster);
-    addToggle(cp, "Arrangement language", "style.arrangement", state.style.arrangement);
-    addInput(cp, "BPM override (optional)", "style.bpmOverride", state.style.bpmOverride);
+
+  if (presetDriven) {
+    // Preset-driven engine (e.g. Enigma): the Engine Preset above IS the character
+    // selector and sets instrumentation behind the scenes; Phase sets tempo. Only
+    // optional fine levers are exposed, tucked into an Advanced section.
+    els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Advanced sound (optional)</summary><div class="control-stack detail-body" id="advSound"></div></details>`);
+    const adv = document.getElementById("advSound");
+    addSelect(adv, "Palette", "style.palette", [{ value: "electronic", label: "Electronic" }, { value: "acoustic", label: "Acoustic" }, { value: "blend", label: "Blend" }], state.style.palette);
+    addToggle(adv, "Arrangement language", "style.arrangement", state.style.arrangement);
+    addInput(adv, "BPM override (optional)", "style.bpmOverride", state.style.bpmOverride);
+    addTextarea(adv, "Extra negative prompt", "style.negativePrompt", state.style.negativePrompt, 3);
+  } else {
+    // Engines without a presetMap: optional flavour-cluster panel + classic slots.
+    if (clusterKeys.length) {
+      els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Flavour cluster (${clusterKeys.length})</summary><div class="control-stack detail-body" id="clusterPanel"></div></details>`);
+      const cp = document.getElementById("clusterPanel");
+      addSelect(cp, "Build mode", "style.buildMode", [{ value: "classic", label: "Classic slots" }, { value: "cluster", label: "Flavour cluster" }], state.style.buildMode);
+      addSelect(cp, "Palette", "style.palette", [{ value: "electronic", label: "Electronic (default)" }, { value: "acoustic", label: "Acoustic" }, { value: "blend", label: "Blend" }], state.style.palette);
+      addSelect(cp, "Cluster", "style.cluster", clusterKeys.map((k) => ({ value: k, label: clusters[k].label || k })), state.style.cluster);
+      addToggle(cp, "Arrangement language", "style.arrangement", state.style.arrangement);
+      addInput(cp, "BPM override (optional)", "style.bpmOverride", state.style.bpmOverride);
+    }
+    els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Fine tune arrangement</summary><div class="control-stack detail-body" id="styleFineTune"></div></details>`);
+    const styleFineTune = document.getElementById("styleFineTune");
+    addSelect(styleFineTune, "Pad / texture", "style.pad", engine.pads, state.style.pad);
+    addSelect(styleFineTune, "Bass / tempo support", "style.bass", engine.bass, state.style.bass);
+    addSelect(styleFineTune, "Rhythm / hook", "style.rhythm", engine.rhythm, state.style.rhythm);
+    addSelect(styleFineTune, "Strings / vocal blend / density", "style.percussion", engine.percussion, state.style.percussion);
+    addSelect(styleFineTune, "Motif", "style.motif", engine.motifs, state.style.motif);
+    addSelect(styleFineTune, "Movement", "style.movement", engine.movement, state.style.movement);
+    addTextarea(styleFineTune, "Extra negative prompt", "style.negativePrompt", state.style.negativePrompt, 3);
   }
-  els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Fine tune arrangement</summary><div class="control-stack detail-body" id="styleFineTune"></div></details>`);
-  const styleFineTune = document.getElementById("styleFineTune");
-  addSelect(styleFineTune, "Pad / texture", "style.pad", engine.pads, state.style.pad);
-  addSelect(styleFineTune, "Bass / tempo support", "style.bass", engine.bass, state.style.bass);
-  addSelect(styleFineTune, "Rhythm / hook", "style.rhythm", engine.rhythm, state.style.rhythm);
-  addSelect(styleFineTune, "Strings / vocal blend / density", "style.percussion", engine.percussion, state.style.percussion);
-  addSelect(styleFineTune, "Motif", "style.motif", engine.motifs, state.style.motif);
-  addSelect(styleFineTune, "Movement", "style.movement", engine.movement, state.style.movement);
-  addTextarea(styleFineTune, "Extra negative prompt", "style.negativePrompt", state.style.negativePrompt, 3);
 
   els.songControls.innerHTML = "";
   addInput(els.songControls, "Optional title seed", "song.title", state.song.title);

@@ -65,7 +65,7 @@ export const STYLE_ENGINES = {
   Enigma: {
     accent: "violet",
     genre: "ethereal world-electronic downtempo",
-    presets: ["MCMXC Single", "Cross Groove", "Le Roi Balance", "Screen Cinematic", "Voyageur Modern"],
+    presets: ["Gregorian sacred (MCMXC)", "Ethnic (Cross of Changes)", "Cinematic distorted (Screen)", "Ethereal ambient", "Modern (Voyageur)", "Breakbeat drive"],
     phases: [
       "Mid-low Tempo 84-90 BPM, low energy.",
       "Mid-low Tempo 88-92 BPM, low energy.",

@@ -84,9 +84,11 @@ export function buildClusterPrompt(clusterId, state) {
     }
     return pick(E[name]); // electronic
   }
+  const presetDriven = !!(engine.presetMap);
   let tempo;
-  if (c.beatless) tempo = c.phase;
+  if (c.beatless) tempo = c.phase;                                   // beatless: tempo is moot
   else if (s.bpmOverride) tempo = s.bpmOverride + " BPM, " + (c.energy || "medium energy");
+  else if (presetDriven && s.phase) tempo = s.phase;                 // Preset sets character, Phase sets tempo
   else tempo = c.phase;
   const arrangement = (s.arrangement && c.interplay)
     ? drawInterplay(engineName, clusterId).join(", ") : null;
@@ -162,13 +164,26 @@ function clusterActive(state) {
   return !!(engine.flavourClusters || {})[s.cluster];
 }
 
+/* Preset-driven engines (those with a presetMap, e.g. Enigma): the Engine Preset
+ * IS the character selector and maps to a flavour cluster, so instrumentation is
+ * set behind the scenes. Returns the cluster id for the current preset, or null. */
+function presetCluster(state) {
+  const map = (EngineExtras[state.engine] || {}).presetMap;
+  const hit = map && map[state.style.preset];
+  return hit ? hit.cluster : null;
+}
+
 /* ---- entry points (app.js calls these) ---------------------------------- */
 export function buildStylePrompt(state) {
+  const pc = presetCluster(state);
+  if (pc) return buildClusterPrompt(pc, state);
   if (clusterActive(state)) return buildClusterPrompt(state.style.cluster, state);
   return buildClassicStyle(state);
 }
 
 export function buildNegativePrompt(state) {
+  const pc = presetCluster(state);
+  if (pc) return buildClusterNegative(pc, state);
   if (clusterActive(state)) return buildClusterNegative(state.style.cluster, state);
   const e = STYLE_ENGINES[state.engine];
   return [e.sourceNegative || e.negatives, state.style.negativePrompt].filter(Boolean).join(", ");
