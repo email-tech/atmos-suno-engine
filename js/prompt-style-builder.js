@@ -86,7 +86,15 @@ export function buildClusterPrompt(clusterId, state) {
   }
   const presetDriven = !!(engine.presetMap);
   let tempo;
-  if (c.beatless) tempo = c.phase;                                   // beatless: tempo is moot
+  if (c.beatless) {
+    // Beatless stays beatless (no BPM), but in preset-driven mode let the Phase's
+    // energy band still apply so ambient responds to the energy control.
+    if (presetDriven && s.phase) {
+      const energy = (s.phase.match(/([a-z-]+(?:\s+to\s+[a-z-]+)?\s+energy)/i) || [])[1];
+      const base = c.phase.replace(/,?\s*[a-z-]+(?:\s+to\s+[a-z-]+)?\s+energy/i, "").replace(/,\s*,/g, ",").replace(/,\s*$/, "").trim();
+      tempo = energy ? `${base}, ${energy}` : c.phase;
+    } else tempo = c.phase;
+  }
   else if (s.bpmOverride) tempo = s.bpmOverride + " BPM, " + (c.energy || "medium energy");
   else if (presetDriven && s.phase) tempo = s.phase;                 // Preset sets character, Phase sets tempo
   else tempo = c.phase;
