@@ -1,302 +1,206 @@
-import { STYLE_ENGINES, VOCAL_DESCRIPTOR_OPTIONS, VOCAL_MODES } from "./data-style-engines.js";
-import { CONTROL_OPTIONS, STRUCTURE_TEMPLATES } from "./data-lyric-controls.js";
-import { EngineExtras } from "./engine-extras.js";
-import { buildStylePrompt, buildNegativePrompt } from "./prompt-style-builder.js";
-import { buildGenerationPrompt } from "./prompt-lyric-builder.js";
-import { buildAdLibPlan, buildSunoMetatagPlan, buildVocalArrangementPlan, formatAdLibPlan, formatMetatagPlan, formatVocalArrangementPlan } from "./metatag-builder.js";
-import { compatibilitySummary } from "./compatibility-rules.js";
+import {
+  ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool,
+  legacyClusters, legacyClassic,
+} from './registry.js';
+import { syncEngineDefaults, newSeed } from './state.js';
+import { generate } from './generate.js';
 
-const $ = (id) => document.getElementById(id);
-
-export const els = {
-  engineSelect: $("engineSelect"),
-  styleControls: $("styleControls"),
-  songControls: $("songControls"),
-  languageControls: $("languageControls"),
-  structureTemplate: $("structureTemplate"),
-  structureNotes: $("structureNotes"),
-  includePreChorus: $("includePreChorus"),
-  includeBridge: $("includeBridge"),
-  useStyleToGuideLyrics: $("useStyleToGuideLyrics"),
-  strictValidation: $("strictValidation"),
-  apiKey: $("apiKey"),
-  rememberKey: $("rememberKey"),
-  claudeModel: $("claudeModel"),
-  claudeTransport: $("claudeTransport"),
-  temperature: $("temperature"),
-  temperatureValue: $("temperatureValue"),
-  maxTokens: $("maxTokens"),
-  manualThemeBrief: $("manualThemeBrief"),
-  manualLyrics: $("manualLyrics"),
-  promptPreview: $("promptPreview"),
-  stateTransfer: $("stateTransfer"),
-  styleOutput: $("styleOutput"),
-  lyricsOutput: $("lyricsOutput"),
-  metatagOutput: $("metatagOutput"),
-  negativeOutput: $("negativeOutput"),
-  validationOutput: $("validationOutput"),
-  themeBriefOutput: $("themeBriefOutput"),
-  rawJsonOutput: $("rawJsonOutput"),
-  styleBudget: $("styleBudget"),
-  lyricsStatus: $("lyricsStatus"),
-  validationBadge: $("validationBadge"),
-  claudeStatus: $("claudeStatus"),
-  progressList: $("progressList"),
-  errorBox: $("errorBox"),
-  generateBtn: $("generateBtn"),
-  testClaudeBtn: $("testClaudeBtn"),
-  clearKeyBtn: $("clearKeyBtn"),
-  validateManualBtn: $("validateManualBtn"),
-  saveSetupBtn: $("saveSetupBtn"),
-  loadSetupBtn: $("loadSetupBtn"),
-  exportStateBtn: $("exportStateBtn"),
-  importStateBtn: $("importStateBtn"),
-  resetBtn: $("resetBtn")
-};
-
-const ENGINE_HINTS = {
-  Balearic: "Atmospheric chillout, sunset warmth, organic groove.",
-  Enigma: "Mystic identity, chant texture, hypnotic downtempo pulse.",
-  Delerium: "Ethereal vocal bloom, choir haze, emotional lift.",
-  Era: "Ceremonial scale, sacred choir, restrained cinematic motion."
-};
-
-export function initStaticOptions(state, models) {
-  fillSelect(els.engineSelect, Object.keys(STYLE_ENGINES));
-  fillSelect(els.structureTemplate, STRUCTURE_TEMPLATES.map((template) => ({ value: template.id, label: `${template.group} - ${template.label}` })));
-  fillSelect(els.claudeModel, models);
-  document.body.dataset.engine = state.engine;
+// ---- tiny DOM helpers ------------------------------------------------------
+function el(tag, attrs = {}, kids = []) {
+  const n = document.createElement(tag);
+  for (const k in attrs) {
+    if (k === 'class') n.className = attrs[k];
+    else if (k === 'text') n.textContent = attrs[k];
+    else if (k === 'html') n.innerHTML = attrs[k];
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), attrs[k]);
+    else n.setAttribute(k, attrs[k]);
+  }
+  (Array.isArray(kids) ? kids : [kids]).forEach(c => c && n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+  return n;
+}
+function field(label, control) { return el('label', { class: 'field' }, [el('span', { class: 'field-label', text: label }), control]); }
+function select(options, value, onchange) {
+  const s = el('select', { onchange: e => onchange(e.target.value) });
+  options.forEach(o => {
+    const opt = el('option', { value: o.value }, o.label);
+    if (o.value === value) opt.selected = true;
+    s.appendChild(opt);
+  });
+  return s;
+}
+function segmented(options, value, onpick) {
+  return el('div', { class: 'seg' }, options.map(o =>
+    el('button', { class: o.value === value ? 'active' : '', text: o.label, onclick: () => onpick(o.value) })));
 }
 
-export function renderControls(state) {
-  const engine = STYLE_ENGINES[state.engine];
-  if (!VOCAL_MODES.includes(state.style.vocalMode)) state.style.vocalMode = "Descriptor";
-  if (!VOCAL_DESCRIPTOR_OPTIONS[state.style.vocalGender]) state.style.vocalGender = "Female";
-  if (!VOCAL_DESCRIPTOR_OPTIONS[state.style.vocalGender].includes(state.style.vocalDescriptor)) {
-    state.style.vocalDescriptor = VOCAL_DESCRIPTOR_OPTIONS[state.style.vocalGender][0];
-  }
-  document.body.dataset.engine = state.engine;
-  els.engineSelect.value = state.engine;
-  const engineDeckName = document.getElementById("engineDeckName");
-  const engineDeckHint = document.getElementById("engineDeckHint");
-  if (engineDeckName) engineDeckName.textContent = state.engine;
-  if (engineDeckHint) engineDeckHint.textContent = ENGINE_HINTS[state.engine] || "";
+// ---- module state ----------------------------------------------------------
+let S, rootEl;
+export function mount(state, root) { S = state; rootEl = root; renderAll(); }
 
-  els.styleControls.innerHTML = "";
-  addChoiceGroup(els.styleControls, "Engine preset", "style.preset", engine.presets, state.style.preset, "Choose the source identity first.", "preset");
-  addChoiceGroup(els.styleControls, "Phase / profile", "style.phase", engine.phases, state.style.phase, "Sets tempo, era behavior, and scale.", "phase");
-  addChoiceGroup(els.styleControls, "Vocal mode", "style.vocalMode", VOCAL_MODES, state.style.vocalMode, "Decides how much the style prompt talks about voice.", "voice");
-  if (state.style.vocalMode === "Descriptor") {
-    els.styleControls.insertAdjacentHTML("beforeend", `<div class="vocal-descriptor-panel"><div><div class="decision-label">Vocal tone / delivery</div><p class="field-note">Choose a descriptor that can materially change the generated vocal performance.</p></div><div class="field-grid" id="vocalDescriptorGrid"></div></div>`);
-    const vocalGrid = document.getElementById("vocalDescriptorGrid");
-    addSelect(vocalGrid, "Vocal gender", "style.vocalGender", Object.keys(VOCAL_DESCRIPTOR_OPTIONS), state.style.vocalGender);
-    addSelect(vocalGrid, "Descriptor", "style.vocalDescriptor", VOCAL_DESCRIPTOR_OPTIONS[state.style.vocalGender], state.style.vocalDescriptor);
-  }
-  addToggle(els.styleControls, "Max Mode", "style.maxMode", state.style.maxMode);
+function renderAll() {
+  rootEl.innerHTML = '';
+  rootEl.appendChild(el('div', { class: 'tabs' }, ENGINES.map(e => {
+    const disabled = e.kind === 'stub';
+    return el('button', {
+      class: 'tab' + (e.id === S.engineId ? ' active' : '') + (disabled ? ' disabled' : ''),
+      onclick: () => { if (!disabled) { syncEngineDefaults(S, e.id); renderAll(); } },
+    }, [el('span', { text: e.label }), el('span', { class: 'kind', text: e.kind === 'resolver' ? 'resolver' : e.kind === 'legacy' ? 'proven' : 'soon' })]);
+  })));
 
-  const ex = EngineExtras[state.engine] || {};
-  const presetDriven = !!ex.presetMap;
-  const clusters = ex.flavourClusters || {};
-  const clusterKeys = Object.keys(clusters);
+  const grid = el('div', { class: 'grid' });
+  const controls = el('div', { class: 'panel controls' });
+  const output = el('div', { class: 'panel output', id: 'output' });
+  grid.appendChild(controls); grid.appendChild(output);
+  rootEl.appendChild(grid);
 
-  if (presetDriven) {
-    // Preset-driven engine (e.g. Enigma): the Engine Preset above IS the character
-    // selector and sets instrumentation behind the scenes; Phase sets tempo. Only
-    // optional fine levers are exposed, tucked into an Advanced section.
-    els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Advanced sound (optional)</summary><div class="control-stack detail-body" id="advSound"></div></details>`);
-    const adv = document.getElementById("advSound");
-    addSelect(adv, "Palette", "style.palette", [{ value: "electronic", label: "Electronic" }, { value: "acoustic", label: "Acoustic" }, { value: "blend", label: "Blend" }], state.style.palette);
-    addToggle(adv, "Arrangement language", "style.arrangement", state.style.arrangement);
-    addInput(adv, "BPM override (optional)", "style.bpmOverride", state.style.bpmOverride);
-    addTextarea(adv, "Extra negative prompt", "style.negativePrompt", state.style.negativePrompt, 3);
-  } else {
-    // Engines without a presetMap: optional flavour-cluster panel + classic slots.
-    if (clusterKeys.length) {
-      els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Flavour cluster (${clusterKeys.length})</summary><div class="control-stack detail-body" id="clusterPanel"></div></details>`);
-      const cp = document.getElementById("clusterPanel");
-      addSelect(cp, "Build mode", "style.buildMode", [{ value: "classic", label: "Classic slots" }, { value: "cluster", label: "Flavour cluster" }], state.style.buildMode);
-      addSelect(cp, "Palette", "style.palette", [{ value: "electronic", label: "Electronic (default)" }, { value: "acoustic", label: "Acoustic" }, { value: "blend", label: "Blend" }], state.style.palette);
-      addSelect(cp, "Cluster", "style.cluster", clusterKeys.map((k) => ({ value: k, label: clusters[k].label || k })), state.style.cluster);
-      addToggle(cp, "Arrangement language", "style.arrangement", state.style.arrangement);
-      addInput(cp, "BPM override (optional)", "style.bpmOverride", state.style.bpmOverride);
-    }
-    els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Fine tune arrangement</summary><div class="control-stack detail-body" id="styleFineTune"></div></details>`);
-    const styleFineTune = document.getElementById("styleFineTune");
-    addSelect(styleFineTune, "Pad / texture", "style.pad", engine.pads, state.style.pad);
-    addSelect(styleFineTune, "Bass / tempo support", "style.bass", engine.bass, state.style.bass);
-    addSelect(styleFineTune, "Rhythm / hook", "style.rhythm", engine.rhythm, state.style.rhythm);
-    addSelect(styleFineTune, "Strings / vocal blend / density", "style.percussion", engine.percussion, state.style.percussion);
-    addSelect(styleFineTune, "Motif", "style.motif", engine.motifs, state.style.motif);
-    addSelect(styleFineTune, "Movement", "style.movement", engine.movement, state.style.movement);
-    addTextarea(styleFineTune, "Extra negative prompt", "style.negativePrompt", state.style.negativePrompt, 3);
-  }
+  const eng = getEngine(S.engineId);
+  if (eng.kind === 'resolver') renderResolverControls(controls, eng);
+  else if (eng.kind === 'legacy') renderLegacyControls(controls, eng);
+  else renderStub(controls, eng);
 
-  els.songControls.innerHTML = "";
-  addInput(els.songControls, "Optional title seed", "song.title", state.song.title);
-  addInput(els.songControls, "Subject / topic", "song.subject", state.song.subject);
-  addChoiceGroup(els.songControls, "Source type", "song.sourceType", CONTROL_OPTIONS.sourceType, state.song.sourceType, "What kind of seed is this?", "source");
-  addChoiceGroup(els.songControls, "Theme lens", "song.themeLens", CONTROL_OPTIONS.themeLens, state.song.themeLens, "How literally should Claude treat the seed?", "lens");
-  addTextarea(els.songControls, "Optional source notes", "song.sourceNotes", state.song.sourceNotes, 3);
-  addChoiceGroup(els.songControls, "Mood", "song.mood", CONTROL_OPTIONS.mood, state.song.mood, "Primary emotional color.", "mood");
-  addChoiceGroup(els.songControls, "Energy", "song.energy", CONTROL_OPTIONS.energy, state.song.energy, "Performance intensity.", "energy");
-  addChoiceGroup(els.songControls, "Perspective", "song.perspective", CONTROL_OPTIONS.perspective, state.song.perspective, "Who is speaking?", "perspective");
-  els.songControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Lyric mechanics</summary><div class="control-stack detail-body" id="lyricMechanics"></div></details>`);
-  const lyricMechanics = document.getElementById("lyricMechanics");
-  lyricMechanics.insertAdjacentHTML("beforeend", `<div class="field-grid" id="lyricMechanicsGrid"></div>`);
-  const lyricMechanicsGrid = document.getElementById("lyricMechanicsGrid");
-  addSelect(lyricMechanicsGrid, "Genre family", "song.genreFamily", CONTROL_OPTIONS.genreFamily, state.song.genreFamily);
-  addSelect(lyricMechanicsGrid, "Era bias", "song.eraBias", CONTROL_OPTIONS.eraBias, state.song.eraBias);
-  addSelect(lyricMechanicsGrid, "Language style", "song.languageStyle", CONTROL_OPTIONS.languageStyle, state.song.languageStyle);
-  addSelect(lyricMechanicsGrid, "Hook style", "song.hookStyle", CONTROL_OPTIONS.hookStyle, state.song.hookStyle);
-  addSelect(lyricMechanicsGrid, "Target line length", "song.lineLength", CONTROL_OPTIONS.lineLength, state.song.lineLength);
-  addSelect(lyricMechanicsGrid, "Rhyme density", "song.rhymeDensity", CONTROL_OPTIONS.rhymeDensity, state.song.rhymeDensity);
-  addSelect(lyricMechanicsGrid, "Imagery density", "song.imageryDensity", CONTROL_OPTIONS.imageryDensity, state.song.imageryDensity);
-  addSelect(lyricMechanicsGrid, "Narrative clarity", "song.narrativeClarity", CONTROL_OPTIONS.narrativeClarity, state.song.narrativeClarity);
-  addSelect(lyricMechanicsGrid, "Vocal framing", "song.vocalFraming", CONTROL_OPTIONS.vocalFraming, state.song.vocalFraming);
-  addSelect(lyricMechanicsGrid, "Delivery style", "song.deliveryStyle", CONTROL_OPTIONS.deliveryStyle, state.song.deliveryStyle);
-  addTextarea(lyricMechanics, "Negative lyric rules", "song.negativeRules", state.song.negativeRules, 3);
-  addToggle(els.songControls, "Clean language", "song.cleanLanguage", state.song.cleanLanguage);
-  addToggle(els.songControls, "Avoid cliches", "song.avoidCliche", state.song.avoidCliche);
-  addToggle(els.songControls, "Use title in chorus", "song.titleInChorus", state.song.titleInChorus);
-  addToggle(els.songControls, "Repeat key hook wording", "song.repeatHook", state.song.repeatHook);
-
-  els.languageControls.innerHTML = "";
-  addToggle(els.languageControls, "Enable language layer", "languageLayer.enabled", state.languageLayer.enabled);
-  addChoiceGroup(els.languageControls, "Language", "languageLayer.language", CONTROL_OPTIONS.languages, state.languageLayer.language, "Phrase layer language.", "language");
-  addChoiceGroup(els.languageControls, "Mode", "languageLayer.mode", CONTROL_OPTIONS.languageModes, state.languageLayer.mode, "Defaults to phrase layer, not full translation.", "mode");
-  addSelect(els.languageControls, "Placement", "languageLayer.placement", CONTROL_OPTIONS.languagePlacement, state.languageLayer.placement);
-  addSelect(els.languageControls, "Intensity", "languageLayer.intensity", CONTROL_OPTIONS.languageIntensity, state.languageLayer.intensity);
-  addTextarea(els.languageControls, "Language QA notes", "languageLayer.notes", state.languageLayer.notes, 3);
-
-  els.structureTemplate.value = state.structure.templateId;
-  els.includePreChorus.checked = state.structure.includePreChorus;
-  els.includeBridge.checked = state.structure.includeBridge;
-  els.useStyleToGuideLyrics.checked = state.integration.useStyleToGuideLyrics;
-  els.strictValidation.checked = state.integration.strictValidation;
-  els.rememberKey.checked = state.claude.apiKeyRemembered;
-  state.claude.model = els.claudeModel.options[0]?.value || state.claude.model;
-  els.claudeModel.value = state.claude.model;
-  els.claudeTransport.value = state.claude.transport || "direct";
-  els.temperature.value = state.claude.temperature;
-  els.temperatureValue.textContent = state.claude.temperature;
-  els.maxTokens.value = state.claude.maxTokens;
-  els.manualThemeBrief.value = state.advanced.manualThemeBrief;
-  els.manualLyrics.value = state.advanced.manualLyrics;
-  updateStructureNotes(state);
+  refreshOutput();
 }
 
-export function renderOutputs(state) {
-  state.outputs.stylePrompt = buildStylePrompt(state);
-  state.outputs.negativePrompt = state.outputs.negativePrompt || buildNegativePrompt(state);
-  els.styleOutput.value = state.outputs.stylePrompt;
-  const template = selectedTemplate(state);
-  const metatagPlan = formatMetatagPlan(buildSunoMetatagPlan(state, template));
-  const vocalPlan = formatVocalArrangementPlan(buildVocalArrangementPlan(state, template));
-  const adLibPlan = formatAdLibPlan(buildAdLibPlan(state, template));
-  els.metatagOutput.value = `Compatibility rules\n${compatibilitySummary(state)}\n\nMetatags\n${metatagPlan}\n\nSupporting vocal arrangement\n${vocalPlan}\n\nLyric inserts / ad-libs\n${adLibPlan}`;
-  els.negativeOutput.value = state.outputs.negativePrompt;
-  els.lyricsOutput.value = state.outputs.lyrics || "";
-  els.themeBriefOutput.value = state.outputs.themeBrief || "";
-  els.rawJsonOutput.value = state.outputs.rawClaudeJson ? JSON.stringify(state.outputs.rawClaudeJson, null, 2) : state.outputs.rawClaudeText || "";
-  els.validationOutput.value = state.outputs.validationText || "";
-  const count = state.outputs.stylePrompt.length;
-  els.styleBudget.textContent = `${count} / 1000 characters`;
-  els.styleBudget.style.color = count >= 1000 ? "var(--danger)" : count >= 900 ? "var(--warning)" : "var(--text-muted)";
-  els.promptPreview.value = buildGenerationPrompt(state, template);
+// ---- resolver controls -----------------------------------------------------
+function renderResolverControls(root, eng) {
+  const r = S.res;
+  const chars = resolverCharacters(eng.module);
+  const c = eng.module.characters[r.characterId];
+
+  root.appendChild(field('Character',
+    select(chars.map(x => ({ value: x.id, label: `${x.label} \u2014 ${x.source} \u2014 ${x.tempo}` })), r.characterId,
+      v => { r.characterId = v; r.locks = {}; renderAll(); })));
+
+  root.appendChild(field('Palette',
+    segmented([['electronic', 'Electronic'], ['acoustic', 'Acoustic'], ['blend', 'Blend']].map(([value, label]) => ({ value, label })),
+      r.palette, v => { r.palette = v; r.locks = {}; renderAll(); })));
+
+  root.appendChild(field('Control level',
+    segmented([['random', 'Randomize all'], ['lockSome', 'Lock some'], ['manual', 'Full manual']].map(([value, label]) => ({ value, label })),
+      r.level, v => { r.level = v; r.locks = {}; if (v === 'manual') seedManualLocks(eng, r); renderAll(); })));
+
+  if (r.level !== 'random') {
+    const locks = el('div', { class: 'locks' });
+    RESOLVER_ROLES.forEach(role => {
+      if (role === 'color' && c.colorChance === 0) return;
+      const pool = resolverRolePool(eng.module, r.characterId, role, r.palette);
+      const opts = [{ value: '', label: '\uD83C\uDFB2 random' }, ...pool];
+      const cur = r.locks[role] != null ? r.locks[role] : '';
+      locks.appendChild(field(roleLabel(role),
+        select(opts, cur, v => { if (v === '') delete r.locks[role]; else r.locks[role] = v; refreshOutput(); })));
+    });
+    root.appendChild(locks);
+  }
+
+  const drums = c.beatless ? 'Beatless (no drum pool)' : `Auto \u2014 ${c.drums.primary} family`;
+  root.appendChild(el('p', { class: 'note', text: `Drums: ${drums}. Colour fires ~${Math.round(c.colorChance * 100)}% of draws.` }));
+
+  root.appendChild(buttons());
+}
+function seedManualLocks(eng, r) {
+  const c = eng.module.characters[r.characterId];
+  RESOLVER_ROLES.forEach(role => {
+    if (role === 'color' && c.colorChance === 0) return;
+    const pool = resolverRolePool(eng.module, r.characterId, role, r.palette);
+    if (pool.length) r.locks[role] = pool[0].value;
+  });
+}
+function roleLabel(role) {
+  return { pads: 'Pads', harmony: 'Harmony', bass: 'Bass', lead: 'Lead', voice: 'Voice', color: 'Colour', movement: 'Movement' }[role] || role;
 }
 
-export function updateValidationBadge(validation) {
-  els.validationBadge.className = "status-pill";
-  if (!validation) {
-    els.validationBadge.textContent = "No validation yet";
+// ---- legacy controls -------------------------------------------------------
+function renderLegacyControls(root, eng) {
+  const l = S.leg;
+
+  if (l.presetDriven) {
+    const map = (window.__ATMOS.EngineExtras[eng.id] || {}).presetMap;
+    root.appendChild(field('Engine preset',
+      select(Object.keys(map).map(k => ({ value: k, label: k })), l.preset,
+        v => { l.preset = v; refreshOutput(); })));
+    root.appendChild(field('Phase (tempo / energy)',
+      select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase,
+        v => { l.phase = v; refreshOutput(); })));
+    root.appendChild(field('Palette',
+      segmented(seg3(), l.palette, v => { l.palette = v; refreshOutput(); })));
+    root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
+    root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
+    root.appendChild(buttons());
     return;
   }
-  const ok = validation.passed && validation.score >= 80;
-  els.validationBadge.textContent = `${validation.score}/100 - ${ok ? "Passed" : "Needs manual review"}`;
-  els.validationBadge.classList.add(ok ? "status-ok" : "status-bad");
-}
 
-export function selectedTemplate(state) {
-  return STRUCTURE_TEMPLATES.find((template) => template.id === state.structure.templateId) || STRUCTURE_TEMPLATES[0];
-}
+  // fork engine (Balearic): Flavour cluster / Classic mix
+  root.appendChild(field('Build mode',
+    segmented([['cluster', 'Flavour cluster'], ['classic', 'Classic mix']].map(([value, label]) => ({ value, label })),
+      l.buildMode, v => { l.buildMode = v; renderAll(); })));
 
-export function updateStructureNotes(state) {
-  const template = selectedTemplate(state);
-  els.structureNotes.textContent = `${template.notes} Best for: ${template.bestFor.join(", ")}.`;
-}
-
-export function setProgress(items, activeIndex = -1, failedIndex = -1) {
-  els.progressList.innerHTML = items.map((item, index) => {
-    const cls = failedIndex === index ? "failed" : index < activeIndex ? "done" : index === activeIndex ? "active" : "";
-    return `<li class="${cls}">${item}</li>`;
-  }).join("");
-}
-
-export function setError(message = "") {
-  els.errorBox.hidden = !message;
-  els.errorBox.textContent = message;
-  if (message) {
-    document.querySelectorAll("[data-output-panel]").forEach((panel) => {
-      panel.hidden = panel.id !== "progressPanel";
+  if (l.buildMode === 'cluster') {
+    root.appendChild(field('Cluster',
+      select(legacyClusters(eng.id).map(k => ({ value: k, label: k })), l.cluster, v => { l.cluster = v; refreshOutput(); })));
+    root.appendChild(field('Palette', segmented(seg3(), l.palette, v => { l.palette = v; refreshOutput(); })));
+    root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
+    root.appendChild(field('BPM override', el('input', { class: 'txt', type: 'text', value: l.bpmOverride, placeholder: 'optional', oninput: e => { l.bpmOverride = e.target.value; refreshOutput(); } })));
+  } else {
+    const classic = legacyClassic(eng.id);
+    root.appendChild(field('Preset', select(classic.presets.map(p => ({ value: p, label: p })), l.preset, v => { l.preset = v; refreshOutput(); })));
+    root.appendChild(field('Phase', select(classic.phases.map(p => ({ value: p, label: p })), l.phase, v => { l.phase = v; refreshOutput(); })));
+    const slots = el('details', { class: 'slots' }, [el('summary', { text: 'Fine-tune arrangement' })]);
+    [['pad', 'Pad'], ['bass', 'Bass'], ['rhythm', 'Rhythm'], ['percussion', 'Percussion'], ['motif', 'Motif'], ['movement', 'Movement']].forEach(([key, label]) => {
+      const arr = classic.slots[key];
+      if (!arr.length) return;
+      slots.appendChild(field(label, select(arr.map(x => ({ value: x, label: x })), l.slots[key], v => { l.slots[key] = v; refreshOutput(); })));
     });
-    document.querySelectorAll("[data-output-tab]").forEach((tab) => {
-      tab.classList.toggle("active", tab.dataset.outputTab === "progressPanel");
-    });
+    root.appendChild(slots);
   }
+  root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
+  root.appendChild(buttons());
 }
 
-export function setBusy(isBusy) {
-  els.generateBtn.disabled = isBusy;
-  els.testClaudeBtn.disabled = isBusy;
-  els.generateBtn.textContent = isBusy ? "Generating..." : "Generate Lyrics with Claude";
+function seg3() { return [['electronic', 'Electronic'], ['acoustic', 'Acoustic'], ['blend', 'Blend']].map(([value, label]) => ({ value, label })); }
+function vocalSeg() { return [['Instrumental', 'Instrumental'], ['Descriptor', 'Descriptor'], ['Persona', 'Persona']].map(([value, label]) => ({ value, label })); }
+function toggle(label, checked, onchange) {
+  const cb = el('input', { type: 'checkbox', onchange: e => onchange(e.target.checked) });
+  cb.checked = checked;
+  return el('label', { class: 'toggle' }, [cb, el('span', { text: label })]);
 }
 
-function addInput(parent, label, path, value) {
-  parent.insertAdjacentHTML("beforeend", `<label><span>${label}</span><input data-path="${path}" value="${escapeAttr(value)}"></label>`);
+function renderStub(root, eng) {
+  root.appendChild(el('div', { class: 'stub' }, [
+    el('h3', { text: `${eng.label} \u2014 not built yet` }),
+    el('p', { text: 'Registered in scope. Slots into the resolver kind (same as Delerium) once its palette + character pools are authored and validated.' }),
+  ]));
 }
 
-function addTextarea(parent, label, path, value, rows) {
-  parent.insertAdjacentHTML("beforeend", `<label><span>${label}</span><textarea data-path="${path}" rows="${rows}">${escapeHtml(value)}</textarea></label>`);
+// ---- shared buttons + output ----------------------------------------------
+function buttons() {
+  return el('div', { class: 'actions' }, [
+    el('button', { class: 'primary', text: 'Generate', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
+    el('button', { class: 'ghost', text: 'Re-roll instruments', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
+  ]);
 }
 
-function addSelect(parent, label, path, options, value) {
-  const opts = options.map((option) => {
-    const item = typeof option === "string" ? { value: option, label: option } : option;
-    return `<option value="${escapeAttr(item.value)}"${item.value === value ? " selected" : ""}>${escapeHtml(item.label)}</option>`;
-  }).join("");
-  parent.insertAdjacentHTML("beforeend", `<label><span>${label}</span><select data-path="${path}">${opts}</select></label>`);
+function refreshOutput() {
+  const host = document.getElementById('output');
+  if (!host) return;
+  host.innerHTML = '';
+  const eng = getEngine(S.engineId);
+  if (eng.kind === 'stub') { host.appendChild(el('p', { class: 'note', text: 'Select a built engine to generate.' })); return; }
+
+  const res = generate(S);
+  host.appendChild(outBlock('Style prompt', res.style, res.length, res.over));
+  host.appendChild(outBlock('Negative prompt', res.negative, null, false));
+  const lyr = res.lyrics || '[Instrumental]';
+  host.appendChild(outBlock('Lyrics field', lyr, null, false, 'Paste into Suno\u2019s lyrics box; use Suno\u2019s Instrumental toggle for reliable vocal suppression.'));
 }
 
-function addToggle(parent, label, path, checked) {
-  parent.insertAdjacentHTML("beforeend", `<label class="toggle-row"><input type="checkbox" data-path="${path}" ${checked ? "checked" : ""}><span>${label}</span></label>`);
+function outBlock(title, text, length, over, hint) {
+  const head = el('div', { class: 'out-head' }, [el('h4', { text: title })]);
+  if (length != null) head.appendChild(el('span', { class: 'meter' + (over ? ' over' : ''), text: `${length}/1000` }));
+  head.appendChild(el('button', { class: 'copy', text: 'Copy', onclick: (e) => { copy(text); e.target.textContent = 'Copied'; setTimeout(() => e.target.textContent = 'Copy', 1200); } }));
+  const kids = [head, el('textarea', { class: 'out', readonly: 'readonly', rows: title === 'Style prompt' ? 5 : 2 }, text)];
+  if (hint) kids.push(el('p', { class: 'hint', text: hint }));
+  return el('div', { class: 'out-block' }, kids);
 }
-
-function addChoiceGroup(parent, label, path, options, value, hint = "", tone = "") {
-  const buttons = options.map((option) => {
-    const item = typeof option === "string" ? { value: option, label: option } : option;
-    const selected = item.value === value ? " active" : "";
-    return `<button class="decision-option${selected}" type="button" data-choice-path="${path}" data-choice-value="${escapeAttr(item.value)}"><strong>${escapeHtml(shortLabel(item.label))}</strong><small>${escapeHtml(item.label)}</small></button>`;
-  }).join("");
-  parent.insertAdjacentHTML("beforeend", `<div class="decision-group decision-${escapeAttr(tone)}"><div><div class="decision-label">${escapeHtml(label)}</div>${hint ? `<p class="field-note">${escapeHtml(hint)}</p>` : ""}</div><div class="decision-grid">${buttons}</div></div>`);
-}
-
-function shortLabel(label) {
-  const text = String(label);
-  if (text.length <= 26) return text;
-  return text.split(/[,.]/)[0].slice(0, 26).trim();
-}
-
-function fillSelect(select, options) {
-  select.innerHTML = options.map((option) => {
-    const item = typeof option === "string" ? { value: option, label: option } : option;
-    return `<option value="${escapeAttr(item.value)}">${escapeHtml(item.label)}</option>`;
-  }).join("");
-}
-
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
-}
-
-function escapeAttr(value) {
-  return escapeHtml(value).replace(/`/g, "&#096;");
+function copy(t) {
+  if (navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {});
 }

@@ -1,423 +1,6 @@
-// GENERATED — do not edit. Build with: node build.mjs
-window.__ATMOS = window.__ATMOS || {};
+// Generated local-file bundle. Source modules are kept alongside this file.
 
-/* core/constants.js */
-(function(){
-const ALWAYS_BAN = [
-  'field recordings','air texture','room tone','foley','sound effects',
-  'vinyl crackle','tape hiss','nature sounds','ambient noise',
-];
-const BEATLESS_BAN = ['drums','kick','beat','percussion','snare'];
-const MASTERING = 'Polished Dolby Atmos-Master Atmos -2dB.';
-const CHAR_LIMIT = 1000;
-
-// deterministic RNG so a seed reproduces an arrangement (needed for re-roll + locks)
-function rng(seed) {
-  let s = seed >>> 0;
-  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
-}
-
-// palette filter: keep options that fit the chosen palette; never empty a role
-function filterPalette(options, palette) {
-  const keep = options.filter(o =>
-    palette === 'blend' ? true :
-    palette === 'electronic' ? (o.d === 'E' || o.d === 'B') :
-    /* acoustic */ (o.d === 'A' || o.d === 'B'));
-  return keep.length ? keep : options;
-}
-
-Object.assign(window.__ATMOS, { rng, filterPalette, ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT });
-})();
-
-/* core/resolver.js */
-(function(){
-const {ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette} = window.__ATMOS;
-
-// opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed }
-// locks drive all three control levels:
-//   randomize all  = locks {}
-//   lock some      = locks {pads:'...'}
-//   full manual    = every role locked
-function resolveArrangement(engine, opts) {
-  const { characterId, palette = 'electronic', locks = {}, seed = Date.now() } = opts;
-  const c = engine.characters[characterId];
-  if (!c) throw new Error(`unknown character ${characterId}`);
-  const rand = rng(seed);
-  const pick = (role) => {
-    if (locks[role] != null) return locks[role];
-    const pool = filterPalette(c.pools[role] || [], palette);
-    if (!pool.length) return null;
-    return pool[Math.floor(rand() * pool.length)].t;
-  };
-
-  const arr = {
-    engine: engine.id,
-    character: c.label,
-    genre: c.genre,
-    beatless: !!c.beatless,
-    bpm: c.bpm || null,
-    energy: c.energy,
-    pads: pick('pads'),
-    harmony: pick('harmony'),
-    bass: pick('bass'),
-    voice: pick('voice'),
-    lead: pick('lead'),
-    movement: pick('movement'),
-    color: null,
-    drums: null,
-  };
-
-  // drums (skip when beatless)
-  if (!c.beatless && c.drums.primary) {
-    const fam = engine.drums[c.drums.primary];
-    arr.drums = fam[Math.floor(rand() * fam.length)];
-  }
-  // colour fires occasionally
-  if (rand() < c.colorChance) arr.color = pick('color');
-
-  // interplay / arrangement layer — WOVEN into the style string (per John's Suno test).
-  // role-generic tails that hang off already-named instruments (never re-name one).
-  const ipPool = (engine.interplay && engine.interplay[characterId]) || {};
-  const one = (dim) => (ipPool[dim] && ipPool[dim].length)
-    ? ipPool[dim][Math.floor(rand() * ipPool[dim].length)] : null;
-  arr.ip = {
-    foundation:   one('foundation'),
-    conversation: one('conversation'),
-    arc:          one('arc'),
-    voiceRel:     one('voiceRel'),
-    colorRel:     one('colorRel'),
-  };
-
-  return arr;
-}
-
-// STYLE STRING = full woven cast (the approved gold-standard format). Instruments are
-// threaded with their interplay inline, in musical layers, not a flat tag list:
-//   genre -> tempo -> [drums+bass+foundation] -> [pads+lead+conversation] -> harmony
-//         -> [voice+voiceRel] -> [colour+colourRel if it fires] -> [movement+arc] -> mastering
-function renderStyle(engine, arr) {
-  const ip = arr.ip || {};
-  const clauses = [arr.genre];
-
-  // tempo + energy
-  clauses.push(arr.beatless
-    ? `beatless, ${arr.energy} energy`
-    : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`);
-
-  // foundation: drums(+)bass + how they lock/float
-  if (arr.bass) {
-    const low = arr.drums ? `${arr.drums} and ${arr.bass}` : arr.bass;
-    clauses.push(ip.foundation ? `${low} ${ip.foundation}` : low);
-  } else if (arr.drums) {
-    clauses.push(ip.foundation ? `${arr.drums} ${ip.foundation}` : arr.drums);
-  }
-
-  // conversation: pads + lead + how they relate
-  if (arr.pads && arr.lead) {
-    clauses.push(ip.conversation ? `${arr.pads} with ${arr.lead} ${ip.conversation}`
-                                 : `${arr.pads} with ${arr.lead}`);
-  } else if (arr.pads) {
-    clauses.push(arr.pads);
-  } else if (arr.lead) {
-    clauses.push(arr.lead);
-  }
-
-  // harmony (musicality slot — its own clause)
-  if (arr.harmony) clauses.push(arr.harmony);
-
-  // voice + how it sits
-  if (arr.voice) clauses.push(ip.voiceRel ? `${arr.voice} ${ip.voiceRel}` : arr.voice);
-
-  // colour (only when it fired) + how it sits
-  if (arr.color) clauses.push(ip.colorRel ? `${arr.color} ${ip.colorRel}` : arr.color);
-
-  // production movement + the arc of the whole arrangement
-  if (arr.movement) clauses.push(ip.arc ? `${arr.movement} and ${ip.arc}` : arr.movement);
-  else if (ip.arc) clauses.push(ip.arc);
-
-  return clauses.join(', ') + '. ' + MASTERING;
-}
-
-function renderNegative(engine, arr) {
-  const bans = [...engine.sourceNegative, ...ALWAYS_BAN];
-  if (arr.beatless) bans.push(...BEATLESS_BAN);
-  return [...new Set(bans)].join(', ');
-}
-
-function build(engine, opts) {
-  const arr = resolveArrangement(engine, opts);
-  const style = renderStyle(engine, arr);
-  return { arrangement: arr, style, negative: renderNegative(engine, arr), length: style.length,
-           overLimit: style.length > CHAR_LIMIT };
-}
-
-Object.assign(window.__ATMOS, { resolveArrangement, renderStyle, renderNegative, build });
-})();
-
-/* engines/delerium.js */
-(function(){
-// Delerium engine — album-era (Faces -> Semantic Spaces -> Karma -> Poem).
-// NOT the trance-remix identity. Domains: 'E' electronic, 'A' acoustic, 'B' both.
-//
-// Rewrite (2026-07-09): fix "tempo was the only real change". Two changes:
-//   1) Pools DEEPENED to album-scale and DE-OVERLAPPED so each character owns a
-//      distinct pad / vocal / movement signature (Sacred/Ethereal/Firefly no longer
-//      share cathedral-pad + vocoder + delay-throws).
-//   2) Interplay restructured as attach-clauses (tails that hang off already-named
-//      instruments) so the resolver can WEAVE it into the style string per the
-//      approved gold-standard format — never re-naming an instrument.
-
-const P = {
-  pads: {
-    cathedralPad:  { t: 'slowly swelling cathedral-reverb analog pad', d: 'E' },
-    darkDrone:     { t: 'dark evolving drone bed', d: 'E' },
-    glassyPad:     { t: 'glassy digital pad with shimmering high partials', d: 'E' },
-    stringWash:    { t: 'warm string-synth wash', d: 'E' },
-    metallicDrone: { t: 'bowed metallic drone', d: 'B' },
-    reversedPad:   { t: 'reversed pad swell into the downbeat', d: 'E' },
-    harmoniumDrone:{ t: 'sustained harmonium drone', d: 'A' },
-    celloDroneBed: { t: 'bowed cello drone bed', d: 'A' },
-    choirPad:      { t: 'sustained wordless choir pad', d: 'E' },
-    analogueSwell: { t: 'warm analogue polysynth swell', d: 'E' },
-    glacialPad:    { t: 'glacial slow-attack ambient pad', d: 'E' },
-    tanpuraBed:    { t: 'shimmering tanpura drone bed', d: 'A' },
-    feltMalletBed: { t: 'soft felt-mallet resonant bed', d: 'A' },
-  },
-  bass: {
-    subBass:    { t: 'deep sustained sub-bass', d: 'E' },
-    seqBass:    { t: 'sequenced synth bass pulsing eighth notes', d: 'E' },
-    analogBass: { t: 'slow legato round analog bass', d: 'E' },
-    fretless:   { t: 'fretless bass glide', d: 'B' },
-    upright:    { t: 'slow plucked upright acoustic bass', d: 'A' },
-    oudLow:     { t: 'low oud register', d: 'A' },
-    pulsingBass:{ t: 'pulsing filtered synth bass', d: 'E' },
-    warmSine:   { t: 'warm sine sub with a soft attack', d: 'E' },
-  },
-  lead: {
-    duduk:     { t: 'sustained duduk lead', d: 'A' },
-    bambooFl:  { t: 'bamboo flute motif', d: 'A' },
-    piano:     { t: 'sparse grand-piano figure', d: 'A' },
-    synthArp:  { t: 'plucked synth arpeggio lead', d: 'E' },
-    sitar:     { t: 'sitar melodic phrase', d: 'A' },
-    celloLead: { t: 'long-phrased bowed cello lead', d: 'A' },
-    fmBell:    { t: 'glassy FM bell lead', d: 'E' },
-    detunedLd: { t: 'detuned analog synth lead with slow portamento', d: 'E' },
-    panFlute:  { t: 'breathy pan-flute melody', d: 'A' },
-    ney:       { t: 'reedy ney flute lead', d: 'A' },
-    erhu:      { t: 'bowed erhu melodic line', d: 'A' },
-    ebowGuitar:{ t: 'ebow sustained guitar lead', d: 'B' },
-    glassPluck:{ t: 'glassy plucked digital lead', d: 'E' },
-  },
-  harmony: {
-    minorModal:{ t: 'slow minor-modal chord changes', d: 'B' },
-    suspended: { t: 'suspended chords resolving on the chorus lift', d: 'B' },
-    droneTonic:{ t: 'an unresolved static drone-tonic', d: 'B' },
-    add9:      { t: 'lush add9 chord voicings', d: 'B' },
-    phrygian:  { t: 'a dark phrygian cadence', d: 'B' },
-    majorLift: { t: 'a major-key chord lift on the chorus', d: 'B' },
-  },
-  voice: {
-    latinChant:   { t: 'distant monastic Latin chant', d: 'A' },
-    femaleWash:   { t: 'an ethereal wordless female vocal wash', d: 'A' },
-    euroChoir:    { t: 'an Eastern-European choir texture', d: 'A' },
-    throatChant:  { t: 'a throat-overtone chant drone', d: 'A' },
-    vocalChops:   { t: 'rhythmic sampled ethnic vocal chops', d: 'B' },
-    vocoderPad:   { t: 'a vocoded wordless vocal pad', d: 'E' },
-    granularVox:  { t: 'a granular stretched-vocal drone', d: 'E' },
-    sanskritChant:{ t: 'distant Sanskrit vocal chant', d: 'A' },
-    breathyFemale:{ t: 'a breathy close female vocal texture', d: 'A' },
-    maleDrone:    { t: 'a low male vocal drone', d: 'A' },
-    childChoir:   { t: "a distant children's choir wash", d: 'A' },
-    gregorianMale:{ t: 'Gregorian-style male chant', d: 'A' },
-  },
-  color: {
-    fingerCymb: { t: 'finger cymbals and bells', d: 'A' },
-    dulcimer:   { t: 'a hammered dulcimer run', d: 'A' },
-    sarangi:    { t: 'a bowed sarangi ornament', d: 'A' },
-    gong:       { t: 'a gong swell', d: 'A' },
-    kalimba:    { t: 'a kalimba figure', d: 'A' },
-    bellArp:    { t: 'a bell-synth arpeggio sparkle', d: 'E' },
-    revStab:    { t: 'a reversed synth-stab accent', d: 'E' },
-    windChimes: { t: 'a wind-chime shimmer', d: 'A' },
-    santoor:    { t: 'a santoor tremolo run', d: 'A' },
-    prepPiano:  { t: 'a prepared-piano pluck', d: 'A' },
-    glocken:    { t: 'a glockenspiel sparkle', d: 'B' },
-  },
-  movement: {
-    filterLFO:   { t: 'a slow filter LFO sweep', d: 'E' },
-    delayThrows: { t: 'tempo-synced delay throws', d: 'E' },
-    autopan:     { t: 'a wide stereo autopan', d: 'E' },
-    reversedTr:  { t: 'reversed-swell transitions', d: 'E' },
-    reverbTail:  { t: 'a long cathedral reverb tail', d: 'E' },
-    tremoloSwell:{ t: 'tremolo bowed-string swells', d: 'A' },
-    handCresc:   { t: 'rolling hand-percussion crescendos', d: 'A' },
-    dubEcho:     { t: 'dub delay echoes as a second voice', d: 'E' },
-    risers:      { t: 'filtered-noise risers into the lift', d: 'E' },
-    panSweep:    { t: 'a slow stereo pan sweep', d: 'E' },
-  },
-};
-
-const DRUMS = {
-  worldbeat: ['deep frame drum','a tabla pattern','a dumbek groove','a hand-played djembe','congas and shakers with tambourine'],
-  softDown:  ['a subdued soft programmed kick','a brushed programmed snare','a trip-hop-leaning downtempo groove','a soft measured downtempo beat'],
-  firefly:   ['a denser driving programmed pulse','a propulsive sequenced groove'],
-  hybrid:    ['a programmed kick under live hand percussion','a downtempo beat laced with hand percussion'],
-};
-
-const r = (role, ...keys) => keys.map(k => P[role][k]);
-
-const CHARACTERS = {
-  gothicAmbient: {
-    label: 'Gothic Ambient', source: 'Faces / Morpheus',
-    genre: 'Delerium Style, dark ritual ambient',
-    beatless: true, energy: 'low', colorChance: 0.5,
-    drums: { primary: null, secondary: null },
-    pools: {
-      pads:     r('pads','darkDrone','metallicDrone','glacialPad','celloDroneBed'),
-      bass:     r('bass','subBass','fretless','warmSine'),
-      harmony:  r('harmony','droneTonic','phrygian'),
-      voice:    r('voice','throatChant','granularVox','maleDrone'),
-      lead:     r('lead','celloLead','ebowGuitar','ney'),
-      color:    r('color','gong','windChimes','prepPiano'),
-      movement: r('movement','reversedTr','reverbTail','tremoloSwell'),
-    },
-  },
-  worldbeatRitual: {
-    label: 'Worldbeat Ritual', source: 'Semantic Spaces',
-    genre: 'Delerium Style, worldbeat downtempo, tribal ethereal',
-    beatless: false, bpm: [84,96], energy: 'low to medium', colorChance: 0.55,
-    drums: { primary: 'worldbeat', secondary: null },
-    pools: {
-      pads:     r('pads','harmoniumDrone','tanpuraBed','darkDrone'),
-      bass:     r('bass','subBass','oudLow','upright'),
-      harmony:  r('harmony','droneTonic','minorModal','phrygian'),
-      voice:    r('voice','euroChoir','sanskritChant','throatChant','vocalChops'),
-      lead:     r('lead','duduk','bambooFl','sitar','ney','erhu'),
-      color:    r('color','fingerCymb','dulcimer','sarangi','santoor'),
-      movement: r('movement','filterLFO','handCresc','dubEcho'),
-    },
-  },
-  sacredDowntempo: {
-    label: 'Sacred Downtempo', source: 'Silence / Karma',
-    genre: 'Delerium Style, sacred ethereal downtempo',
-    beatless: false, bpm: [92,100], energy: 'medium', colorChance: 0.45,
-    drums: { primary: 'softDown', secondary: 'hybrid' },
-    pools: {
-      pads:     r('pads','cathedralPad','harmoniumDrone','choirPad','feltMalletBed'),
-      bass:     r('bass','subBass','upright','warmSine'),
-      harmony:  r('harmony','minorModal','suspended','add9'),
-      voice:    r('voice','latinChant','gregorianMale','childChoir','femaleWash'),
-      lead:     r('lead','piano','duduk','celloLead','panFlute'),
-      color:    r('color','fingerCymb','glocken','prepPiano'),
-      movement: r('movement','delayThrows','reversedTr','reverbTail'),
-    },
-  },
-  ethereal: {
-    label: 'Ethereal', source: 'Innocente / Poem',
-    genre: 'Delerium Style, ethereal downtempo electronica',
-    beatless: false, bpm: [100,112], energy: 'medium', colorChance: 0.4,
-    drums: { primary: 'softDown', secondary: 'hybrid' },
-    pools: {
-      pads:     r('pads','cathedralPad','glassyPad','stringWash','analogueSwell'),
-      bass:     r('bass','analogBass','upright','warmSine','fretless'),
-      harmony:  r('harmony','suspended','add9','majorLift'),
-      voice:    r('voice','femaleWash','breathyFemale','vocoderPad','granularVox'),
-      lead:     r('lead','piano','synthArp','detunedLd','glassPluck','ebowGuitar'),
-      color:    r('color','kalimba','bellArp','glocken'),
-      movement: r('movement','delayThrows','autopan','dubEcho','panSweep'),
-    },
-  },
-  firefly: {
-    label: 'Firefly', source: 'Euphoria',
-    genre: 'Delerium Style, driving ethereal downtempo',
-    beatless: false, bpm: [112,126], energy: 'medium to high', colorChance: 0.4,
-    drums: { primary: 'firefly', secondary: 'hybrid' },
-    pools: {
-      pads:     r('pads','glassyPad','reversedPad','analogueSwell','choirPad'),
-      bass:     r('bass','seqBass','pulsingBass','subBass'),
-      harmony:  r('harmony','suspended','majorLift','minorModal'),
-      voice:    r('voice','vocoderPad','breathyFemale','vocalChops','femaleWash'),
-      lead:     r('lead','synthArp','fmBell','detunedLd','glassPluck'),
-      color:    r('color','bellArp','revStab','glocken'),
-      movement: r('movement','delayThrows','autopan','risers','panSweep'),
-    },
-  },
-};
-
-const INTERPLAY = {
-  gothicAmbient: {
-    conversation: ['surfacing alone against deep space then dissolving back into the texture',
-                   'emerging and receding without hierarchy each equal in the field',
-                   'cross-fading so the melody dissolves into atmosphere'],
-    foundation:   ['holding a single harmonic centre with everything suspended above',
-                   'anchoring in slow motion while the timbres drift unmoving'],
-    arc:          ['evolving so slowly that change is felt rather than heard',
-                   'replacing motion with the slow turn of timbre',
-                   'sustaining tension through what never resolves'],
-    voiceRel:     ['drifting over the top without hierarchy','breathing at the edge of the field','hanging in the deep reverb'],
-    colorRel:     ['ringing once into the silence','surfacing briefly then gone'],
-  },
-  worldbeatRitual: {
-    conversation: ['trading phrases over the percussion','stating the melody while the wash breathes beneath',
-                   'answered now and then by an ornament rising through the mix'],
-    foundation:   ['locked with the hand drums in a rolling ritual pocket',
-                   'interlocking in a loose earthy groove','anchoring while the hand drums drive above'],
-    arc:          ['building the ritual organically as voices layer in one at a time',
-                   'swelling and receding in long ceremonial waves','rising through added hand drums then opening back to space'],
-    voiceRel:     ['breathing beneath the lead','chanting in the distance','layering in call-and-response with the flute'],
-    colorRel:     ['ornamenting the gaps between phrases','sparkling through the ritual','answering the drums'],
-  },
-  sacredDowntempo: {
-    conversation: ['rising together then answered by soft chord swells','hanging over the chant with space between statements',
-                   'trading the foreground unhurried'],
-    foundation:   ['locked in a slow reverent pocket','sustaining long tones beneath the pads anchoring without intruding',
-                   'holding steady while the low end floats'],
-    arc:          ['stacking toward a lush sacred peak then receding','opening gradually with each voice given room to breathe',
-                   'built through rising harmony then released into open sustained chords'],
-    voiceRel:     ['answering the lead from the reverb','rising over the chant','trading the foreground with the melody'],
-    colorRel:     ['marking the phrase ends','threading through the sacred space','answering the choir'],
-  },
-  ethereal: {
-    conversation: ['trading phrases in warm ethereal dialogue','floating free over the harmony',
-                   'drifting over the chords answered by a second voice'],
-    foundation:   ['rolling forward in a smooth unhurried pocket','gliding beneath the pulse tied to the cycle above',
-                   'anchoring while the low end moves smooth and unhurried'],
-    arc:          ['entering one at a time with air around each voice','swelling toward an emotional lift then settling back',
-                   'layering toward immersion then thinning to open space'],
-    voiceRel:     ['answering the lead in warm dialogue','entering with air around it','drifting over the harmony'],
-    colorRel:     ['threading through the spaces','shimmering between phrases','tracing the top of the harmony'],
-  },
-  firefly: {
-    conversation: ['interlocking in a tight bright weave','answered by chord stabs over the drive',
-                   'trading with their own delayed repeats in call-and-response'],
-    foundation:   ['locked tight and propulsive','chugging steady and forward beneath the layers',
-                   'anchoring as a relentless low pulse while the synths climb over it'],
-    arc:          ['building through added layers toward an open peak','opening over the drive into a full-energy lift',
-                   'stacking through rising layers then released into the chorus'],
-    voiceRel:     ['climbing over the drive','answering the lead','riding above the pulse'],
-    colorRel:     ['sparkling over the groove','accenting the lift','flickering between the beats'],
-  },
-};
-
-const DELERIUM = {
-  id: 'Delerium',
-  styleAnchor: 'Delerium Style',
-  master: P,
-  drums: DRUMS,
-  characters: CHARACTERS,
-  interplay: INTERPLAY,
-  sourceNegative: [
-    'trance','four-on-the-floor','club anthem','EDM drop','supersaw',
-    'hard kick','festival synths','big-room','pop hooks','radio pop',
-  ],
-  order: ['pads','harmony','bass','drums','voice','lead','color','movement'],
-};
-
-Object.assign(window.__ATMOS, { DELERIUM });
-})();
-
-/* legacy/data-style-engines.js */
-(function(){
+/* js/data-style-engines.js */
 const MAX_MODE_STR = `[Is_MAX_MODE: MAX](MAX)
 [QUALITY: MAX](MAX)
 [REALISM: MAX](MAX)`;
@@ -639,11 +222,63 @@ const VOCAL_DESCRIPTOR_OPTIONS = {
   ]
 };
 
-Object.assign(window.__ATMOS, { MAX_MODE_STR, MASTERING, STYLE_ENGINES, VOCAL_MODES, VOCAL_DESCRIPTOR_OPTIONS });
-})();
 
-/* legacy/engine-extras.js */
-(function(){
+/* js/data-lyric-controls.js */
+const CONTROL_OPTIONS = {
+  sourceType: ["Movie", "Book", "Historical figure", "Myth / legend", "True event", "Cultural movement", "Original concept", "Personal memory"],
+  themeLens: ["Faithful to source", "Inspired by source", "Loose metaphor only", "Dark reinterpretation", "Romantic reinterpretation", "Triumphant reinterpretation"],
+  genreFamily: ["Synthpop", "Pop", "Dance-pop", "Rock", "Ballad", "R&B", "Soul", "Reggae", "Chillout / Balearic", "Cinematic / Score-pop", "Balearic chillout", "Downtempo pop", "Ethereal trance", "Trip-hop", "Ambient vocal", "Mystic electronic", "Cinematic pop"],
+  eraBias: ["1980s", "1990s", "2000s", "2010s", "2020s", "Timeless / mixed-era", "Modern Suno polish", "Early 90s", "Late 90s", "Early 2000s", "Timeless"],
+  mood: ["Melancholic", "Hopeful", "Defiant", "Romantic", "Mysterious", "Bittersweet", "Triumphant", "Dark / brooding", "Serene", "Yearning", "Mystical", "Sensual", "Haunted", "Euphoric but restrained"],
+  energy: ["Low", "Low-mid", "Mid", "Medium-high", "High", "Slow burn"],
+  perspective: ["First person", "Second person", "Third person", "Alternating first and second", "Omniscient / cinematic", "Collective voice", "Fragmented voices"],
+  languageStyle: ["Conversational", "Poetic", "Cinematic", "Elegant / literary", "Simple / direct", "Plain poetic", "Mystic but clear", "Minimal", "Sensual and restrained", "Sacred-modern", "Dreamlike"],
+  structureCategory: ["Commercial / Pop-Compatible", "Balearic / Chillout / Atmospheric", "Enigma / Ritual / Chant", "Delerium / Ethereal Vocal", "Experimental"],
+  hookStyle: ["Immediate and memorable", "Subtle and emotional", "Anthemic", "Intimate", "Mantra-like repetition", "Short repeated phrase", "Question hook", "Title hook", "Mantra hook", "Call-and-response", "Melodic vowel hook"],
+  lineLength: ["Flexible", "6-8 syllables", "8-10 syllables", "10-12 syllables", "Mixed by section", "Short", "Medium", "Long", "Mixed with singable anchors"],
+  rhymeDensity: ["Light", "Moderate", "Heavy", "Mixed / natural", "Minimal, prioritise meaning", "Medium", "High but natural", "Internal rhyme"],
+  imageryDensity: ["Low", "Moderate", "High", "Sparse", "Medium", "Rich", "Symbolic"],
+  narrativeClarity: ["Very clear storyline", "Mostly clear with some poetry", "Balanced", "Abstract but coherent", "Abstract", "Clear story", "Emotional fragments"],
+  vocalFraming: ["Male lead", "Female lead", "Gender-neutral", "Duet", "Lead vocal centered", "Airy lead with backing phrases", "Whispered layers", "Choir shadows", "Call-and-response"],
+  deliveryStyle: ["Controlled and intimate", "Warm and emotional", "Cool and detached", "Confessional", "Dramatic but restrained", "Soft intimate", "Breathy", "Chanted", "Ethereal", "Pop direct"],
+  languages: ["French", "Spanish", "Latin", "Arabic", "Turkish", "German", "Gaelic"],
+  languageModes: ["None", "Foreign phrase layer", "Chorus line", "Full chorus", "Verse section", "Call-and-response", "Sacred / chant layer"],
+  languagePlacement: ["Chorus or backing phrase", "Intro texture", "Bridge only", "Outro echo", "Call response after hook"],
+  languageIntensity: ["Light", "Medium", "Prominent"]
+};
+
+const STRUCTURE_TEMPLATES = [
+  ["Commercial / Pop-Compatible", "commercial-classic-pre-chorus", "Verse / Pre / Chorus / Verse / Pre / Chorus / Bridge / Final Chorus", ["Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Pre-Chorus", "Chorus", "Bridge", "Final Chorus"], ["Pop", "Synthpop", "Dance-pop"], "Strong commercial structure with clear hook return."],
+  ["Commercial / Pop-Compatible", "commercial-intro-middle8", "Intro / Verse / Pre / Chorus / Verse / Pre / Chorus / Middle 8 / Final Chorus / Outro", ["Intro", "Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Pre-Chorus", "Chorus", "Middle 8", "Final Chorus", "Outro"], ["Pop", "Cinematic pop"], "Radio-ready flow with an extra release valve before the final chorus."],
+  ["Commercial / Pop-Compatible", "commercial-bridge", "Verse / Chorus / Verse / Chorus / Bridge / Final Chorus", ["Verse 1", "Chorus", "Verse 2", "Chorus", "Bridge", "Final Chorus"], ["Pop", "Downtempo"], "Compact hook-first structure."],
+  ["Commercial / Pop-Compatible", "commercial-double-verse", "Verse / Verse / Chorus / Verse / Chorus / Bridge / Chorus", ["Verse 1", "Verse 2", "Chorus", "Verse 3", "Chorus", "Bridge", "Chorus"], ["Story songs"], "More narrative runway before the hook."],
+  ["Commercial / Pop-Compatible", "commercial-refrain", "Verse / Refrain / Verse / Refrain / Bridge / Final Refrain", ["Verse 1", "Refrain", "Verse 2", "Refrain", "Bridge", "Final Refrain"], ["Folk-pop", "Ambient vocal"], "Soft refrain structure for subtle hooks."],
+  ["Commercial / Pop-Compatible", "commercial-post-chorus", "Intro / Verse / Chorus / Post-Chorus / Verse / Chorus / Bridge / Final Chorus / Outro", ["Intro", "Verse 1", "Chorus", "Post-Chorus", "Verse 2", "Chorus", "Bridge", "Final Chorus", "Outro"], ["Pop", "Dance-pop"], "Adds a chantable post-chorus moment."],
+  ["Commercial / Pop-Compatible", "commercial-lift", "Verse / Lift / Chorus / Verse / Lift / Chorus / Breakdown / Final Chorus", ["Verse 1", "Lift", "Chorus", "Verse 2", "Lift", "Chorus", "Breakdown", "Final Chorus"], ["Electronic pop"], "Useful when pre-chorus should feel atmospheric rather than conventional."],
+  ["Balearic / Chillout / Atmospheric", "balearic-drift", "Ambient Intro / Verse / Chorus / Instrumental Drift / Verse / Chorus / Sunset Outro", ["Ambient Intro", "Verse 1", "Chorus", "Instrumental Drift", "Verse 2", "Chorus", "Sunset Outro"], ["Balearic", "Chillout"], "Leaves space for instrumental atmosphere."],
+  ["Balearic / Chillout / Atmospheric", "balearic-floating-hook", "Intro Texture / Verse / Hook / Verse / Hook / Floating Bridge / Final Hook", ["Intro Texture", "Verse 1", "Hook", "Verse 2", "Hook", "Floating Bridge", "Final Hook"], ["Chillout"], "Gentle hook repetition without pop pressure."],
+  ["Balearic / Chillout / Atmospheric", "balearic-spoken", "Spoken Fragment / Verse / Chorus / Ambient Break / Verse / Final Chorus / Outro", ["Spoken Fragment", "Verse 1", "Chorus", "Ambient Break", "Verse 2", "Final Chorus", "Outro"], ["Atmospheric"], "Creates a cinematic entry point."],
+  ["Balearic / Chillout / Atmospheric", "balearic-instrumental", "Instrumental Intro / Verse / Refrain / Instrumental Passage / Verse / Final Refrain", ["Instrumental Intro", "Verse 1", "Refrain", "Instrumental Passage", "Verse 2", "Final Refrain"], ["Balearic"], "Good for style-led tracks."],
+  ["Balearic / Chillout / Atmospheric", "balearic-sunrise", "Sunrise Intro / Verse / Soft Chorus / Drift / Verse / Final Chorus / Long Outro", ["Sunrise Intro", "Verse 1", "Soft Chorus", "Drift", "Verse 2", "Final Chorus", "Long Outro"], ["Chillout"], "Slow open, soft payoff, long tail."],
+  ["Enigma / Ritual / Chant", "enigma-invocation", "Invocation / Verse / Lift / Chorus / Ritual Break / Final Chorus / Outro", ["Invocation", "Verse 1", "Lift", "Chorus", "Ritual Break", "Final Chorus", "Outro"], ["Mystic electronic"], "Balances chant texture with song form."],
+  ["Enigma / Ritual / Chant", "enigma-chant-intro", "Chant Intro / Verse / Chorus / Instrumental Drift / Verse / Final Chorus", ["Chant Intro", "Verse 1", "Chorus", "Instrumental Drift", "Verse 2", "Final Chorus"], ["Enigma"], "Direct ritual framing."],
+  ["Enigma / Ritual / Chant", "enigma-whisper", "Whispered Intro / Verse / Refrain / Chant Bridge / Final Refrain / Outro", ["Whispered Intro", "Verse 1", "Refrain", "Chant Bridge", "Final Refrain", "Outro"], ["Ritual"], "Subtle refrain plus chant bridge."],
+  ["Enigma / Ritual / Chant", "enigma-pulse", "Pulse Intro / Verse / Hook / Ritual Interlude / Verse / Final Hook", ["Pulse Intro", "Verse 1", "Hook", "Ritual Interlude", "Verse 2", "Final Hook"], ["Downtempo ritual"], "Pulse-forward without clutter."],
+  ["Enigma / Ritual / Chant", "enigma-sacred", "Sacred Texture / Verse / Chorus / Spoken Bridge / Layered Final Chorus", ["Sacred Texture", "Verse 1", "Chorus", "Spoken Bridge", "Layered Final Chorus"], ["Sacred-modern"], "Best for spoken and chanted contrast."],
+  ["Delerium / Ethereal Vocal", "delerium-halo", "Atmos Intro / Verse / Pre / Chorus / Ambient Break / Verse / Final Chorus / Halo Outro", ["Atmos Intro", "Verse 1", "Pre-Chorus", "Chorus", "Ambient Break", "Verse 2", "Final Chorus", "Halo Outro"], ["Ethereal vocal"], "Classic emotional lift with spacious break."],
+  ["Delerium / Ethereal Vocal", "delerium-floating", "Vocal Texture Intro / Verse / Chorus / Floating Bridge / Final Chorus", ["Vocal Texture Intro", "Verse 1", "Chorus", "Floating Bridge", "Final Chorus"], ["Ethereal pop"], "Simple and vocal-centered."],
+  ["Delerium / Ethereal Vocal", "delerium-underwater", "Underwater Intro / Verse / Lift / Chorus / Breakdown / Final Chorus", ["Underwater Intro", "Verse 1", "Lift", "Chorus", "Breakdown", "Final Chorus"], ["Ambient trance"], "Good for immersive low-light tracks."],
+  ["Delerium / Ethereal Vocal", "delerium-aria", "Aria Intro / Verse / Chorus / Sacral Bridge / Final Chorus / Long Tail Outro", ["Aria Intro", "Verse 1", "Chorus", "Sacral Bridge", "Final Chorus", "Long Tail Outro"], ["Cinematic"], "Lets the bridge feel devotional."],
+  ["Delerium / Ethereal Vocal", "delerium-breath", "Breath Intro / Verse / Refrain / Emotional Lift / Final Refrain", ["Breath Intro", "Verse 1", "Refrain", "Emotional Lift", "Final Refrain"], ["Minimal"], "Restrained form for fragile vocals."],
+  ["Experimental", "experimental-fragment", "Fragment / Verse / Fragment / Chorus / Breakdown / Final Fragment", ["Fragment", "Verse 1", "Fragment", "Chorus", "Breakdown", "Final Fragment"], ["Experimental"], "Fragmented, cinematic flow."],
+  ["Experimental", "experimental-response", "Invocation / Spoken Verse / Sung Chorus / Instrumental Response / Final Chorus", ["Invocation", "Spoken Verse", "Sung Chorus", "Instrumental Response", "Final Chorus"], ["Hybrid"], "Useful for spoken-to-sung contrast."],
+  ["Experimental", "experimental-drone", "Verse / Drone Break / Verse / Chant Hook / Outro", ["Verse 1", "Drone Break", "Verse 2", "Chant Hook", "Outro"], ["Minimal"], "Sparse and hypnotic."],
+  ["Experimental", "experimental-mantra", "Minimal Verse / Repeated Mantra / Harmonic Break / Final Mantra", ["Minimal Verse", "Repeated Mantra", "Harmonic Break", "Final Mantra"], ["Mantra"], "Built around repetition and tone."],
+  ["Experimental", "experimental-dissolve", "Abstract Intro / Cinematic Verse / Hook / Dissolve / Hook Reprise", ["Abstract Intro", "Cinematic Verse", "Hook", "Dissolve", "Hook Reprise"], ["Cinematic"], "Loose structure with a returning hook."]
+].map(([group, id, label, sections, bestFor, notes]) => ({ group, id, label, sections, bestFor, notes }));
+
+
+/* js/engine-extras.js */
 /*
  * engine-extras.js
  * ----------------------------------------------------------------------------
@@ -1498,11 +1133,145 @@ function drawInterplay(engineName, clusterId) {
 }
 
 
-Object.assign(window.__ATMOS, { drawInterplay, EngineExtras });
-})();
 
-/* legacy/prompt-style-builder.js */
-(function(){
+/* js/state.js */
+const defaultState = {
+  engine: "Balearic",
+  style: {
+    preset: "Poolside Warm",
+    phase: "Mid Chill Tempo 90-100 BPM, medium Energy, Downtempo Balearic track inspired by Cafe Del Mar / Milchbar.",
+    pad: "Warm analogue synth pads layered with Pulse Pad Textures and soft synth layers.",
+    bass: "Fretless bass groove with smooth melodic movement.",
+    rhythm: "Natural brushed drums with organic percussion including congas, bongos, shakers and hand percussion.",
+    percussion: "Soft layered strings blended underneath the pads for depth.",
+    motif: "Clean nylon guitar motifs with soft rhythmic strumming drifting in and out of the mix.",
+    movement: "Wide stereo panning movement across pads and motifs using left-right automation and slow modulation.",
+    vocalMode: "Descriptor",
+    vocalGender: "Female",
+    vocalDescriptor: "Airy female vocal with intimate tone and restrained delivery.",
+    maxMode: true,
+    negativePrompt: "",
+    buildMode: "classic",
+    palette: "electronic",
+    cluster: "organic",
+    arrangement: false,
+    bpmOverride: ""
+  },
+  song: {
+    title: "",
+    sourceType: "Original concept",
+    themeLens: "Inspired by source",
+    subject: "two people finding peace across distance",
+    sourceNotes: "",
+    genreFamily: "Chillout / Balearic",
+    eraBias: "Timeless / mixed-era",
+    mood: "Melancholic",
+    energy: "Low-mid",
+    perspective: "First person",
+    languageStyle: "Poetic",
+    imageryDensity: "Moderate",
+    narrativeClarity: "Balanced",
+    hookStyle: "Immediate and memorable",
+    rhymeDensity: "Light",
+    lineLength: "8-10 syllables",
+    vocalFraming: "Female lead",
+    deliveryStyle: "Controlled and intimate",
+    negativeRules: "avoid generic fire/ice metaphors, avoid explaining the song, avoid forced rhymes",
+    cleanLanguage: true,
+    avoidCliche: true,
+    titleInChorus: true,
+    repeatHook: true
+  },
+  structure: {
+    templateId: "balearic-drift",
+    includePreChorus: true,
+    includeBridge: true
+  },
+  languageLayer: {
+    enabled: true,
+    language: "French",
+    mode: "Foreign phrase layer",
+    placement: "Chorus or backing phrase",
+    intensity: "Light",
+    notes: ""
+  },
+  integration: {
+    useStyleToGuideLyrics: true,
+    strictValidation: false
+  },
+  claude: {
+    apiKeyRemembered: false,
+    transport: "direct",
+    model: "claude-opus-4-1-20250805",
+    temperature: 0.8,
+    maxTokens: 4000
+  },
+  advanced: {
+    manualThemeBrief: "",
+    manualLyrics: ""
+  },
+  outputs: {
+    stylePrompt: "",
+    lyrics: "",
+    negativePrompt: "",
+    themeBrief: "",
+    validation: null,
+    rawClaudeJson: null,
+    rawClaudeText: ""
+  }
+};
+
+const appState = structuredClone(defaultState);
+
+
+/* js/storage.js */
+const STATE_KEY = "unifiedSunoLyricEngine.state";
+const KEY_KEY = "unifiedSunoLyricEngine.claudeApiKey";
+const SAVED_SETUP_KEY = "unifiedSunoLyricEngine.savedSetup";
+
+function loadPersistedState() {
+  return readJson(STATE_KEY);
+}
+
+function persistState(state) {
+  const copy = structuredClone(state);
+  delete copy.claude.apiKey;
+  localStorage.setItem(STATE_KEY, JSON.stringify(copy));
+}
+
+function loadApiKey() {
+  return localStorage.getItem(KEY_KEY) || "";
+}
+
+function saveApiKey(key) {
+  localStorage.setItem(KEY_KEY, key);
+}
+
+function clearApiKey() {
+  localStorage.removeItem(KEY_KEY);
+}
+
+function saveSetup(state) {
+  const copy = structuredClone(state);
+  copy.outputs = {};
+  localStorage.setItem(SAVED_SETUP_KEY, JSON.stringify(copy));
+}
+
+function loadSetup() {
+  return readJson(SAVED_SETUP_KEY);
+}
+
+function readJson(key) {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : null;
+  } catch {
+    return null;
+  }
+}
+
+
+/* js/prompt-style-builder.js */
 /* ============================================================================
  * prompt-style-builder.js  -  turns selections into Suno payloads (BUILDER)
  *
@@ -1521,8 +1290,6 @@ Object.assign(window.__ATMOS, { drawInterplay, EngineExtras });
  * the engine name at state.engine. Era bias is a Lyric-engine control only and
  * is intentionally NOT in the style payload.
  * ==========================================================================*/
-const {MASTERING, MAX_MODE_STR, STYLE_ENGINES} = window.__ATMOS;
-const {EngineExtras, drawInterplay} = window.__ATMOS;
 
 /* join descriptor parts into one clean comma line, drop trailing periods, honour
  * the 1000-char budget, lead with the MAX-mode meta-tag block when enabled. */
@@ -1702,416 +1469,1745 @@ function buildNegativePrompt(state) {
   return [e.sourceNegative || e.negatives, state.style.negativePrompt].filter(Boolean).join(", ");
 }
 
-Object.assign(window.__ATMOS, { buildLyricsField, buildClusterPrompt, buildClusterNegative, buildStylePrompt, buildNegativePrompt });
-})();
 
-/* js/registry.js */
-(function(){
-// Engine registry (Option B): two engine KINDS live in one shell.
-//   'resolver' — new engine-agnostic resolver (Delerium; Era/Deep Forest slot in here later)
-//   'legacy'   — proven cluster/classic path harvested verbatim (Balearic, Enigma)
-//   'stub'     — registered scope, not yet built (Era, Deep Forest)
-const {DELERIUM} = window.__ATMOS;
-const {EngineExtras} = window.__ATMOS;
-const {STYLE_ENGINES} = window.__ATMOS;
+/* js/compatibility-rules.js */
+function applyCompatibilityRules(state, engine, trigger = "") {
+  const changes = [];
+  if (!engine) return changes;
+  const fullPass = /^(boot|load|import|reset|rebuild|randomize|engine)$/.test(trigger);
 
-const ENGINES = [
-  { id: 'Balearic',    kind: 'legacy',   label: 'Balearic' },
-  { id: 'Enigma',      kind: 'legacy',   label: 'Enigma' },
-  { id: 'Delerium',    kind: 'resolver', label: 'Delerium', module: DELERIUM },
-  { id: 'Era',         kind: 'stub',     label: 'Era' },
-  { id: 'Deep Forest', kind: 'stub',     label: 'Deep Forest' },
+  if (fullPass || trigger === "style.phase" || !engine.bass.includes(state.style.bass)) {
+    changes.push(...alignBassToPhase(state, engine));
+  }
+
+  if (fullPass || trigger === "style.vocalMode" || trigger === "style.vocalGender" || trigger === "style.vocalDescriptor" || trigger === "style.percussion" || trigger === "song.vocalFraming" || trigger === "song.deliveryStyle" || !engine.percussion.includes(state.style.percussion)) {
+    changes.push(...alignVocalBlend(state, engine));
+    changes.push(...alignLyricVocalControls(state));
+  }
+
+  if (state.style.vocalMode === "Instrumental") {
+    changes.push(...alignInstrumentalState(state, engine));
+  }
+
+  return changes;
+}
+
+function compatibilitySummary(state) {
+  const phase = phaseBand(state.style.phase);
+  const vocal = vocalProfile(state);
+  return [
+    `Tempo band: ${phase.label}`,
+    `Vocal role: ${vocal.label}`,
+    `Conflict policy: tempo controls bass/rhythm weight; vocal archetype controls vocal blend, lyric framing, and delivery.`
+  ].join("\n");
+}
+
+function alignBassToPhase(state, engine) {
+  const current = state.style.bass;
+  const replacement = chooseByPhase(engine.bass, phaseBand(state.style.phase));
+  if (replacement && replacement !== current) {
+    state.style.bass = replacement;
+    return [`Bass support aligned to ${phaseBand(state.style.phase).label}.`];
+  }
+  return [];
+}
+
+function alignVocalBlend(state, engine) {
+  const current = state.style.percussion;
+  const profile = vocalProfile(state);
+  const replacement = chooseVocalBlend(engine.percussion, profile);
+  if (replacement && replacement !== current) {
+    state.style.percussion = replacement;
+    return [`Strings / vocal blend aligned to ${profile.label}.`];
+  }
+  return [];
+}
+
+function alignLyricVocalControls(state) {
+  const profile = vocalProfile(state);
+  const target = lyricTargets(profile);
+  const changes = [];
+
+  if (target.framing && state.song.vocalFraming !== target.framing) {
+    state.song.vocalFraming = target.framing;
+    changes.push(`Vocal framing aligned to ${target.framing}.`);
+  }
+  if (target.delivery && state.song.deliveryStyle !== target.delivery) {
+    state.song.deliveryStyle = target.delivery;
+    changes.push(`Delivery style aligned to ${target.delivery}.`);
+  }
+
+  return changes;
+}
+
+function alignInstrumentalState(state, engine) {
+  const changes = [];
+  if (state.song.vocalFraming !== "Gender-neutral") {
+    state.song.vocalFraming = "Gender-neutral";
+    changes.push("Vocal framing set neutral for instrumental mode.");
+  }
+  if (state.song.deliveryStyle !== "Controlled and intimate") {
+    state.song.deliveryStyle = "Controlled and intimate";
+    changes.push("Delivery style neutralized for instrumental mode.");
+  }
+  const replacement = chooseByPhase(engine.bass, phaseBand(state.style.phase));
+  if (replacement && replacement !== state.style.bass) {
+    state.style.bass = replacement;
+    changes.push("Instrumental bass support aligned to phase.");
+  }
+  return changes;
+}
+
+function chooseByPhase(options, phase) {
+  if (!options?.length) return "";
+  const scored = options.map((option, index) => ({ option, index, score: scoreBassOption(option, phase) }));
+  scored.sort((a, b) => b.score - a.score || a.index - b.index);
+  return scored[0].option;
+}
+
+function scoreBassOption(option, phase) {
+  const text = option.toLowerCase();
+  const tempoMatch = text.match(/(\d{2,3})\s*-\s*(\d{2,3})\s*BPM/i);
+  if (tempoMatch) {
+    const optionBpm = (Number(tempoMatch[1]) + Number(tempoMatch[2])) / 2;
+    return 20 - Math.abs(optionBpm - phase.bpm);
+  }
+  let score = 0;
+  if (phase.speed === "slow") {
+    if (/slow|minimal|held|foundation|sub|double bass|soft|low-end warmth|atmospheric|understated/.test(text)) score += 4;
+    if (/rhythmic|plucky|defined|pulse|movement|groove/.test(text)) score -= 2;
+  }
+  if (phase.speed === "mid") {
+    if (/smooth|steady|warm|melodic|controlled|flowing|subtle/.test(text)) score += 4;
+    if (/fast|urgent|maximum|very slow/.test(text)) score -= 2;
+  }
+  if (phase.speed === "fast") {
+    if (/defined|rhythmic|pulse|plucky|hybrid|electric|fm bass|movement|groove|clear repeating|controlled lift/.test(text)) score += 4;
+    if (/fretless|double bass|acoustic bass/.test(text)) score -= 2;
+    if (/minimal|very slow|understated/.test(text)) score -= 3;
+  }
+  return score;
+}
+
+function chooseVocalBlend(options, profile) {
+  if (!options?.length) return "";
+  const scored = options.map((option, index) => ({ option, index, score: scoreBlendOption(option, profile) }));
+  scored.sort((a, b) => b.score - a.score || a.index - b.index);
+  return scored[0].option;
+}
+
+function scoreBlendOption(option, profile) {
+  const text = option.toLowerCase();
+  let score = 0;
+  if (profile.kind === "solo") {
+    if (/lead|forward|embedded|soft|subtle|sustained|slightly forward|low supporting/.test(text)) score += 4;
+    if (/choir wall|full-spectrum|monumental|dense|maximum|layered male and female/.test(text)) score -= 3;
+  }
+  if (profile.kind === "harmony") {
+    if (/layered|harmony|female vocal|male and female|choir and pad|supporting|bloom/.test(text)) score += 4;
+    if (/no intimate pop lead|massed choir dominates|no dominant/.test(text)) score -= 2;
+  }
+  if (profile.kind === "choir") {
+    if (/choir|chant|sacred|monumental|full-spectrum|grand layered|cathedral|devotional/.test(text)) score += 5;
+    if (/close|solo|dry|slightly forward/.test(text)) score -= 2;
+  }
+  if (profile.kind === "texture") {
+    if (/diffused|embedded|sustained|texture|blend|low articulation|pad mass|underwater/.test(text)) score += 5;
+    if (/forward|dominant|dry|lead presence/.test(text)) score -= 2;
+  }
+  return score;
+}
+
+function lyricTargets(profile) {
+  if (profile.kind === "choir") return { framing: "Choir shadows", delivery: "Chanted" };
+  if (profile.kind === "harmony") return { framing: "Airy lead with backing phrases", delivery: "Ethereal" };
+  if (profile.kind === "texture") return { framing: "Whispered layers", delivery: "Breathy" };
+  if (profile.gender === "Male") return { framing: "Male lead", delivery: profile.delivery };
+  if (profile.gender === "Female") return { framing: "Female lead", delivery: profile.delivery };
+  return { framing: "Lead vocal centered", delivery: "Controlled and intimate" };
+}
+
+function vocalProfile(state) {
+  if (state.style.vocalMode === "Instrumental") return { kind: "instrumental", gender: "", delivery: "Controlled and intimate", label: "instrumental" };
+  const text = state.style.vocalDescriptor.toLowerCase();
+  const gender = state.style.vocalGender;
+
+  if (/choir|sacred|chant|operatic|devotional|gospel/.test(text)) return { kind: "choir", gender, delivery: "Chanted", label: `${gender.toLowerCase()} choir / devotional` };
+  if (/harmony-stack|harmony|doubled|doubles|dream-pop|ambient trance|ethereal|soprano|falsetto/.test(text)) return { kind: "harmony", gender, delivery: "Ethereal", label: `${gender.toLowerCase()} harmony / air` };
+  if (/whisper|breathy|diffused|spoken|trip-hop|detached/.test(text)) return { kind: "texture", gender, delivery: /cool|detached|trip-hop/.test(text) ? "Cool and detached" : "Breathy", label: `${gender.toLowerCase()} texture / intimate` };
+  if (/gritty|gravelly|rock|belter|power|soul|r&b|gospel/.test(text)) return { kind: "solo", gender, delivery: "Warm and emotional", label: `${gender.toLowerCase()} expressive lead` };
+  if (/cinematic|operatic/.test(text)) return { kind: "solo", gender, delivery: "Dramatic but restrained", label: `${gender.toLowerCase()} cinematic lead` };
+  return { kind: "solo", gender, delivery: "Controlled and intimate", label: `${gender.toLowerCase()} lead` };
+}
+
+function phaseBand(text) {
+  const match = String(text).match(/(\d{2,3})\s*-\s*(\d{2,3})\s*BPM/i);
+  const bpm = match ? (Number(match[1]) + Number(match[2])) / 2 : 96;
+  if (bpm < 88) return { speed: "slow", bpm, label: "slow / spacious" };
+  if (bpm > 106) return { speed: "fast", bpm, label: "lifted / driving" };
+  return { speed: "mid", bpm, label: "mid-tempo / balanced" };
+}
+
+
+/* js/metatag-builder.js */
+const SECTION_PATTERNS = {
+  intro: /intro|invocation|texture|fragment|breath|aria|chant|sacred/i,
+  verse: /verse 1|verse|spoken verse|cinematic verse|minimal verse/i,
+  chorus: /chorus|hook|refrain|mantra/i,
+  instrumental: /instrumental|break|interlude|drift|passage|response|ambient break|breakdown|dissolve/i,
+  bridge: /bridge|middle 8|lift|emotional lift|floating bridge|spoken bridge|sacral bridge/i,
+  outro: /outro|tail|end|final fragment|sunset outro/i
+};
+
+function buildSunoMetatagPlan(state, template) {
+  const sections = template.sections;
+  const tags = [];
+  const map = {
+    intro: findSection(sections, "intro"),
+    verse: findSection(sections, "verse"),
+    instrumental: findSection(sections, "instrumental"),
+    bridge: findSection(sections, "bridge"),
+    chorus: findLastSection(sections, "chorus"),
+    outro: findSection(sections, "outro")
+  };
+  const vocabulary = musicalVocabulary(state);
+
+  if (map.intro) {
+    tags.push({
+      type: "arrangement",
+      section: map.intro,
+      tag: bracket(vocabulary.intro),
+      reason: "Sets the opening event without repeating the preset name or scenery."
+    });
+  }
+
+  if (map.verse && state.style.vocalMode !== "Instrumental") {
+    tags.push({
+      type: "performance",
+      section: map.verse,
+      tag: bracket(vocabulary.verse),
+      reason: "Keeps the first vocal section focused and leaves room for later contrast."
+    });
+  }
+
+  if (map.instrumental) {
+    tags.push({
+      type: "arrangement",
+      section: map.instrumental,
+      tag: bracket(vocabulary.instrumental),
+      reason: "Gives the non-lyric section a specific handoff instead of a generic break."
+    });
+  }
+
+  if (map.bridge) {
+    tags.push({
+      type: "arrangement",
+      section: map.bridge,
+      tag: bracket(vocabulary.bridge),
+      reason: "Creates a deliberate contrast point before the hook returns."
+    });
+  }
+
+  if (map.chorus) {
+    tags.push({
+      type: "performance",
+      section: map.chorus,
+      tag: bracket(vocabulary.chorus),
+      reason: "Turns the hook return into a vocal or arrangement event, not just a louder repeat."
+    });
+  }
+
+  if (map.outro) {
+    tags.push({
+      type: "arrangement",
+      section: map.outro,
+      tag: bracket(vocabulary.outro),
+      reason: "Defines how the track leaves, either by fading, resolving, or dissolving."
+    });
+  }
+
+  return uniqueTags(tags).slice(0, 5);
+}
+
+function formatMetatagPlan(plan) {
+  return plan.map((item) => `- ${item.tag} near [${item.section}]: ${item.reason}`).join("\n");
+}
+
+function plainMetatags(plan) {
+  return plan.map((item) => item.tag).join("\n");
+}
+
+function buildAdLibPlan(state, template) {
+  if (state.style.vocalMode === "Instrumental") return [];
+  const sections = template.sections;
+  const hookSection = findLastSection(sections, "chorus");
+  const bridgeSection = findSection(sections, "bridge");
+  const outroSection = findSection(sections, "outro");
+  const strategy = adLibStrategy(state);
+  const suggestions = [];
+
+  if (hookSection) {
+    suggestions.push({
+      section: hookSection,
+      role: "hook answer",
+      cue: strategy.hook,
+      reason: "Use one short response after selected hook lines so it feels performed, not randomly inserted."
+    });
+  }
+
+  if (bridgeSection && strategy.bridge) {
+    suggestions.push({
+      section: bridgeSection,
+      role: "transition lift",
+      cue: strategy.bridge,
+      reason: "Use the backing voice to pull the bridge into the final hook."
+    });
+  }
+
+  if (outroSection) {
+    suggestions.push({
+      section: outroSection,
+      role: "fade memory",
+      cue: strategy.outro,
+      reason: "Let the last ad-lib echo a hook word or vowel so the ending feels intentional."
+    });
+  }
+
+  return suggestions.slice(0, 3);
+}
+
+function formatAdLibPlan(plan) {
+  if (!plan.length) return "- No ad-lib inserts for instrumental mode.";
+  return plan.map((item) => `- [${item.section}] ${item.role}: ${item.cue}. ${item.reason}`).join("\n");
+}
+
+function buildVocalArrangementPlan(state, template) {
+  if (state.style.vocalMode === "Instrumental") return [];
+  const sections = template.sections;
+  const map = {
+    verse: findSection(sections, "verse"),
+    chorus: findLastSection(sections, "chorus"),
+    bridge: findSection(sections, "bridge"),
+    outro: findSection(sections, "outro")
+  };
+  const profile = vocalArrangementProfile(state);
+  const plan = [];
+
+  if (map.verse) {
+    plan.push({
+      section: map.verse,
+      layer: profile.verse,
+      instruction: "Keep backing voices out of most verse lines so the lead identity and story land first."
+    });
+  }
+
+  if (map.chorus) {
+    plan.push({
+      section: map.chorus,
+      layer: profile.chorus,
+      instruction: "Use backing vocals to frame the hook, especially line endings and repeated title phrases."
+    });
+  }
+
+  if (map.bridge) {
+    plan.push({
+      section: map.bridge,
+      layer: profile.bridge,
+      instruction: "Change the vocal texture here so the final hook feels earned."
+    });
+  }
+
+  if (map.outro) {
+    plan.push({
+      section: map.outro,
+      layer: profile.outro,
+      instruction: "Let the last backing voice behave like memory: fewer words, longer vowels, softer repeats."
+    });
+  }
+
+  return plan;
+}
+
+function formatVocalArrangementPlan(plan) {
+  if (!plan.length) return "- Instrumental mode: no supporting vocal arrangement.";
+  return plan.map((item) => `- [${item.section}] ${item.layer}. ${item.instruction}`).join("\n");
+}
+
+function musicalVocabulary(state) {
+  const instrument = instrumentRole(state);
+  const vocal = vocalRole(state);
+  const vocalArrangement = vocalArrangementProfile(state);
+  const engine = state.engine;
+  const dense = /high|medium-high/i.test(state.song.energy);
+  const restrained = /low|slow burn|serene|melancholic|yearning/i.test(`${state.song.energy} ${state.song.mood}`);
+
+  const base = {
+    intro: restrained ? "rhythm withheld | distant motif enters" : "pulse enters under motif",
+    verse: `${vocal.close} | rhythm stays sparse`,
+    instrumental: instrument.feature,
+    bridge: restrained ? vocalArrangement.bridgeTagSoft : vocalArrangement.bridgeTagLift,
+    chorus: dense ? vocalArrangement.chorusTagLift : vocalArrangement.chorusTagSoft,
+    outro: restrained ? "last hook dissolves | long reverb tail" : "final hook repeats | fade out"
+  };
+
+  const byEngine = {
+    Balearic: {
+      intro: "drums withheld | coastal motif enters",
+      bridge: instrument.bridge || "bass opens up | strings rise softly",
+      outro: "motif returns | sunset fade"
+    },
+    Enigma: {
+      intro: "whispered breath | chant bed enters",
+      verse: `${vocal.close} | low chant shadow`,
+      instrumental: instrument.feature || "percussion answers chant",
+      bridge: "chant response | drums pull back",
+      outro: "chant fades into reverb"
+    },
+    Delerium: {
+      intro: "vocal texture opens | beat held back",
+      bridge: "choir bloom | kick drops out",
+      chorus: dense ? "stacked female harmonies | wide hook return" : "airy doubles | soft hook bloom",
+      outro: "vocal tail dissolves"
+    },
+    Era: {
+      intro: "choir bed opens | percussion withheld",
+      verse: `${vocal.close} | choir undercurrent`,
+      bridge: "choir swells | ceremonial lift",
+      chorus: "full choir answer | lead remains clear",
+      outro: "choir resolves | final cadence"
+    }
+  };
+
+  return { ...base, ...(byEngine[engine] || {}) };
+}
+
+function adLibStrategy(state) {
+  const hook = state.song.hookStyle.toLowerCase();
+  const language = state.languageLayer.enabled && /chorus|call response|outro/i.test(`${state.languageLayer.placement} ${state.languageLayer.mode}`)
+    ? `or a very short ${state.languageLayer.language} echo from the hook`
+    : "";
+  const callResponse = /call-and-response/.test(hook) || /call-and-response/i.test(state.song.vocalFraming);
+  const mantra = /mantra|repeated/.test(hook);
+  const intimate = /romantic|yearning|sensual|serene|melancholic/i.test(state.song.mood);
+  const forceful = /defiant|triumphant|high/i.test(`${state.song.mood} ${state.song.energy}`);
+
+  if (callResponse) {
+    return {
+      hook: `write a two-word backing answer to the lead vocal${language ? `, ${language}` : ""}`,
+      bridge: "use a quiet question-and-answer fragment before the final hook",
+      outro: "repeat the answer once, softer"
+    };
+  }
+
+  if (mantra) {
+    return {
+      hook: "repeat one hook keyword as a unison backing-vocal response, never a new sentence",
+      bridge: "use open vowels only under the last bridge line, such as a soft (ah) or (oh)",
+      outro: "stretch the hook keyword into a fading vowel"
+    };
+  }
+
+  if (intimate) {
+    return {
+      hook: `echo the last two words of one chorus line in soft female harmony${language ? `, ${language}` : ""}`,
+      bridge: "use one breath-like harmony vowel after the bridge turn",
+      outro: "repeat the most tender hook word once, then fade"
+    };
+  }
+
+  if (forceful) {
+    return {
+      hook: "answer the hook with one short unison phrase drawn from the chorus",
+      bridge: "use a rising group-vocal response only on the final bridge line",
+      outro: "repeat the hook command once, softer"
+    };
+  }
+
+  return {
+    hook: `use one restrained harmony vowel or echo one hook word${language ? `, ${language}` : ""}`,
+    bridge: "use a single backing-vocal vowel to mark the lift, not a new lyric idea",
+    outro: "fade with one hook-word echo"
+  };
+}
+
+function vocalArrangementProfile(state) {
+  const text = `${state.engine} ${state.style.vocalDescriptor} ${state.song.vocalFraming} ${state.song.deliveryStyle} ${state.song.hookStyle} ${state.song.mood} ${state.song.energy}`.toLowerCase();
+  const femaleLead = /female|alto|head voice/.test(text);
+  const choir = /era|choir|sacral|devotional|gospel|chant|collective/.test(text);
+  const callResponse = /call-and-response|fragmented voices|collective voice/.test(text);
+  const intimate = /whisper|breathy|soft|intimate|serene|melancholic|yearning|low/.test(text);
+  const highLift = /anthemic|triumphant|defiant|high|medium-high/.test(text);
+
+  if (choir) {
+    return {
+      verse: "Solo lead over a low choir undercurrent; no busy answers yet",
+      chorus: "Full choir answer on the hook ends, lead lyric remains intelligible",
+      bridge: "Choir swells from held vowels into the final chorus",
+      outro: "Choir resolves on long open vowels, no new words",
+      chorusTagSoft: "choir undercurrent | soft hook answer",
+      chorusTagLift: "full choir answer | lead stays clear",
+      bridgeTagSoft: "choir holds vowels | rhythm thins",
+      bridgeTagLift: "choir swells | ceremonial lift"
+    };
+  }
+
+  if (callResponse) {
+    return {
+      verse: "Lead vocal alone, with space left for later responses",
+      chorus: "Backing voice answers the lead after selected hook lines",
+      bridge: "Short response phrases tighten into unison before the final hook",
+      outro: "One response phrase returns softer, like an echo",
+      chorusTagSoft: "lead call | soft backing answer",
+      chorusTagLift: "call and response vocals | wider hook",
+      bridgeTagSoft: "response voices thin | bass holds",
+      bridgeTagLift: "responses tighten into unison | final lift"
+    };
+  }
+
+  if (femaleLead || /delerium|ethereal|airy|halo|ambient/.test(text)) {
+    return {
+      verse: "Single airy lead, optional whisper double only on the last word of a line",
+      chorus: "Female harmony above the lead on thirds or fifths, plus a quiet unison double on the title phrase",
+      bridge: "High harmony suspends over the lead, then drops out before the final chorus",
+      outro: "Female harmony fades into vowel tails and one hook-word echo",
+      chorusTagSoft: "female harmony above lead | soft unison title double",
+      chorusTagLift: "stacked female harmonies | octave air",
+      bridgeTagSoft: "high harmony suspension | drums pull back",
+      bridgeTagLift: "female harmony lift | choir pad blooms"
+    };
+  }
+
+  if (intimate) {
+    return {
+      verse: "Dry close lead with no choir; backing only as breath or last-word echo",
+      chorus: "One soft harmony line shadows the hook, never crowding the lyric",
+      bridge: "Harmony thins to a single held vowel before the final return",
+      outro: "Last hook word repeats once as a fading backing vocal",
+      chorusTagSoft: "soft harmony shadow | close lead",
+      chorusTagLift: "unison double | warm harmony answer",
+      bridgeTagSoft: "harmony thins | held vowel",
+      bridgeTagLift: "single harmony rises | rhythm suspends"
+    };
+  }
+
+  if (highLift) {
+    return {
+      verse: "Lead vocal centered; delay group vocals until the hook",
+      chorus: "Unison doubles hit the title phrase, then harmony stack opens on the final line",
+      bridge: "Group vocals rise from low unison into a wider final chorus",
+      outro: "Final hook repeats with thinner harmony so the ending does not shout",
+      chorusTagSoft: "unison title double | harmony opens",
+      chorusTagLift: "unison hook | stacked harmony release",
+      bridgeTagSoft: "low unison backing | bass holds",
+      bridgeTagLift: "group vocals rise | final hook lift"
+    };
+  }
+
+  return {
+    verse: "Lead vocal carries the story; backing stays silent until the hook needs support",
+    chorus: "Light harmony supports the hook ending and repeats only the strongest phrase",
+    bridge: "One contrasting backing color appears, then clears space for the final hook",
+    outro: "A single hook-word echo fades after the lead finishes",
+    chorusTagSoft: "light harmony answer | hook stays clear",
+    chorusTagLift: "stacked harmony answer | wider hook",
+    bridgeTagSoft: "harmony thins | bass holds root",
+    bridgeTagLift: "bass steps forward | harmony lift"
+  };
+}
+
+function instrumentRole(state) {
+  const motif = state.style.motif.toLowerCase();
+  const bass = state.style.bass.toLowerCase();
+  const rhythm = state.style.rhythm.toLowerCase();
+  const strings = state.style.percussion.toLowerCase();
+
+  if (/nylon|guitar/.test(motif)) return { feature: "guitar answers vocal | drums stay low", bridge: "guitar drops out | strings rise" };
+  if (/rhodes|piano/.test(motif)) return { feature: "electric piano reply | bass moves up", bridge: "piano narrows | harmony opens" };
+  if (/flute|shakuhachi/.test(motif)) return { feature: "flute answers lead | percussion thins", bridge: "flute holds note | rhythm suspends" };
+  if (/bell|chime|vibraphone/.test(motif)) return { feature: "bell motif replies | low end rests", bridge: "bells thin out | vocal layers rise" };
+  if (/choir|chant/.test(motif)) return { feature: "choir response | lead drops out", bridge: "choir widens | percussion pulls back" };
+  if (/fretless|sub|bass/.test(bass)) return { feature: "bass steps forward | vocal rests", bridge: "bass pedal point | harmony lift" };
+  if (/percussion|tribal|conga|bongo|shaker|breakbeat|drum/.test(rhythm)) return { feature: "percussion break | motif fragments", bridge: "drums thin to pulse | vocal returns" };
+  if (/string/.test(strings)) return { feature: "string interlude | drums withheld", bridge: "strings build under lead" };
+  return { feature: "instrumental answer | vocal rests", bridge: "" };
+}
+
+function vocalRole(state) {
+  if (state.style.vocalMode === "Instrumental") return { close: "no lead vocal", stack: "full arrangement" };
+  const text = `${state.style.vocalDescriptor} ${state.song.vocalFraming} ${state.song.deliveryStyle}`.toLowerCase();
+  if (/whisper|breathy|soft/.test(text)) return { close: "close soft vocal", stack: "breath doubles" };
+  if (/chant|sacral|devotional|choir/.test(text)) return { close: "lead over chant bed", stack: "choir answer" };
+  if (/ethereal|airy|halo|ambient/.test(text)) return { close: "airy lead vocal", stack: "wide harmony halo" };
+  if (/deep|baritone|spoken/.test(text)) return { close: "low intimate lead", stack: "low harmony response" };
+  if (/call-and-response/.test(text)) return { close: "lead vocal call", stack: "backing vocal answer" };
+  if (/harmony|layered|doubles|backing|duet/.test(text)) return { close: "lead with light doubles", stack: "stacked harmony answer" };
+  return { close: "clear lead vocal", stack: "harmony lift" };
+}
+
+function findSection(sections, type) {
+  return sections.find((section) => SECTION_PATTERNS[type].test(section));
+}
+
+function findLastSection(sections, type) {
+  return [...sections].reverse().find((section) => SECTION_PATTERNS[type].test(section));
+}
+
+function bracket(value) {
+  return `[${value}]`;
+}
+
+function uniqueTags(tags) {
+  const seen = new Set();
+  return tags.filter((item) => {
+    if (seen.has(item.tag)) return false;
+    seen.add(item.tag);
+    return true;
+  });
+}
+
+
+/* js/validation.js */
+const PASS_THRESHOLD = 80;
+
+function parseClaudeJson(text) {
+  const attempts = [
+    text,
+    text.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim(),
+    sliceFirstJsonObject(text)
+  ];
+
+  for (const attempt of attempts) {
+    if (!attempt) continue;
+    try {
+      return JSON.parse(attempt);
+    } catch {
+      continue;
+    }
+  }
+  throw new Error("Claude returned malformed JSON. The raw response is available in the debug panel.");
+}
+
+function normalizeClaudeResult(result) {
+  return {
+    title: String(result.title || ""),
+    themeBrief: String(result.themeBrief || ""),
+    lyrics: String(result.lyrics || ""),
+    lyricMetaTags: String(result.lyricMetaTags || ""),
+    validation: {
+      score: Number(result.validation?.score || 0),
+      passed: Boolean(result.validation?.passed),
+      summary: String(result.validation?.summary || ""),
+      issues: Array.isArray(result.validation?.issues) ? result.validation.issues : [],
+      fixesApplied: Array.isArray(result.validation?.fixesApplied) ? result.validation.fixesApplied : []
+    }
+  };
+}
+
+function validationPassed(validation) {
+  return Boolean(validation?.passed) && Number(validation.score) >= PASS_THRESHOLD;
+}
+
+function formatValidation(validation, repairStatus = "") {
+  if (!validation) return "";
+  const issues = validation.issues.length
+    ? validation.issues.map((issue) => `- ${issue.category || "Issue"} (${issue.severity || "note"}): ${issue.note || issue}`).join("\n")
+    : "- No issues reported.";
+  const fixes = validation.fixesApplied?.length
+    ? validation.fixesApplied.map((fix) => `- ${fix}`).join("\n")
+    : "- None reported.";
+  return [
+    `Score: ${validation.score}`,
+    `Status: ${validation.passed ? "Passed" : "Needs manual review"}`,
+    repairStatus ? `Repair: ${repairStatus}` : "",
+    `Summary: ${validation.summary}`,
+    "Issues:",
+    issues,
+    "Fixes applied:",
+    fixes
+  ].filter(Boolean).join("\n");
+}
+
+function localValidateLyrics(lyrics, state, template) {
+  const issues = [];
+  let score = 100;
+  if (!lyrics.trim()) {
+    return { score: 0, passed: false, summary: "No lyrics supplied.", issues: [{ category: "Lyrics", severity: "major", note: "The lyrics field is empty." }], fixesApplied: [] };
+  }
+  for (const section of template.sections) {
+    const sectionPattern = new RegExp(`\\[${escapeRegExp(section)}(?::[^\\]]+)?\\]`, "i");
+    if (!sectionPattern.test(lyrics)) {
+      score -= 4;
+      issues.push({ category: "Structure compliance", severity: "minor", note: `Missing [${section}] section label.` });
+    }
+  }
+  if (state.song.cleanLanguage && /\b(fuck|shit|bitch|cunt)\b/i.test(lyrics)) {
+    score -= 15;
+    issues.push({ category: "Clean language", severity: "major", note: "Explicit language found while clean language is enabled." });
+  }
+  if (state.song.titleInChorus && state.song.title.trim() && !lyrics.toLowerCase().includes(state.song.title.toLowerCase())) {
+    score -= 8;
+    issues.push({ category: "Title usage", severity: "minor", note: "Title was requested in chorus but does not appear in the lyrics." });
+  }
+  if (/translation:|pronunciation:/i.test(lyrics)) {
+    score -= 12;
+    issues.push({ category: "No explanatory text", severity: "major", note: "Lyrics appear to include translation or pronunciation notes." });
+  }
+  const metatagCount = (lyrics.match(/^\[[^\]\n]+\]/gm) || []).filter((tag) => !template.sections.some((section) => tag === `[${section}]`)).length;
+  if (metatagCount < 3) {
+    score -= 10;
+    issues.push({ category: "Suno metatags", severity: "major", note: "Lyrics should include at least 3 style-based Suno metatags inside the lyrics output." });
+  }
+  score = Math.max(0, score);
+  return {
+    score,
+    passed: score >= PASS_THRESHOLD,
+    summary: score >= PASS_THRESHOLD ? "Local validation passed." : "Local validation found items for review.",
+    issues,
+    fixesApplied: []
+  };
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function sliceFirstJsonObject(text) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  return start >= 0 && end > start ? text.slice(start, end + 1) : "";
+}
+
+
+/* js/claude-client.js */
+const DEFAULT_MODEL = "claude-opus-4-1-20250805";
+const CLAUDE_MODELS = [
+  "claude-opus-4-1-20250805"
 ];
 
-function getEngine(id) {
-  return ENGINES.find(e => e.id === id);
-}
+const API_URL = "https://api.anthropic.com/v1/messages";
+const PROXY_URL = "http://127.0.0.1:8787/v1/messages";
 
-// ---- resolver-kind helpers -------------------------------------------------
-const RESOLVER_ROLES = ['pads', 'harmony', 'bass', 'lead', 'voice', 'color', 'movement'];
+async function callClaude({ apiKey, model, temperature, maxTokens, prompt }) {
+  const mode = localStorage.getItem("unifiedSunoLyricEngine.claudeTransport") || "direct";
+  if (mode === "direct" && !apiKey?.trim()) {
+    throw new Error("Missing Claude API key. Enter a key in Claude Settings before generating.");
+  }
 
-function resolverCharacters(module) {
-  return Object.keys(module.characters).map(id => {
-    const c = module.characters[id];
-    const tempo = c.beatless ? 'beatless' : `${c.bpm[0]}\u2013${c.bpm[1]} BPM`;
-    return { id, label: c.label, source: c.source, tempo };
-  });
-}
-
-// filtered pool for one role/character/palette -> [{value,label}] for a <select>
-function resolverRolePool(module, characterId, role, palette) {
-  const pool = (module.characters[characterId].pools[role]) || [];
-  const keep = pool.filter(o =>
-    palette === 'blend' ? true :
-    palette === 'electronic' ? (o.d === 'E' || o.d === 'B') :
-    (o.d === 'A' || o.d === 'B'));
-  return (keep.length ? keep : pool).map(o => ({ value: o.t, label: o.t }));
-}
-
-// ---- legacy-kind helpers ---------------------------------------------------
-function legacyPresetMap(id) { return (EngineExtras[id] || {}).presetMap || null; }
-function legacyClusters(id)  { return Object.keys((EngineExtras[id] || {}).flavourClusters || {}); }
-function legacyClassic(id)   {
-  const e = STYLE_ENGINES[id] || {};
-  return {
-    presets: e.presets || [],
-    phases: e.phases || [],
-    slots: {
-      pad: e.pads || [], bass: e.bass || [], rhythm: e.rhythm || [],
-      percussion: e.percussion || [], motif: e.motifs || [], movement: e.movement || [],
-    },
-  };
-}
-
-Object.assign(window.__ATMOS, { getEngine, resolverCharacters, resolverRolePool, legacyPresetMap, legacyClusters, legacyClassic, ENGINES, RESOLVER_ROLES });
-})();
-
-/* js/state.js */
-(function(){
-// Shell state. Two control sub-states (resolver vs legacy); the active one is
-// chosen by the selected engine's kind. Kept deliberately small — the modifier
-// overlays and the Lyric/Metatag engine will add their own sub-states later
-// without touching this shape.
-const {getEngine, resolverCharacters, legacyPresetMap, legacyClusters, legacyClassic} = window.__ATMOS;
-
-function newSeed() { return (Math.random() * 2147483647) >>> 0; }
-
-function initState() {
-  const S = { engineId: 'Delerium', seed: newSeed(), res: null, leg: null };
-  syncEngineDefaults(S, 'Delerium');
-  return S;
-}
-
-// (Re)build the control sub-state when the engine changes.
-function syncEngineDefaults(S, engineId) {
-  S.engineId = engineId;
-  S.seed = newSeed();
-  const eng = getEngine(engineId);
-
-  if (eng.kind === 'resolver') {
-    const chars = resolverCharacters(eng.module);
-    S.res = {
-      characterId: chars[0].id,
-      palette: 'electronic',
-      level: 'random',          // 'random' | 'lockSome' | 'manual'
-      locks: {},                // role -> chosen text (only in lockSome/manual)
-    };
-    S.leg = null;
-  } else if (eng.kind === 'legacy') {
-    const presetMap = legacyPresetMap(engineId);
-    const clusters = legacyClusters(engineId);
-    const classic = legacyClassic(engineId);
-    S.leg = {
-      presetDriven: !!presetMap,
-      preset: presetMap ? Object.keys(presetMap)[0] : (classic.presets[0] || ''),
-      phase: classic.phases[0] || '',
-      buildMode: clusters.length ? 'cluster' : 'classic',
-      cluster: clusters[0] || '',
-      palette: 'electronic',
-      arrangement: false,
-      bpmOverride: '',
-      slots: {
-        pad: classic.slots.pad[0] || '', bass: classic.slots.bass[0] || '',
-        rhythm: classic.slots.rhythm[0] || '', percussion: classic.slots.percussion[0] || '',
-        motif: classic.slots.motif[0] || '', movement: classic.slots.movement[0] || '',
+  let response;
+  try {
+    response = await fetch(mode === "proxy" ? PROXY_URL : API_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(mode === "direct" ? { "x-api-key": apiKey.trim() } : {}),
+        "anthropic-version": "2023-06-01",
+        ...(mode === "direct" ? { "anthropic-dangerous-direct-browser-access": "true" } : {})
       },
-      vocalMode: 'Instrumental',
-    };
-    S.res = null;
-  } else {
-    S.res = null; S.leg = null;   // stub
-  }
-}
-
-Object.assign(window.__ATMOS, { newSeed, initState, syncEngineDefaults });
-})();
-
-/* js/generate.js */
-(function(){
-// Routes a generate request to the right path for the engine's kind and returns a
-// uniform result: { style, negative, lyrics, length, over }.
-const {getEngine} = window.__ATMOS;
-const {build} = window.__ATMOS;
-const {CHAR_LIMIT} = window.__ATMOS;
-const {buildStylePrompt, buildNegativePrompt, buildLyricsField} = window.__ATMOS;
-
-function generate(S) {
-  const eng = getEngine(S.engineId);
-
-  if (eng.kind === 'resolver') {
-    const r = S.res;
-    const locks = (r.level === 'random') ? {} : r.locks;
-    const out = build(eng.module, {
-      characterId: r.characterId, palette: r.palette, locks, seed: S.seed,
+      body: JSON.stringify({
+        model,
+        max_tokens: Number(maxTokens),
+        temperature: Number(temperature),
+        messages: [{ role: "user", content: prompt }]
+      })
     });
-    return {
-      style: out.style, negative: out.negative, lyrics: '',
-      length: out.length, over: out.overLimit, arrangement: out.arrangement,
-    };
+  } catch (error) {
+    const help = mode === "direct"
+      ? "Direct browser mode may be blocked by CORS. Switch to Local proxy mode and start the optional proxy."
+      : "Local proxy mode expects the optional proxy to be running at http://127.0.0.1:8787.";
+    throw new Error(`Network or CORS failure while calling Claude: ${error.message}. ${help}`);
   }
 
-  if (eng.kind === 'legacy') {
-    const state = toLegacyState(S);
-    const style = buildStylePrompt(state);
-    return {
-      style,
-      negative: buildNegativePrompt(state),
-      lyrics: buildLyricsField(state),
-      length: style.length,
-      over: style.length > CHAR_LIMIT,
-    };
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    const modelHint = response.status === 404 ? " The selected model is not available to this API key. Use claude-opus-4-1-20250805." : "";
+    throw new Error(`Claude request failed (${response.status}).${modelHint} ${body || "Check API key, model, quota, or browser CORS policy."}`);
   }
 
-  return { style: '', negative: '', lyrics: '', length: 0, over: false, stub: true };
+  const data = await response.json();
+  const text = data.content?.map((item) => item.text || "").join("\n").trim();
+  if (!text) throw new Error("Claude returned an empty response.");
+  return text;
 }
 
-// Map the shell's legacy sub-state onto the nested shape the proven builder reads.
-function toLegacyState(S) {
-  const l = S.leg;
-  return {
-    engine: S.engineId,
-    style: {
-      buildMode: l.presetDriven ? 'classic' : l.buildMode, // preset-driven auto-routes via presetMap
-      cluster: l.cluster,
-      palette: l.palette,
-      arrangement: l.arrangement,
-      bpmOverride: l.bpmOverride,
-      preset: l.preset,
-      phase: l.phase,
-      pad: l.slots.pad, bass: l.slots.bass, rhythm: l.slots.rhythm,
-      percussion: l.slots.percussion, motif: l.slots.motif, movement: l.slots.movement,
-      vocalMode: l.vocalMode,
-      vocalDescriptor: '', vocalPersona: '',
-      maxMode: false,
-      negativePrompt: '',
-    },
-  };
+async function testClaudeConnection(settings) {
+  const text = await callClaude({
+    ...settings,
+    maxTokens: 64,
+    temperature: 0,
+    prompt: "Return JSON only: {\"ok\":true,\"message\":\"Claude connection ready\"}"
+  });
+  return text;
 }
 
-Object.assign(window.__ATMOS, { generate });
-})();
+
+/* js/prompt-lyric-builder.js */
+
+function buildGenerationPrompt(state, template) {
+  const engine = STYLE_ENGINES[state.engine];
+  const manualBrief = state.advanced.manualThemeBrief.trim();
+  return [
+    "You are writing Suno-compatible lyrics for a local music prompt tool.",
+    "Return valid JSON only. Do not wrap in markdown fences. Do not include explanations outside JSON.",
+    schema(),
+    contextBlock(state, template, engine),
+    manualBrief ? `Manual theme brief overrides automatic brief generation:\n${manualBrief}` : "Create the theme brief internally before writing lyrics.",
+    conceptRules(),
+    metatagRules(template, state),
+    "Final lyrics rules:",
+    "- Lyrics must be mainly English unless language mode requests a larger foreign-language section.",
+    "- Do not include English translations, pronunciation guides, or explanations in final lyrics.",
+    "- Use Suno section labels exactly, such as [Verse 1], [Chorus], [Bridge].",
+    "- Put useful Suno metatags directly inside the lyrics string, not only in the lyricMetaTags field.",
+    "- Make the chorus memorable, singable, and clear.",
+    "- Respect clean language, cliche avoidance, structure, mood, energy, and line length settings.",
+    validationBlock(state)
+  ].join("\n\n");
+}
+
+function buildRepairPrompt(state, template, initialResult) {
+  return [
+    "You generated lyrics that failed validation.",
+    `Validation score: ${initialResult.validation.score}`,
+    "Issues:",
+    JSON.stringify(initialResult.validation.issues, null, 2),
+    "Rewrite the lyrics only where needed. Preserve the selected style engine, structure template, song concept, language settings, and Suno section labels. Improve the score to 80 or above.",
+    "Return the same JSON schema only.",
+    schema(),
+    contextBlock(state, template, STYLE_ENGINES[state.engine]),
+    metatagRules(template, state),
+    "Initial lyrics:",
+    initialResult.lyrics,
+    "Initial validation:",
+    JSON.stringify(initialResult.validation, null, 2)
+  ].join("\n\n");
+}
+
+function schema() {
+  return `Required JSON schema:
+{
+  "title": "A concise song title derived from the subject/topic.",
+  "themeBrief": "1-2 paragraph internal creative brief.",
+  "lyrics": "[Intro]\\n...\\n[Outro]",
+  "lyricMetaTags": "Short explanation-free list or integrated metatag strategy.",
+  "validation": {
+    "score": 88,
+    "passed": true,
+    "summary": "Brief validation summary.",
+    "issues": [{"category": "Hook clarity", "severity": "minor", "note": "..."}],
+    "fixesApplied": []
+  }
+}`;
+}
+
+function contextBlock(state, template, engine) {
+  const styleContext = state.integration.useStyleToGuideLyrics
+    ? `Style prompt: ${state.outputs.stylePrompt}\nEngine metatag vocabulary: ${engine.metatags.join(", ")}`
+    : "Style-to-lyric guidance is off. Use only lyric controls.";
+  return `App state:
+Engine: ${state.engine}
+${styleContext}
+Negative style prompt: ${state.outputs.negativePrompt}
+Optional title seed: ${state.song.title || "none - Claude must create a suitable title from the subject/topic"}
+Source type: ${state.song.sourceType}
+Theme lens: ${state.song.themeLens}
+Subject/topic: ${state.song.subject}
+Source notes: ${state.song.sourceNotes || "none"}
+Genre family: ${state.song.genreFamily}
+Era bias: ${state.song.eraBias}
+Mood: ${state.song.mood}
+Energy: ${state.song.energy}
+Perspective: ${state.song.perspective}
+Language style: ${state.song.languageStyle}
+Imagery density: ${state.song.imageryDensity}
+Narrative clarity: ${state.song.narrativeClarity}
+Hook style: ${state.song.hookStyle}
+Rhyme density: ${state.song.rhymeDensity}
+Target line length: ${state.song.lineLength}
+Vocal framing: ${state.song.vocalFraming}
+Delivery style: ${state.song.deliveryStyle}
+Negative lyric rules: ${state.song.negativeRules}
+Clean language: ${state.song.cleanLanguage}
+Avoid cliches: ${state.song.avoidCliche}
+Use title in chorus: ${state.song.titleInChorus}
+Repeat key hook wording: ${state.song.repeatHook}
+Structure template: ${template.label}
+Required sections: ${template.sections.map((section) => `[${section}]`).join(", ")}
+Include pre-chorus where useful: ${state.structure.includePreChorus}
+Include bridge where useful: ${state.structure.includeBridge}
+Language layer enabled: ${state.languageLayer.enabled}
+Language: ${state.languageLayer.language}
+Language mode: ${state.languageLayer.mode}
+Language placement: ${state.languageLayer.placement}
+Language intensity: ${state.languageLayer.intensity}
+Language notes: ${state.languageLayer.notes || "none"}
+
+Selected control guidance:
+${selectedGuidance(state)}
+
+Compatibility guidance:
+${compatibilitySummary(state)}`;
+}
+
+function conceptRules() {
+  return `Concept hierarchy:
+- Derive the main song concept from Subject/topic, not from Song title.
+- Create a suitable song title from the subject/topic and return it in the JSON title field. Use the optional title seed only if it genuinely fits.
+- If title-in-chorus is enabled, use the generated title or its strongest phrase naturally in the chorus.
+- Source type must change the emotional evidence, imagery, and narrative frame used in the theme brief.
+- Theme lens must change the angle of interpretation, not just the wording.
+- Mood must be interpreted in context of the subject/topic; do not treat it as a single-word adjective.
+- Energy must affect lyric density, section momentum, hook force, and how quickly the emotional point arrives.
+- Perspective must control who is speaking in every section.
+- The themeBrief must explicitly show how source type, theme lens, mood, energy, and perspective shaped the subject/topic.`;
+}
+
+function metatagRules(template, state) {
+  const plan = buildSunoMetatagPlan(state, template);
+  const adLibPlan = buildAdLibPlan(state, template);
+  const vocalPlan = buildVocalArrangementPlan(state, template);
+  return `Suno lyric structure and metatag requirements:
+- The lyrics string must include these section labels in this order: ${template.sections.map((section) => `[${section}]`).join(" ")}.
+- Add 3 to 5 Suno metatags directly inside the lyrics string as local timeline instructions.
+- Keep required section labels exact and uncluttered, then place short standalone metatags immediately after the section label or just before the event they affect.
+- Treat the style prompt as the global sound world. Treat lyric metatags as local musical direction: entrance, contrast, handoff, lift, release, echo.
+- Use metatags as tasteful bracketed performance and arrangement cues, not copied UI labels and not poetic scenery.
+- Good metatags describe functional musical events: [drums withheld | distant motif enters], [close soft vocal | rhythm stays sparse], [guitar answers vocal | drums stay low], [choir swells | ceremonial lift], [wide harmony halo | soft hook bloom], [last hook dissolves | long reverb tail].
+- Do not use vague scenic labels such as [Golden-hour final chorus], [Oceanic instrumental break], or [Atmospheric outro] unless they also contain a concrete musical action.
+- Prefer this generated metatag plan because it is derived from the selected style prompt instruments and structure:
+${formatMetatagPlan(plan)}
+- Supporting vocal arrangement rules:
+- Preserve lead clarity first. Do not put choir, stacked vocals, or parenthetical backing phrases on every line.
+- Stage backing vocals like an arrangement: verse restraint, chorus support, bridge contrast, final hook lift, outro memory.
+- Use unison doubles for emphasis, female harmonies for lift and shimmer, choir/group vocals for scale, and open vowels for atmosphere.
+- When using parentheses, write only words or vowels that should actually be sung. Never put instructions in parentheses.
+- Generated supporting vocal plan:
+${formatVocalArrangementPlan(vocalPlan)}
+- Do not create generic [Ad-lib] or [Ad-libs] tags. Ad-libs are written vocal events inside the lyric body, usually in parentheses or as backing-vocal lines.
+- Use ad-libs sparingly. They must answer, echo, extend, or fade an existing hook idea. Do not sprinkle random "oh", "yeah", or unrelated phrases through the song.
+- Optional ad-lib / backing phrase plan:
+${formatAdLibPlan(adLibPlan)}`;
+}
+
+function validationBlock(state) {
+  return `Validation:
+Standard validation passes at 80+.
+Assess subject/topic concept fidelity, source type interpretation, theme lens, perspective consistency, energy match, structure compliance, section labels, integrated Suno metatags, chorus memorability, hook clarity, singability, line length, rhyme naturalness, cliche avoidance, language consistency, foreign phrase restraint, style engine match, clean language, title usage, and absence of explanatory text.
+Strict validation: ${state.integration.strictValidation}. If strict, critique more aggressively for weak chorus, generic AI phrases, overused metaphors, poor section flow, unsuitable lyrical density, awkward scansion, repetition problems, and poor Suno fit.`;
+}
+
+function selectedGuidance(state) {
+  return [
+    `Source type guidance: ${guidance.sourceType[state.song.sourceType] || "Treat the subject as the primary creative seed and choose concrete emotional evidence."}`,
+    `Theme lens guidance: ${guidance.themeLens[state.song.themeLens] || "Use the selected lens to define the angle of interpretation."}`,
+    `Mood guidance: ${guidance.mood[state.song.mood] || "Interpret the mood through the specific subject rather than naming it directly."}`,
+    `Energy guidance: ${guidance.energy[state.song.energy] || "Let the energy setting control pacing, repetition, lyric density, and chorus force."}`,
+    `Perspective guidance: ${guidance.perspective[state.song.perspective] || "Keep the chosen speaker consistent across the lyric."}`
+  ].join("\n");
+}
+
+const guidance = {
+  sourceType: {
+    "Movie": "Use cinematic scene logic: visible moments, emotional turns, and implied action. Avoid summarising the plot; write from the emotional pressure inside it.",
+    "Book": "Use literary interiority: memory, motive, contradiction, and symbolic objects. Let the lyric feel read-between-the-lines rather than plot-summary.",
+    "Historical figure": "Use human stakes behind public identity: cost, legacy, private doubt, devotion, sacrifice, or myth versus person.",
+    "Myth / legend": "Use archetypal imagery and fate-scale emotion, but keep the words singable and personal rather than encyclopaedic.",
+    "True event": "Use grounded realism and consequence. Avoid sensationalising; focus on the human aftermath, choice, loss, survival, or witness.",
+    "Cultural movement": "Use collective feeling, shared language, generational tension, resistance, belonging, or change. The song can speak as an individual within a wider current.",
+    "Original concept": "Build an invented emotional world from the subject. Choose concrete images that make the concept feel lived-in.",
+    "Personal memory": "Use intimate sensory evidence, small details, and emotional specificity. The lyric should feel remembered rather than explained."
+  },
+  themeLens: {
+    "Faithful to source": "Stay close to the subject's literal emotional situation. Preserve its core conflict, setting, and stakes.",
+    "Inspired by source": "Use the subject as a springboard. Keep the central feeling but allow new scenes, images, and emotional framing.",
+    "Loose metaphor only": "Transform the subject into metaphor. Avoid literal references; turn the topic into weather, distance, ritual, ocean, city, light, or body imagery.",
+    "Dark reinterpretation": "Tilt the subject toward shadow, cost, obsession, grief, danger, or unresolved longing without becoming melodramatic.",
+    "Romantic reinterpretation": "Tilt the subject toward desire, devotion, tenderness, distance, reunion, or intimate vulnerability.",
+    "Triumphant reinterpretation": "Tilt the subject toward survival, release, courage, arrival, and earned uplift rather than simple positivity."
+  },
+  mood: {
+    "Melancholic": "Let sadness have beauty and restraint. In context, focus on absence, memory, tenderness, and what cannot be fully recovered.",
+    "Hopeful": "Make hope specific and earned: a small sign of return, a decision to keep moving, light after uncertainty, or trust forming despite the subject's tension.",
+    "Defiant": "Turn the subject into refusal, resilience, boundary-setting, or standing upright under pressure. Keep it controlled rather than shouted.",
+    "Romantic": "Find intimacy inside the subject: closeness, longing, devotion, touch, distance, or the private language between people.",
+    "Mysterious": "Withhold some explanation. Use partial images, questions, symbols, and atmosphere so the subject feels alluring but coherent.",
+    "Bittersweet": "Hold gain and loss together. Let the subject create both gratitude and ache in the same lines.",
+    "Triumphant": "Make victory earned by struggle. Build toward release, arrival, recognition, or emotional breakthrough.",
+    "Dark / brooding": "Use tension, shadow, doubt, obsession, or threat. Keep the lyric elegant and atmospheric, not cartoon-dark.",
+    "Serene": "Turn the subject toward acceptance, stillness, breath, space, and gentle clarity.",
+    "Yearning": "Let the subject create reach: distance, waiting, unfinished words, desire, or something almost touched.",
+    "Mystical": "Frame the subject as ritual, omen, prayer, dream, or hidden pattern while keeping the emotional meaning clear.",
+    "Sensual": "Use body, warmth, breath, movement, and texture with restraint. Keep it suggestive rather than explicit.",
+    "Haunted": "Let the subject return like an echo: memory, trace, ghosted rooms, unresolved promises, or repeating signs.",
+    "Euphoric but restrained": "Create lift without excess: controlled release, glowing repetition, upward motion, and emotional brightness held in check."
+  },
+  energy: {
+    "Low": "Use spacious lines, few words, slow emotional reveal, soft repetition, and minimal dramatic turns.",
+    "Low-mid": "Keep the lyric intimate but moving. Use gentle section growth and a chorus that blooms rather than explodes.",
+    "Mid": "Use balanced momentum: clear verses, memorable chorus, moderate repetition, and enough detail to carry the subject.",
+    "High": "Use direct emotional statements, strong rhythmic phrasing, repeated hook language, and fast-arriving payoff while avoiding clutter.",
+    "Medium-high": "Create drive and lift with concise images, faster section movement, and a chorus that feels like release.",
+    "Slow burn": "Delay the full emotional reveal. Start restrained, add pressure verse by verse, and let the chorus or final chorus make the subject's meaning clear."
+  },
+  perspective: {
+    "First person": "Write from inside the speaker's experience using I/me/we only where natural. The subject becomes confession or testimony.",
+    "Second person": "Address a you directly. The subject becomes confrontation, devotion, invitation, apology, or memory aimed at someone.",
+    "Third person": "Observe the subject through he/she/they or named figures. Keep emotional closeness through concrete detail.",
+    "Alternating first and second": "Use verses for inner confession and chorus for direct address, or alternate sections deliberately.",
+    "Omniscient / cinematic": "Use a camera-like voice that can move between scene, symbol, and emotional overview without sounding detached.",
+    "Collective voice": "Use we/us to make the subject communal, generational, ritual, or movement-based.",
+    "Fragmented voices": "Use short perspective shifts, echo phrases, or call-and-response fragments while keeping the chorus stable."
+  }
+};
+
 
 /* js/ui.js */
-(function(){
-const {ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool, legacyClusters, legacyClassic,} = window.__ATMOS;
-const {syncEngineDefaults, newSeed} = window.__ATMOS;
-const {generate} = window.__ATMOS;
 
-// ---- tiny DOM helpers ------------------------------------------------------
-function el(tag, attrs = {}, kids = []) {
-  const n = document.createElement(tag);
-  for (const k in attrs) {
-    if (k === 'class') n.className = attrs[k];
-    else if (k === 'text') n.textContent = attrs[k];
-    else if (k === 'html') n.innerHTML = attrs[k];
-    else if (k.startsWith('on')) n.addEventListener(k.slice(2), attrs[k]);
-    else n.setAttribute(k, attrs[k]);
+const $ = (id) => document.getElementById(id);
+
+const els = {
+  engineSelect: $("engineSelect"),
+  styleControls: $("styleControls"),
+  songControls: $("songControls"),
+  languageControls: $("languageControls"),
+  structureTemplate: $("structureTemplate"),
+  structureNotes: $("structureNotes"),
+  includePreChorus: $("includePreChorus"),
+  includeBridge: $("includeBridge"),
+  useStyleToGuideLyrics: $("useStyleToGuideLyrics"),
+  strictValidation: $("strictValidation"),
+  apiKey: $("apiKey"),
+  rememberKey: $("rememberKey"),
+  claudeModel: $("claudeModel"),
+  claudeTransport: $("claudeTransport"),
+  temperature: $("temperature"),
+  temperatureValue: $("temperatureValue"),
+  maxTokens: $("maxTokens"),
+  manualThemeBrief: $("manualThemeBrief"),
+  manualLyrics: $("manualLyrics"),
+  promptPreview: $("promptPreview"),
+  stateTransfer: $("stateTransfer"),
+  styleOutput: $("styleOutput"),
+  lyricsOutput: $("lyricsOutput"),
+  metatagOutput: $("metatagOutput"),
+  negativeOutput: $("negativeOutput"),
+  validationOutput: $("validationOutput"),
+  themeBriefOutput: $("themeBriefOutput"),
+  rawJsonOutput: $("rawJsonOutput"),
+  styleBudget: $("styleBudget"),
+  lyricsStatus: $("lyricsStatus"),
+  validationBadge: $("validationBadge"),
+  claudeStatus: $("claudeStatus"),
+  progressList: $("progressList"),
+  errorBox: $("errorBox"),
+  generateBtn: $("generateBtn"),
+  testClaudeBtn: $("testClaudeBtn"),
+  clearKeyBtn: $("clearKeyBtn"),
+  validateManualBtn: $("validateManualBtn"),
+  saveSetupBtn: $("saveSetupBtn"),
+  loadSetupBtn: $("loadSetupBtn"),
+  exportStateBtn: $("exportStateBtn"),
+  importStateBtn: $("importStateBtn"),
+  resetBtn: $("resetBtn")
+};
+
+const ENGINE_HINTS = {
+  Balearic: "Atmospheric chillout, sunset warmth, organic groove.",
+  Enigma: "Mystic identity, chant texture, hypnotic downtempo pulse.",
+  Delerium: "Ethereal vocal bloom, choir haze, emotional lift.",
+  Era: "Ceremonial scale, sacred choir, restrained cinematic motion."
+};
+
+function initStaticOptions(state, models) {
+  fillSelect(els.engineSelect, Object.keys(STYLE_ENGINES));
+  fillSelect(els.structureTemplate, STRUCTURE_TEMPLATES.map((template) => ({ value: template.id, label: `${template.group} - ${template.label}` })));
+  fillSelect(els.claudeModel, models);
+  document.body.dataset.engine = state.engine;
+}
+
+function renderControls(state) {
+  const engine = STYLE_ENGINES[state.engine];
+  if (!VOCAL_MODES.includes(state.style.vocalMode)) state.style.vocalMode = "Descriptor";
+  if (!VOCAL_DESCRIPTOR_OPTIONS[state.style.vocalGender]) state.style.vocalGender = "Female";
+  if (!VOCAL_DESCRIPTOR_OPTIONS[state.style.vocalGender].includes(state.style.vocalDescriptor)) {
+    state.style.vocalDescriptor = VOCAL_DESCRIPTOR_OPTIONS[state.style.vocalGender][0];
   }
-  (Array.isArray(kids) ? kids : [kids]).forEach(c => c && n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
-  return n;
-}
-function field(label, control) { return el('label', { class: 'field' }, [el('span', { class: 'field-label', text: label }), control]); }
-function select(options, value, onchange) {
-  const s = el('select', { onchange: e => onchange(e.target.value) });
-  options.forEach(o => {
-    const opt = el('option', { value: o.value }, o.label);
-    if (o.value === value) opt.selected = true;
-    s.appendChild(opt);
-  });
-  return s;
-}
-function segmented(options, value, onpick) {
-  return el('div', { class: 'seg' }, options.map(o =>
-    el('button', { class: o.value === value ? 'active' : '', text: o.label, onclick: () => onpick(o.value) })));
-}
+  document.body.dataset.engine = state.engine;
+  els.engineSelect.value = state.engine;
+  const engineDeckName = document.getElementById("engineDeckName");
+  const engineDeckHint = document.getElementById("engineDeckHint");
+  if (engineDeckName) engineDeckName.textContent = state.engine;
+  if (engineDeckHint) engineDeckHint.textContent = ENGINE_HINTS[state.engine] || "";
 
-// ---- module state ----------------------------------------------------------
-let S, rootEl;
-function mount(state, root) { S = state; rootEl = root; renderAll(); }
+  els.styleControls.innerHTML = "";
+  addChoiceGroup(els.styleControls, "Engine preset", "style.preset", engine.presets, state.style.preset, "Choose the source identity first.", "preset");
+  addChoiceGroup(els.styleControls, "Phase / profile", "style.phase", engine.phases, state.style.phase, "Sets tempo, era behavior, and scale.", "phase");
+  addChoiceGroup(els.styleControls, "Vocal mode", "style.vocalMode", VOCAL_MODES, state.style.vocalMode, "Decides how much the style prompt talks about voice.", "voice");
+  if (state.style.vocalMode === "Descriptor") {
+    els.styleControls.insertAdjacentHTML("beforeend", `<div class="vocal-descriptor-panel"><div><div class="decision-label">Vocal tone / delivery</div><p class="field-note">Choose a descriptor that can materially change the generated vocal performance.</p></div><div class="field-grid" id="vocalDescriptorGrid"></div></div>`);
+    const vocalGrid = document.getElementById("vocalDescriptorGrid");
+    addSelect(vocalGrid, "Vocal gender", "style.vocalGender", Object.keys(VOCAL_DESCRIPTOR_OPTIONS), state.style.vocalGender);
+    addSelect(vocalGrid, "Descriptor", "style.vocalDescriptor", VOCAL_DESCRIPTOR_OPTIONS[state.style.vocalGender], state.style.vocalDescriptor);
+  }
+  addToggle(els.styleControls, "Max Mode", "style.maxMode", state.style.maxMode);
 
-function renderAll() {
-  rootEl.innerHTML = '';
-  rootEl.appendChild(el('div', { class: 'tabs' }, ENGINES.map(e => {
-    const disabled = e.kind === 'stub';
-    return el('button', {
-      class: 'tab' + (e.id === S.engineId ? ' active' : '') + (disabled ? ' disabled' : ''),
-      onclick: () => { if (!disabled) { syncEngineDefaults(S, e.id); renderAll(); } },
-    }, [el('span', { text: e.label }), el('span', { class: 'kind', text: e.kind === 'resolver' ? 'resolver' : e.kind === 'legacy' ? 'proven' : 'soon' })]);
-  })));
+  const ex = EngineExtras[state.engine] || {};
+  const presetDriven = !!ex.presetMap;
+  const clusters = ex.flavourClusters || {};
+  const clusterKeys = Object.keys(clusters);
 
-  const grid = el('div', { class: 'grid' });
-  const controls = el('div', { class: 'panel controls' });
-  const output = el('div', { class: 'panel output', id: 'output' });
-  grid.appendChild(controls); grid.appendChild(output);
-  rootEl.appendChild(grid);
-
-  const eng = getEngine(S.engineId);
-  if (eng.kind === 'resolver') renderResolverControls(controls, eng);
-  else if (eng.kind === 'legacy') renderLegacyControls(controls, eng);
-  else renderStub(controls, eng);
-
-  refreshOutput();
-}
-
-// ---- resolver controls -----------------------------------------------------
-function renderResolverControls(root, eng) {
-  const r = S.res;
-  const chars = resolverCharacters(eng.module);
-  const c = eng.module.characters[r.characterId];
-
-  root.appendChild(field('Character',
-    select(chars.map(x => ({ value: x.id, label: `${x.label} \u2014 ${x.source} \u2014 ${x.tempo}` })), r.characterId,
-      v => { r.characterId = v; r.locks = {}; renderAll(); })));
-
-  root.appendChild(field('Palette',
-    segmented([['electronic', 'Electronic'], ['acoustic', 'Acoustic'], ['blend', 'Blend']].map(([value, label]) => ({ value, label })),
-      r.palette, v => { r.palette = v; r.locks = {}; renderAll(); })));
-
-  root.appendChild(field('Control level',
-    segmented([['random', 'Randomize all'], ['lockSome', 'Lock some'], ['manual', 'Full manual']].map(([value, label]) => ({ value, label })),
-      r.level, v => { r.level = v; r.locks = {}; if (v === 'manual') seedManualLocks(eng, r); renderAll(); })));
-
-  if (r.level !== 'random') {
-    const locks = el('div', { class: 'locks' });
-    RESOLVER_ROLES.forEach(role => {
-      if (role === 'color' && c.colorChance === 0) return;
-      const pool = resolverRolePool(eng.module, r.characterId, role, r.palette);
-      const opts = [{ value: '', label: '\uD83C\uDFB2 random' }, ...pool];
-      const cur = r.locks[role] != null ? r.locks[role] : '';
-      locks.appendChild(field(roleLabel(role),
-        select(opts, cur, v => { if (v === '') delete r.locks[role]; else r.locks[role] = v; refreshOutput(); })));
-    });
-    root.appendChild(locks);
+  if (presetDriven) {
+    // Preset-driven engine (e.g. Enigma): the Engine Preset above IS the character
+    // selector and sets instrumentation behind the scenes; Phase sets tempo. Only
+    // optional fine levers are exposed, tucked into an Advanced section.
+    els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Advanced sound (optional)</summary><div class="control-stack detail-body" id="advSound"></div></details>`);
+    const adv = document.getElementById("advSound");
+    addSelect(adv, "Palette", "style.palette", [{ value: "electronic", label: "Electronic" }, { value: "acoustic", label: "Acoustic" }, { value: "blend", label: "Blend" }], state.style.palette);
+    addToggle(adv, "Arrangement language", "style.arrangement", state.style.arrangement);
+    addInput(adv, "BPM override (optional)", "style.bpmOverride", state.style.bpmOverride);
+    addTextarea(adv, "Extra negative prompt", "style.negativePrompt", state.style.negativePrompt, 3);
+  } else {
+    // Engines without a presetMap: optional flavour-cluster panel + classic slots.
+    if (clusterKeys.length) {
+      els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Flavour cluster (${clusterKeys.length})</summary><div class="control-stack detail-body" id="clusterPanel"></div></details>`);
+      const cp = document.getElementById("clusterPanel");
+      addSelect(cp, "Build mode", "style.buildMode", [{ value: "classic", label: "Classic slots" }, { value: "cluster", label: "Flavour cluster" }], state.style.buildMode);
+      addSelect(cp, "Palette", "style.palette", [{ value: "electronic", label: "Electronic (default)" }, { value: "acoustic", label: "Acoustic" }, { value: "blend", label: "Blend" }], state.style.palette);
+      addSelect(cp, "Cluster", "style.cluster", clusterKeys.map((k) => ({ value: k, label: clusters[k].label || k })), state.style.cluster);
+      addToggle(cp, "Arrangement language", "style.arrangement", state.style.arrangement);
+      addInput(cp, "BPM override (optional)", "style.bpmOverride", state.style.bpmOverride);
+    }
+    els.styleControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Fine tune arrangement</summary><div class="control-stack detail-body" id="styleFineTune"></div></details>`);
+    const styleFineTune = document.getElementById("styleFineTune");
+    addSelect(styleFineTune, "Pad / texture", "style.pad", engine.pads, state.style.pad);
+    addSelect(styleFineTune, "Bass / tempo support", "style.bass", engine.bass, state.style.bass);
+    addSelect(styleFineTune, "Rhythm / hook", "style.rhythm", engine.rhythm, state.style.rhythm);
+    addSelect(styleFineTune, "Strings / vocal blend / density", "style.percussion", engine.percussion, state.style.percussion);
+    addSelect(styleFineTune, "Motif", "style.motif", engine.motifs, state.style.motif);
+    addSelect(styleFineTune, "Movement", "style.movement", engine.movement, state.style.movement);
+    addTextarea(styleFineTune, "Extra negative prompt", "style.negativePrompt", state.style.negativePrompt, 3);
   }
 
-  const drums = c.beatless ? 'Beatless (no drum pool)' : `Auto \u2014 ${c.drums.primary} family`;
-  root.appendChild(el('p', { class: 'note', text: `Drums: ${drums}. Colour fires ~${Math.round(c.colorChance * 100)}% of draws.` }));
+  els.songControls.innerHTML = "";
+  addInput(els.songControls, "Optional title seed", "song.title", state.song.title);
+  addInput(els.songControls, "Subject / topic", "song.subject", state.song.subject);
+  addChoiceGroup(els.songControls, "Source type", "song.sourceType", CONTROL_OPTIONS.sourceType, state.song.sourceType, "What kind of seed is this?", "source");
+  addChoiceGroup(els.songControls, "Theme lens", "song.themeLens", CONTROL_OPTIONS.themeLens, state.song.themeLens, "How literally should Claude treat the seed?", "lens");
+  addTextarea(els.songControls, "Optional source notes", "song.sourceNotes", state.song.sourceNotes, 3);
+  addChoiceGroup(els.songControls, "Mood", "song.mood", CONTROL_OPTIONS.mood, state.song.mood, "Primary emotional color.", "mood");
+  addChoiceGroup(els.songControls, "Energy", "song.energy", CONTROL_OPTIONS.energy, state.song.energy, "Performance intensity.", "energy");
+  addChoiceGroup(els.songControls, "Perspective", "song.perspective", CONTROL_OPTIONS.perspective, state.song.perspective, "Who is speaking?", "perspective");
+  els.songControls.insertAdjacentHTML("beforeend", `<details class="subsection"><summary>Lyric mechanics</summary><div class="control-stack detail-body" id="lyricMechanics"></div></details>`);
+  const lyricMechanics = document.getElementById("lyricMechanics");
+  lyricMechanics.insertAdjacentHTML("beforeend", `<div class="field-grid" id="lyricMechanicsGrid"></div>`);
+  const lyricMechanicsGrid = document.getElementById("lyricMechanicsGrid");
+  addSelect(lyricMechanicsGrid, "Genre family", "song.genreFamily", CONTROL_OPTIONS.genreFamily, state.song.genreFamily);
+  addSelect(lyricMechanicsGrid, "Era bias", "song.eraBias", CONTROL_OPTIONS.eraBias, state.song.eraBias);
+  addSelect(lyricMechanicsGrid, "Language style", "song.languageStyle", CONTROL_OPTIONS.languageStyle, state.song.languageStyle);
+  addSelect(lyricMechanicsGrid, "Hook style", "song.hookStyle", CONTROL_OPTIONS.hookStyle, state.song.hookStyle);
+  addSelect(lyricMechanicsGrid, "Target line length", "song.lineLength", CONTROL_OPTIONS.lineLength, state.song.lineLength);
+  addSelect(lyricMechanicsGrid, "Rhyme density", "song.rhymeDensity", CONTROL_OPTIONS.rhymeDensity, state.song.rhymeDensity);
+  addSelect(lyricMechanicsGrid, "Imagery density", "song.imageryDensity", CONTROL_OPTIONS.imageryDensity, state.song.imageryDensity);
+  addSelect(lyricMechanicsGrid, "Narrative clarity", "song.narrativeClarity", CONTROL_OPTIONS.narrativeClarity, state.song.narrativeClarity);
+  addSelect(lyricMechanicsGrid, "Vocal framing", "song.vocalFraming", CONTROL_OPTIONS.vocalFraming, state.song.vocalFraming);
+  addSelect(lyricMechanicsGrid, "Delivery style", "song.deliveryStyle", CONTROL_OPTIONS.deliveryStyle, state.song.deliveryStyle);
+  addTextarea(lyricMechanics, "Negative lyric rules", "song.negativeRules", state.song.negativeRules, 3);
+  addToggle(els.songControls, "Clean language", "song.cleanLanguage", state.song.cleanLanguage);
+  addToggle(els.songControls, "Avoid cliches", "song.avoidCliche", state.song.avoidCliche);
+  addToggle(els.songControls, "Use title in chorus", "song.titleInChorus", state.song.titleInChorus);
+  addToggle(els.songControls, "Repeat key hook wording", "song.repeatHook", state.song.repeatHook);
 
-  root.appendChild(buttons());
-}
-function seedManualLocks(eng, r) {
-  const c = eng.module.characters[r.characterId];
-  RESOLVER_ROLES.forEach(role => {
-    if (role === 'color' && c.colorChance === 0) return;
-    const pool = resolverRolePool(eng.module, r.characterId, role, r.palette);
-    if (pool.length) r.locks[role] = pool[0].value;
-  });
-}
-function roleLabel(role) {
-  return { pads: 'Pads', harmony: 'Harmony', bass: 'Bass', lead: 'Lead', voice: 'Voice', color: 'Colour', movement: 'Movement' }[role] || role;
+  els.languageControls.innerHTML = "";
+  addToggle(els.languageControls, "Enable language layer", "languageLayer.enabled", state.languageLayer.enabled);
+  addChoiceGroup(els.languageControls, "Language", "languageLayer.language", CONTROL_OPTIONS.languages, state.languageLayer.language, "Phrase layer language.", "language");
+  addChoiceGroup(els.languageControls, "Mode", "languageLayer.mode", CONTROL_OPTIONS.languageModes, state.languageLayer.mode, "Defaults to phrase layer, not full translation.", "mode");
+  addSelect(els.languageControls, "Placement", "languageLayer.placement", CONTROL_OPTIONS.languagePlacement, state.languageLayer.placement);
+  addSelect(els.languageControls, "Intensity", "languageLayer.intensity", CONTROL_OPTIONS.languageIntensity, state.languageLayer.intensity);
+  addTextarea(els.languageControls, "Language QA notes", "languageLayer.notes", state.languageLayer.notes, 3);
+
+  els.structureTemplate.value = state.structure.templateId;
+  els.includePreChorus.checked = state.structure.includePreChorus;
+  els.includeBridge.checked = state.structure.includeBridge;
+  els.useStyleToGuideLyrics.checked = state.integration.useStyleToGuideLyrics;
+  els.strictValidation.checked = state.integration.strictValidation;
+  els.rememberKey.checked = state.claude.apiKeyRemembered;
+  state.claude.model = els.claudeModel.options[0]?.value || state.claude.model;
+  els.claudeModel.value = state.claude.model;
+  els.claudeTransport.value = state.claude.transport || "direct";
+  els.temperature.value = state.claude.temperature;
+  els.temperatureValue.textContent = state.claude.temperature;
+  els.maxTokens.value = state.claude.maxTokens;
+  els.manualThemeBrief.value = state.advanced.manualThemeBrief;
+  els.manualLyrics.value = state.advanced.manualLyrics;
+  updateStructureNotes(state);
 }
 
-// ---- legacy controls -------------------------------------------------------
-function renderLegacyControls(root, eng) {
-  const l = S.leg;
+function renderOutputs(state) {
+  state.outputs.stylePrompt = buildStylePrompt(state);
+  state.outputs.negativePrompt = state.outputs.negativePrompt || buildNegativePrompt(state);
+  els.styleOutput.value = state.outputs.stylePrompt;
+  const template = selectedTemplate(state);
+  const metatagPlan = formatMetatagPlan(buildSunoMetatagPlan(state, template));
+  const vocalPlan = formatVocalArrangementPlan(buildVocalArrangementPlan(state, template));
+  const adLibPlan = formatAdLibPlan(buildAdLibPlan(state, template));
+  els.metatagOutput.value = `Compatibility rules\n${compatibilitySummary(state)}\n\nMetatags\n${metatagPlan}\n\nSupporting vocal arrangement\n${vocalPlan}\n\nLyric inserts / ad-libs\n${adLibPlan}`;
+  els.negativeOutput.value = state.outputs.negativePrompt;
+  els.lyricsOutput.value = state.outputs.lyrics || "";
+  els.themeBriefOutput.value = state.outputs.themeBrief || "";
+  els.rawJsonOutput.value = state.outputs.rawClaudeJson ? JSON.stringify(state.outputs.rawClaudeJson, null, 2) : state.outputs.rawClaudeText || "";
+  els.validationOutput.value = state.outputs.validationText || "";
+  const count = state.outputs.stylePrompt.length;
+  els.styleBudget.textContent = `${count} / 1000 characters`;
+  els.styleBudget.style.color = count >= 1000 ? "var(--danger)" : count >= 900 ? "var(--warning)" : "var(--text-muted)";
+  els.promptPreview.value = buildGenerationPrompt(state, template);
+}
 
-  if (l.presetDriven) {
-    const map = (window.__ATMOS.EngineExtras[eng.id] || {}).presetMap;
-    root.appendChild(field('Engine preset',
-      select(Object.keys(map).map(k => ({ value: k, label: k })), l.preset,
-        v => { l.preset = v; refreshOutput(); })));
-    root.appendChild(field('Phase (tempo / energy)',
-      select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase,
-        v => { l.phase = v; refreshOutput(); })));
-    root.appendChild(field('Palette',
-      segmented(seg3(), l.palette, v => { l.palette = v; refreshOutput(); })));
-    root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
-    root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
-    root.appendChild(buttons());
+function updateValidationBadge(validation) {
+  els.validationBadge.className = "status-pill";
+  if (!validation) {
+    els.validationBadge.textContent = "No validation yet";
     return;
   }
+  const ok = validation.passed && validation.score >= 80;
+  els.validationBadge.textContent = `${validation.score}/100 - ${ok ? "Passed" : "Needs manual review"}`;
+  els.validationBadge.classList.add(ok ? "status-ok" : "status-bad");
+}
 
-  // fork engine (Balearic): Flavour cluster / Classic mix
-  root.appendChild(field('Build mode',
-    segmented([['cluster', 'Flavour cluster'], ['classic', 'Classic mix']].map(([value, label]) => ({ value, label })),
-      l.buildMode, v => { l.buildMode = v; renderAll(); })));
+function selectedTemplate(state) {
+  return STRUCTURE_TEMPLATES.find((template) => template.id === state.structure.templateId) || STRUCTURE_TEMPLATES[0];
+}
 
-  if (l.buildMode === 'cluster') {
-    root.appendChild(field('Cluster',
-      select(legacyClusters(eng.id).map(k => ({ value: k, label: k })), l.cluster, v => { l.cluster = v; refreshOutput(); })));
-    root.appendChild(field('Palette', segmented(seg3(), l.palette, v => { l.palette = v; refreshOutput(); })));
-    root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
-    root.appendChild(field('BPM override', el('input', { class: 'txt', type: 'text', value: l.bpmOverride, placeholder: 'optional', oninput: e => { l.bpmOverride = e.target.value; refreshOutput(); } })));
-  } else {
-    const classic = legacyClassic(eng.id);
-    root.appendChild(field('Preset', select(classic.presets.map(p => ({ value: p, label: p })), l.preset, v => { l.preset = v; refreshOutput(); })));
-    root.appendChild(field('Phase', select(classic.phases.map(p => ({ value: p, label: p })), l.phase, v => { l.phase = v; refreshOutput(); })));
-    const slots = el('details', { class: 'slots' }, [el('summary', { text: 'Fine-tune arrangement' })]);
-    [['pad', 'Pad'], ['bass', 'Bass'], ['rhythm', 'Rhythm'], ['percussion', 'Percussion'], ['motif', 'Motif'], ['movement', 'Movement']].forEach(([key, label]) => {
-      const arr = classic.slots[key];
-      if (!arr.length) return;
-      slots.appendChild(field(label, select(arr.map(x => ({ value: x, label: x })), l.slots[key], v => { l.slots[key] = v; refreshOutput(); })));
+function updateStructureNotes(state) {
+  const template = selectedTemplate(state);
+  els.structureNotes.textContent = `${template.notes} Best for: ${template.bestFor.join(", ")}.`;
+}
+
+function setProgress(items, activeIndex = -1, failedIndex = -1) {
+  els.progressList.innerHTML = items.map((item, index) => {
+    const cls = failedIndex === index ? "failed" : index < activeIndex ? "done" : index === activeIndex ? "active" : "";
+    return `<li class="${cls}">${item}</li>`;
+  }).join("");
+}
+
+function setError(message = "") {
+  els.errorBox.hidden = !message;
+  els.errorBox.textContent = message;
+  if (message) {
+    document.querySelectorAll("[data-output-panel]").forEach((panel) => {
+      panel.hidden = panel.id !== "progressPanel";
     });
-    root.appendChild(slots);
+    document.querySelectorAll("[data-output-tab]").forEach((tab) => {
+      tab.classList.toggle("active", tab.dataset.outputTab === "progressPanel");
+    });
   }
-  root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
-  root.appendChild(buttons());
 }
 
-function seg3() { return [['electronic', 'Electronic'], ['acoustic', 'Acoustic'], ['blend', 'Blend']].map(([value, label]) => ({ value, label })); }
-function vocalSeg() { return [['Instrumental', 'Instrumental'], ['Descriptor', 'Descriptor'], ['Persona', 'Persona']].map(([value, label]) => ({ value, label })); }
-function toggle(label, checked, onchange) {
-  const cb = el('input', { type: 'checkbox', onchange: e => onchange(e.target.checked) });
-  cb.checked = checked;
-  return el('label', { class: 'toggle' }, [cb, el('span', { text: label })]);
+function setBusy(isBusy) {
+  els.generateBtn.disabled = isBusy;
+  els.testClaudeBtn.disabled = isBusy;
+  els.generateBtn.textContent = isBusy ? "Generating..." : "Generate Lyrics with Claude";
 }
 
-function renderStub(root, eng) {
-  root.appendChild(el('div', { class: 'stub' }, [
-    el('h3', { text: `${eng.label} \u2014 not built yet` }),
-    el('p', { text: 'Registered in scope. Slots into the resolver kind (same as Delerium) once its palette + character pools are authored and validated.' }),
-  ]));
+function addInput(parent, label, path, value) {
+  parent.insertAdjacentHTML("beforeend", `<label><span>${label}</span><input data-path="${path}" value="${escapeAttr(value)}"></label>`);
 }
 
-// ---- shared buttons + output ----------------------------------------------
-function buttons() {
-  return el('div', { class: 'actions' }, [
-    el('button', { class: 'primary', text: 'Generate', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
-    el('button', { class: 'ghost', text: 'Re-roll instruments', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
-  ]);
+function addTextarea(parent, label, path, value, rows) {
+  parent.insertAdjacentHTML("beforeend", `<label><span>${label}</span><textarea data-path="${path}" rows="${rows}">${escapeHtml(value)}</textarea></label>`);
 }
 
-function refreshOutput() {
-  const host = document.getElementById('output');
-  if (!host) return;
-  host.innerHTML = '';
-  const eng = getEngine(S.engineId);
-  if (eng.kind === 'stub') { host.appendChild(el('p', { class: 'note', text: 'Select a built engine to generate.' })); return; }
-
-  const res = generate(S);
-  host.appendChild(outBlock('Style prompt', res.style, res.length, res.over));
-  host.appendChild(outBlock('Negative prompt', res.negative, null, false));
-  const lyr = res.lyrics || '[Instrumental]';
-  host.appendChild(outBlock('Lyrics field', lyr, null, false, 'Paste into Suno\u2019s lyrics box; use Suno\u2019s Instrumental toggle for reliable vocal suppression.'));
+function addSelect(parent, label, path, options, value) {
+  const opts = options.map((option) => {
+    const item = typeof option === "string" ? { value: option, label: option } : option;
+    return `<option value="${escapeAttr(item.value)}"${item.value === value ? " selected" : ""}>${escapeHtml(item.label)}</option>`;
+  }).join("");
+  parent.insertAdjacentHTML("beforeend", `<label><span>${label}</span><select data-path="${path}">${opts}</select></label>`);
 }
 
-function outBlock(title, text, length, over, hint) {
-  const head = el('div', { class: 'out-head' }, [el('h4', { text: title })]);
-  if (length != null) head.appendChild(el('span', { class: 'meter' + (over ? ' over' : ''), text: `${length}/1000` }));
-  head.appendChild(el('button', { class: 'copy', text: 'Copy', onclick: (e) => { copy(text); e.target.textContent = 'Copied'; setTimeout(() => e.target.textContent = 'Copy', 1200); } }));
-  const kids = [head, el('textarea', { class: 'out', readonly: 'readonly', rows: title === 'Style prompt' ? 5 : 2 }, text)];
-  if (hint) kids.push(el('p', { class: 'hint', text: hint }));
-  return el('div', { class: 'out-block' }, kids);
-}
-function copy(t) {
-  if (navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {});
+function addToggle(parent, label, path, checked) {
+  parent.insertAdjacentHTML("beforeend", `<label class="toggle-row"><input type="checkbox" data-path="${path}" ${checked ? "checked" : ""}><span>${label}</span></label>`);
 }
 
-Object.assign(window.__ATMOS, { mount });
-})();
+function addChoiceGroup(parent, label, path, options, value, hint = "", tone = "") {
+  const buttons = options.map((option) => {
+    const item = typeof option === "string" ? { value: option, label: option } : option;
+    const selected = item.value === value ? " active" : "";
+    return `<button class="decision-option${selected}" type="button" data-choice-path="${path}" data-choice-value="${escapeAttr(item.value)}"><strong>${escapeHtml(shortLabel(item.label))}</strong><small>${escapeHtml(item.label)}</small></button>`;
+  }).join("");
+  parent.insertAdjacentHTML("beforeend", `<div class="decision-group decision-${escapeAttr(tone)}"><div><div class="decision-label">${escapeHtml(label)}</div>${hint ? `<p class="field-note">${escapeHtml(hint)}</p>` : ""}</div><div class="decision-grid">${buttons}</div></div>`);
+}
+
+function shortLabel(label) {
+  const text = String(label);
+  if (text.length <= 26) return text;
+  return text.split(/[,.]/)[0].slice(0, 26).trim();
+}
+
+function fillSelect(select, options) {
+  select.innerHTML = options.map((option) => {
+    const item = typeof option === "string" ? { value: option, label: option } : option;
+    return `<option value="${escapeAttr(item.value)}">${escapeHtml(item.label)}</option>`;
+  }).join("");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/`/g, "&#096;");
+}
+
 
 /* js/app.js */
-(function(){
-const {initState} = window.__ATMOS;
-const {mount} = window.__ATMOS;
+
+const progressSteps = [
+  "Preparing style context",
+  "Calling Claude",
+  "Building theme brief",
+  "Drafting lyrics",
+  "Validating",
+  "Repairing if needed",
+  "Final output ready"
+];
+
+boot();
 
 function boot() {
-  const root = document.getElementById('app');
-  if (!root) return;
-  mount(initState(), root);
+  mergeState(loadPersistedState());
+  appState.claude.model = CLAUDE_MODELS[0];
+  normalizeEngineState();
+  normalizeVocalState();
+  normalizeLyricState();
+  normalizeCompatibility("boot");
+  initStaticOptions(appState, CLAUDE_MODELS);
+  if (appState.claude.apiKeyRemembered) els.apiKey.value = loadApiKey();
+  renderControls(appState);
+  rebuildOutputs(false);
+  bindEvents();
+  setProgress(progressSteps);
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-else boot();
+function bindEvents() {
+  document.addEventListener("input", handleInput);
+  document.addEventListener("change", handleInput);
+  document.addEventListener("click", handleChoiceClick);
+  document.addEventListener("click", handleOutputTabClick);
+  document.addEventListener("click", handleWorkflowTabClick);
+  els.generateBtn.addEventListener("click", generateLyrics);
+  document.getElementById("randomizeBtn")?.addEventListener("click", randomizeStyle);
+  els.testClaudeBtn.addEventListener("click", testConnection);
+  els.clearKeyBtn.addEventListener("click", () => {
+    clearApiKey();
+    els.apiKey.value = "";
+    appState.claude.apiKeyRemembered = false;
+    els.rememberKey.checked = false;
+    setClaudeStatus("Stored key cleared", "warn");
+    persist();
+  });
+  els.validateManualBtn.addEventListener("click", validateManualLyrics);
+  els.saveSetupBtn.addEventListener("click", () => {
+    saveSetup(appState);
+    setError("Current setup saved in this browser.");
+  });
+  els.loadSetupBtn.addEventListener("click", () => {
+    const setup = loadSetup();
+    if (!setup) return setError("No saved setup was found in this browser.");
+    mergeState(setup);
+    normalizeLyricState();
+    normalizeCompatibility("load");
+    renderControls(appState);
+    rebuildOutputs();
+  });
+  els.exportStateBtn.addEventListener("click", () => {
+    const copy = structuredClone(appState);
+    delete copy.claude.apiKey;
+    els.stateTransfer.value = JSON.stringify(copy, null, 2);
+  });
+  els.importStateBtn.addEventListener("click", () => {
+    try {
+      mergeState(JSON.parse(els.stateTransfer.value));
+      normalizeLyricState();
+      normalizeCompatibility("import");
+      renderControls(appState);
+      rebuildOutputs();
+      setError("Imported app state.");
+    } catch (error) {
+      setError(`Import failed: ${error.message}`);
+    }
+  });
+  els.resetBtn.addEventListener("click", () => {
+    mergeState(structuredClone(defaultState), true);
+    normalizeLyricState();
+    normalizeCompatibility("reset");
+    renderControls(appState);
+    rebuildOutputs();
+  });
+  document.querySelectorAll("[data-copy]").forEach((button) => button.addEventListener("click", () => copyFrom(button.dataset.copy)));
+  document.querySelectorAll("[data-select]").forEach((button) => button.addEventListener("click", () => selectOutput(button.dataset.select)));
+  document.querySelectorAll("[data-clear]").forEach((button) => button.addEventListener("click", () => clearOutput(button.dataset.clear)));
+}
 
-})();
+function handleWorkflowTabClick(event) {
+  const button = event.target.closest("[data-workflow-tab]");
+  if (!button) return;
+  document.querySelectorAll("[data-workflow-panel]").forEach((panel) => {
+    panel.hidden = panel.id !== button.dataset.workflowTab;
+  });
+  document.querySelectorAll("[data-workflow-tab]").forEach((tab) => {
+    tab.classList.toggle("active", tab === button);
+  });
+}
+
+function handleOutputTabClick(event) {
+  const button = event.target.closest("[data-output-tab]");
+  if (!button) return;
+  document.querySelectorAll("[data-output-panel]").forEach((panel) => {
+    panel.hidden = panel.id !== button.dataset.outputTab;
+  });
+  document.querySelectorAll("[data-output-tab]").forEach((tab) => {
+    tab.classList.toggle("active", tab === button);
+  });
+}
+
+function handleChoiceClick(event) {
+  const button = event.target.closest("[data-choice-path]");
+  if (!button) return;
+  setPath(appState, button.dataset.choicePath, button.dataset.choiceValue);
+  if (button.dataset.choicePath === "style.preset") applyPresetMap();
+  normalizeCompatibility(button.dataset.choicePath);
+  renderControls(appState);
+  rebuildOutputs();
+}
+
+function handleInput(event) {
+  const target = event.target;
+  if (target.dataset.path) {
+    setPath(appState, target.dataset.path, target.type === "checkbox" ? target.checked : target.value);
+    if (target.dataset.path === "style.vocalGender") {
+      appState.style.vocalDescriptor = VOCAL_DESCRIPTOR_OPTIONS[appState.style.vocalGender][0];
+    }
+    normalizeVocalState();
+    normalizeCompatibility(target.dataset.path);
+    if (/style\.vocal|style\.phase|style\.percussion|song\.vocalFraming|song\.deliveryStyle/.test(target.dataset.path)) renderControls(appState);
+  }
+  if (target === els.engineSelect) {
+    appState.engine = target.value;
+    syncEngineDefaults();
+    normalizeEngineState();
+    normalizeCompatibility("engine");
+    renderControls(appState);
+  }
+  if (target === els.structureTemplate) appState.structure.templateId = target.value;
+  if (target === els.includePreChorus) appState.structure.includePreChorus = target.checked;
+  if (target === els.includeBridge) appState.structure.includeBridge = target.checked;
+  if (target === els.useStyleToGuideLyrics) appState.integration.useStyleToGuideLyrics = target.checked;
+  if (target === els.strictValidation) appState.integration.strictValidation = target.checked;
+  if (target === els.rememberKey) appState.claude.apiKeyRemembered = target.checked;
+  if (target === els.claudeModel) appState.claude.model = target.value;
+  if (target === els.claudeTransport) {
+    appState.claude.transport = target.value;
+    localStorage.setItem("unifiedSunoLyricEngine.claudeTransport", target.value);
+  }
+  if (target === els.temperature) appState.claude.temperature = Number(target.value);
+  if (target === els.maxTokens) appState.claude.maxTokens = Number(target.value);
+  if (target === els.manualThemeBrief) appState.advanced.manualThemeBrief = target.value;
+  if (target === els.manualLyrics) appState.advanced.manualLyrics = target.value;
+  if (target === els.negativeOutput) {
+    appState.outputs.negativePrompt = target.value;
+    appState.style.negativePrompt = target.value.replace(STYLE_ENGINES[appState.engine].negatives, "").replace(/^,\s*/, "");
+  }
+  if (target === els.apiKey && appState.claude.apiKeyRemembered) saveApiKey(target.value);
+  els.temperatureValue.textContent = appState.claude.temperature;
+  updateStructureNotes(appState);
+  rebuildOutputs();
+}
+
+async function generateLyrics() {
+  setBusy(true);
+  setError("");
+  try {
+    appState.outputs.stylePrompt = buildStylePrompt(appState);
+    appState.outputs.negativePrompt = buildNegativePrompt(appState);
+    const template = selectedTemplate(appState);
+    setProgress(progressSteps, 0);
+    await idle();
+    const prompt = buildGenerationPrompt(appState, template);
+    setProgress(progressSteps, 1);
+    const raw = await callClaude(settings(prompt));
+    setProgress(progressSteps, 2);
+    let result = normalizeClaudeResult(parseClaudeJson(raw));
+    appState.outputs.rawClaudeText = raw;
+    appState.outputs.rawClaudeJson = result;
+    setProgress(progressSteps, 4);
+
+    let repairStatus = "";
+    if (!validationPassed(result.validation)) {
+      setProgress(progressSteps, 5);
+      const repairPrompt = buildRepairPrompt(appState, template, result);
+      const repairRaw = await callClaude(settings(repairPrompt));
+      const repaired = normalizeClaudeResult(parseClaudeJson(repairRaw));
+      result = repaired;
+      appState.outputs.rawClaudeText = repairRaw;
+      appState.outputs.rawClaudeJson = repaired;
+      repairStatus = validationPassed(repaired) ? "Automatic repair applied." : "Repair attempted; needs manual review.";
+    }
+
+    applyClaudeResult(result, repairStatus);
+    setProgress(progressSteps, 7);
+  } catch (error) {
+    setProgress(progressSteps, -1, 1);
+    setError(error.message);
+  } finally {
+    setBusy(false);
+    persist();
+  }
+}
+
+async function testConnection() {
+  setBusy(true);
+  setError("");
+  try {
+    const raw = await testClaudeConnection(settings("test"));
+    parseClaudeJson(raw);
+    setClaudeStatus("Claude connected", "ok");
+    if (appState.claude.apiKeyRemembered) saveApiKey(els.apiKey.value);
+  } catch (error) {
+    setClaudeStatus("Claude failed", "bad");
+    setError(error.message);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function validateManualLyrics() {
+  const template = selectedTemplate(appState);
+  const validation = localValidateLyrics(appState.advanced.manualLyrics, appState, template);
+  appState.outputs.lyrics = appState.advanced.manualLyrics;
+  appState.outputs.validation = validation;
+  appState.outputs.validationText = formatValidation(validation, "Local manual validation only.");
+  els.lyricsStatus.textContent = validation.passed ? "Manual lyrics passed local validation." : "Manual lyrics need review.";
+  updateValidationBadge(validation);
+  renderOutputs(appState);
+  persist();
+}
+
+function applyClaudeResult(result, repairStatus) {
+  if (result.title.trim()) appState.song.title = result.title.trim();
+  const lyrics = lyricsWithIntegratedMetatags(result);
+  const localValidation = localValidateLyrics(lyrics, appState, selectedTemplate(appState));
+  const validation = localValidation.passed ? result.validation : localValidation;
+  appState.outputs.themeBrief = result.themeBrief;
+  appState.outputs.lyrics = lyrics;
+  appState.outputs.validation = validation;
+  appState.outputs.validationText = formatValidation(validation, repairStatus);
+  els.lyricsStatus.textContent = validationPassed(validation) ? "Final output ready." : "Needs manual review.";
+  updateValidationBadge(validation);
+  renderControls(appState);
+  renderOutputs(appState);
+}
+
+function lyricsWithIntegratedMetatags(result) {
+  const lyrics = String(result.lyrics || "").trim();
+  const plannedTags = buildSunoMetatagPlan(appState, selectedTemplate(appState));
+  if (!result.lyricMetaTags) return injectPlannedMetatags(lyrics, plannedTags);
+  const tags = String(result.lyricMetaTags).trim();
+  if (!tags || lyrics.includes(tags) || countArrangementTags(lyrics) >= 3) return lyrics;
+  const cleanTags = tags
+    .split(/\r?\n|,\s*/)
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .map((tag) => tag.startsWith("[") ? tag : `[${tag.replace(/^\[|\]$/g, "")}]`)
+    .slice(0, 5)
+    .join("\n");
+  return cleanTags ? `${cleanTags}\n\n${lyrics}` : lyrics;
+}
+
+function injectPlannedMetatags(lyrics, plannedTags) {
+  return plannedTags.reduce((current, item) => {
+    const sectionPattern = new RegExp(`(^\\[${escapeRegExp(item.section)}\\]\\s*)`, "im");
+    if (!sectionPattern.test(current) || current.includes(item.tag)) return current;
+    return current.replace(sectionPattern, `$1\n${item.tag}\n`);
+  }, lyrics);
+}
+
+function countArrangementTags(lyrics) {
+  const template = selectedTemplate(appState);
+  return (lyrics.match(/^\[[^\]\n]+\]/gm) || []).filter((tag) => !template.sections.some((section) => tag === `[${section}]`)).length;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function rebuildOutputs(save = true) {
+  normalizeEngineState();
+  normalizeLyricState();
+  normalizeCompatibility("rebuild");
+  appState.outputs.stylePrompt = buildStylePrompt(appState);
+  if (!appState.outputs.negativePrompt || document.activeElement !== els.negativeOutput) {
+    appState.outputs.negativePrompt = buildNegativePrompt(appState);
+  }
+  renderOutputs(appState);
+  updateValidationBadge(appState.outputs.validation);
+  if (save) persist();
+}
+
+function settings(prompt) {
+  return {
+    apiKey: els.apiKey.value,
+    model: CLAUDE_MODELS[0],
+    temperature: appState.claude.temperature,
+    maxTokens: appState.claude.maxTokens,
+    prompt
+  };
+}
+
+// Preset-driven engines (presetMap, e.g. Enigma): the Engine Preset sets the
+// flavour cluster + palette behind the scenes so instrumentation follows the
+// chosen character. No-op for engines without a presetMap.
+function applyPresetMap() {
+  const map = (EngineExtras[appState.engine] || {}).presetMap;
+  const hit = map && map[appState.style.preset];
+  if (hit) { appState.style.cluster = hit.cluster; appState.style.palette = hit.palette; }
+}
+
+function syncEngineDefaults() {
+  const engine = STYLE_ENGINES[appState.engine];
+  appState.style.preset = engine.presets[0];
+  appState.style.phase = engine.phases[0];
+  appState.style.pad = engine.pads[0];
+  appState.style.bass = engine.bass[0];
+  appState.style.rhythm = engine.rhythm[0];
+  appState.style.percussion = engine.percussion[0];
+  appState.style.motif = engine.motifs[0];
+  appState.style.movement = engine.movement[0];
+  appState.outputs.negativePrompt = "";
+  applyPresetMap();
+}
+
+function normalizeEngineState() {
+  const engine = STYLE_ENGINES[appState.engine] || STYLE_ENGINES.Balearic;
+  if (!STYLE_ENGINES[appState.engine]) appState.engine = "Balearic";
+  if (!engine.presets.includes(appState.style.preset)) appState.style.preset = engine.presets[0];
+  if (!engine.phases.includes(appState.style.phase)) appState.style.phase = engine.phases[0];
+}
+
+function randomizeStyle() {
+  const engine = STYLE_ENGINES[appState.engine];
+  appState.style.preset = pick(engine.presets);
+  appState.style.phase = pick(engine.phases);
+  appState.style.pad = pick(engine.pads);
+  appState.style.bass = pick(engine.bass);
+  appState.style.rhythm = pick(engine.rhythm);
+  appState.style.percussion = pick(engine.percussion);
+  appState.style.motif = pick(engine.motifs);
+  appState.style.movement = pick(engine.movement);
+  appState.style.vocalMode = weightedPick([["Descriptor", 0.88], ["Instrumental", 0.12]]);
+  appState.style.vocalGender = weightedPick([["Female", 0.58], ["Male", 0.42]]);
+  appState.style.vocalDescriptor = pick(VOCAL_DESCRIPTOR_OPTIONS[appState.style.vocalGender]);
+  appState.style.maxMode = Math.random() > 0.18;
+  if (appState.engine === "Delerium") appState.style.vocalMode = weightedPick([["Descriptor", 0.94], ["Instrumental", 0.06]]);
+  if (appState.engine === "Era") appState.style.vocalMode = weightedPick([["Descriptor", 0.9], ["Instrumental", 0.1]]);
+  normalizeCompatibility("randomize");
+  appState.outputs.negativePrompt = "";
+  renderControls(appState);
+  rebuildOutputs();
+}
+
+function normalizeVocalState() {
+  if (!VOCAL_MODES.includes(appState.style.vocalMode)) appState.style.vocalMode = "Descriptor";
+  if (!VOCAL_DESCRIPTOR_OPTIONS[appState.style.vocalGender]) appState.style.vocalGender = "Female";
+  if (!VOCAL_DESCRIPTOR_OPTIONS[appState.style.vocalGender].includes(appState.style.vocalDescriptor)) {
+    appState.style.vocalDescriptor = VOCAL_DESCRIPTOR_OPTIONS[appState.style.vocalGender][0];
+  }
+}
+
+function normalizeLyricState() {
+  const energyAliases = {
+    "Mid-high": "Medium-high",
+    "Low-medium": "Low-mid",
+    "Medium": "Mid"
+  };
+  appState.song.energy = energyAliases[appState.song.energy] || appState.song.energy;
+}
+
+function normalizeCompatibility(trigger) {
+  return applyCompatibilityRules(appState, STYLE_ENGINES[appState.engine], trigger);
+}
+
+function pick(values) {
+  return values[Math.floor(Math.random() * values.length)];
+}
+
+function weightedPick(entries) {
+  const roll = Math.random();
+  let total = 0;
+  for (const [value, weight] of entries) {
+    total += weight;
+    if (roll <= total) return value;
+  }
+  return entries[0][0];
+}
+
+function persist() {
+  if (appState.claude.apiKeyRemembered) saveApiKey(els.apiKey.value);
+  persistState(appState);
+}
+
+function copyFrom(id) {
+  const target = document.getElementById(id);
+  target.select();
+  navigator.clipboard?.writeText(target.value);
+}
+
+function selectOutput(id) {
+  document.getElementById(id).select();
+}
+
+function clearOutput(kind) {
+  if (kind === "style") {
+    appState.style = structuredClone(defaultState.style);
+    syncEngineDefaults();
+  }
+  if (kind === "lyrics") appState.outputs.lyrics = "";
+  if (kind === "negative") {
+    appState.outputs.negativePrompt = "";
+    appState.style.negativePrompt = "";
+  }
+  rebuildOutputs();
+}
+
+function setClaudeStatus(text, kind) {
+  els.claudeStatus.textContent = text;
+  els.claudeStatus.className = `status-pill status-${kind}`;
+}
+
+function setPath(obj, path, value) {
+  const keys = path.split(".");
+  const last = keys.pop();
+  const target = keys.reduce((current, key) => current[key], obj);
+  target[last] = value;
+}
+
+function mergeState(source, replace = false) {
+  if (replace) {
+    for (const key of Object.keys(appState)) delete appState[key];
+  }
+  deepMerge(appState, structuredClone(source || defaultState));
+}
+
+function deepMerge(target, source) {
+  for (const [key, value] of Object.entries(source || {})) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      target[key] = target[key] || {};
+      deepMerge(target[key], value);
+    } else {
+      target[key] = value;
+    }
+  }
+}
+
+function idle() {
+  return new Promise((resolve) => setTimeout(resolve, 80));
+}
+
