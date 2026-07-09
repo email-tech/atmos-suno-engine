@@ -42,28 +42,37 @@ export function resolveArrangement(engine, opts) {
   // color fires occasionally
   if (rand() < c.colorChance) arr.color = pick('color');
 
-  // interplay / arrangement layer (always on): one phrase per applicable dimension
+  // interplay / arrangement layer: RESOLVED into the structured arrangement but
+  // NOT rendered into the style string. It is carried to the metatag/section
+  // layer as bracketed functional cues (Suno reads structure in the lyrics field).
   const ip = (engine.interplay && engine.interplay[characterId]) || {};
   arr.interplay = ['conversation','foundation','arc']
     .map(dim => (ip[dim] && ip[dim].length) ? ip[dim][Math.floor(rand() * ip[dim].length)] : null)
     .filter(Boolean);
+  // first-pass metatag cues (final functional rework happens in the metatag engine)
+  arr.metatagCues = arr.interplay.map(p => `[${p}]`);
+
+  // tight-style fields
+  arr.bpmSingle = c.bpm ? Math.round((c.bpm[0] + c.bpm[1]) / 2) : null;
+  arr.groove = (!c.beatless && c.drums.primary) ? (engine.grooveTag?.[c.drums.primary] || null) : null;
+  arr.styleArc = (engine.styleArc && engine.styleArc[characterId]) || null;
 
   return arr;
 }
 
+// STYLE STRING = tight, front-weighted tag stack (~8-9 tags). Order:
+// genre anchor -> tempo -> groove -> featured instruments -> production -> arc -> mastering.
+// Interplay prose, harmony, color and the full drum phrase are deliberately excluded
+// (they live in the structured arrangement for the metatag/section layer).
 export function renderStyle(engine, arr) {
-  const tempo = arr.beatless
-    ? `beatless, ${arr.energy} energy`
-    : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`;
-
-  const parts = [arr.genre, tempo];
-  for (const role of engine.order) {
-    if (role === 'drums' && arr.beatless) continue;
-    if (role === 'interplay') { if (arr.interplay) parts.push(...arr.interplay); continue; }
-    if (arr[role]) parts.push(arr[role]);
-  }
-  let out = parts.join(', ') + '. ' + MASTERING;
-  return out;
+  const parts = [arr.genre];
+  const tempo = arr.beatless ? 'beatless'
+    : `${arr.bpmSingle} BPM${arr.groove ? ' ' + arr.groove : ''}`;
+  parts.push(tempo);
+  for (const role of engine.styleFeatured) if (arr[role]) parts.push(arr[role]);
+  if (arr.movement) parts.push(arr.movement);   // one production cue
+  if (arr.styleArc) parts.push(arr.styleArc);    // one distilled arc tag
+  return parts.join(', ') + '. ' + MASTERING;
 }
 
 export function renderNegative(engine, arr) {

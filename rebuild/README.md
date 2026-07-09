@@ -12,5 +12,5 @@ stays at repo root and on `main` HEAD; nothing here touches it.
   renderStyle / renderNegative. Three control levels via per-role locks.
 - `validate.js` — DOM-free harness (node rebuild/validate.js).
 
-Status: core + interplay validated (6000 draws, 0 over-limit, 0 beatless
+Status: STYLE re-architected to tight front-weighted ~9-tag model (research-driven); interplay moved OUT of the style string into the structured arrangement (arr.metatagCues) for the future metatag/section layer. Validated 6000 draws, 0 leaks, max 355/1000. UI + multi-engine shell not yet built.
 leaks, 0 banned leaks, max 639/1000). UI + multi-engine shell not yet built.

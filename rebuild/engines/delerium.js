@@ -246,6 +246,25 @@ const INTERPLAY = {
   },
 };
 
+// ---- tight-style config (research-driven: front-weighted ~8-9 tag stack) ----
+// Only these roles enter the STYLE STRING (the "cast" is capped). harmony, color,
+// full drum phrase and the interplay prose stay in the structured arrangement for
+// the metatag/section layer + future overlays.
+const STYLE_FEATURED = ['pads', 'bass', 'lead', 'voice']; // 3 instruments + textural vocal directive
+const STYLE_ARC = {   // ONE distilled arc tag per character (tag-like, not prose)
+  gothicAmbient:   'slowly evolving, no resolution',
+  worldbeatRitual: 'ceremonial build and release',
+  sacredDowntempo: 'swelling to a sacred peak',
+  ethereal:        'gentle emotional lift',
+  firefly:         'building to a full-energy lift',
+};
+const GROOVE_TAG = {  // short groove tag (merged tempo/feel), by drum family
+  worldbeat: 'hand-percussion groove',
+  softDown:  'soft downtempo beat',
+  firefly:   'driving programmed pulse',
+  hybrid:    'programmed beat with live percussion',
+};
+
 export const DELERIUM = {
   id: 'Delerium',
   styleAnchor: 'Delerium Style',
@@ -253,6 +272,9 @@ export const DELERIUM = {
   drums: DRUMS,
   characters: CHARACTERS,
   interplay: INTERPLAY,
+  styleFeatured: STYLE_FEATURED,
+  styleArc: STYLE_ARC,
+  grooveTag: GROOVE_TAG,
   sourceNegative: [
     'trance','four-on-the-floor','club anthem','EDM drop','supersaw',
     'hard kick','festival synths','big-room','pop hooks','radio pop',
