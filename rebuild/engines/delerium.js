@@ -1,82 +1,113 @@
 // Delerium engine — album-era (Faces -> Semantic Spaces -> Karma -> Poem).
 // NOT the trance-remix identity. Domains: 'E' electronic, 'A' acoustic, 'B' both.
+//
+// Rewrite (2026-07-09): fix "tempo was the only real change". Two changes:
+//   1) Pools DEEPENED to album-scale and DE-OVERLAPPED so each character owns a
+//      distinct pad / vocal / movement signature (Sacred/Ethereal/Firefly no longer
+//      share cathedral-pad + vocoder + delay-throws).
+//   2) Interplay restructured as attach-clauses (tails that hang off already-named
+//      instruments) so the resolver can WEAVE it into the style string per the
+//      approved gold-standard format — never re-naming an instrument.
 
 const P = {
-  // ---- master role inventory (transparent, editable) ----
   pads: {
-    cathedralPad:   { t: 'slowly swelling cathedral-reverb analog pad', d: 'E' },
-    darkDrone:      { t: 'dark evolving drone bed', d: 'E' },
-    glassyPad:      { t: 'glassy digital pad with shimmering high partials', d: 'E' },
-    stringWash:     { t: 'warm string-synth wash', d: 'E' },
-    metallicDrone:  { t: 'bowed metallic drone', d: 'B' },
-    reversedPad:    { t: 'reversed pad swell into the downbeat', d: 'E' },
-    harmoniumDrone: { t: 'sustained harmonium drone', d: 'A' },
-    celloDroneBed:  { t: 'bowed cello drone bed', d: 'A' },
+    cathedralPad:  { t: 'slowly swelling cathedral-reverb analog pad', d: 'E' },
+    darkDrone:     { t: 'dark evolving drone bed', d: 'E' },
+    glassyPad:     { t: 'glassy digital pad with shimmering high partials', d: 'E' },
+    stringWash:    { t: 'warm string-synth wash', d: 'E' },
+    metallicDrone: { t: 'bowed metallic drone', d: 'B' },
+    reversedPad:   { t: 'reversed pad swell into the downbeat', d: 'E' },
+    harmoniumDrone:{ t: 'sustained harmonium drone', d: 'A' },
+    celloDroneBed: { t: 'bowed cello drone bed', d: 'A' },
+    choirPad:      { t: 'sustained wordless choir pad', d: 'E' },
+    analogueSwell: { t: 'warm analogue polysynth swell', d: 'E' },
+    glacialPad:    { t: 'glacial slow-attack ambient pad', d: 'E' },
+    tanpuraBed:    { t: 'shimmering tanpura drone bed', d: 'A' },
+    feltMalletBed: { t: 'soft felt-mallet resonant bed', d: 'A' },
   },
   bass: {
-    subBass:     { t: 'deep sustained sub-bass', d: 'E' },
-    seqBass:     { t: 'sequenced synth bass pulsing eighth notes', d: 'E' },
-    analogBass:  { t: 'slow legato round analog bass', d: 'E' },
-    fretless:    { t: 'fretless bass glide', d: 'B' },
-    upright:     { t: 'slow plucked upright acoustic bass', d: 'A' },
-    oudLow:      { t: 'low oud register', d: 'A' },
+    subBass:    { t: 'deep sustained sub-bass', d: 'E' },
+    seqBass:    { t: 'sequenced synth bass pulsing eighth notes', d: 'E' },
+    analogBass: { t: 'slow legato round analog bass', d: 'E' },
+    fretless:   { t: 'fretless bass glide', d: 'B' },
+    upright:    { t: 'slow plucked upright acoustic bass', d: 'A' },
+    oudLow:     { t: 'low oud register', d: 'A' },
+    pulsingBass:{ t: 'pulsing filtered synth bass', d: 'E' },
+    warmSine:   { t: 'warm sine sub with a soft attack', d: 'E' },
   },
   lead: {
-    duduk:      { t: 'sustained duduk lead', d: 'A' },
-    bambooFl:   { t: 'bamboo flute motif', d: 'A' },
-    piano:      { t: 'sparse grand-piano figure', d: 'A' },
-    synthArp:   { t: 'plucked synth arpeggio lead', d: 'E' },
-    sitar:      { t: 'sitar melodic phrase', d: 'A' },
-    celloLead:  { t: 'long-phrased bowed cello lead', d: 'A' },
-    fmBell:     { t: 'glassy FM bell lead', d: 'E' },
-    detunedLd:  { t: 'detuned analog synth lead with slow portamento', d: 'E' },
+    duduk:     { t: 'sustained duduk lead', d: 'A' },
+    bambooFl:  { t: 'bamboo flute motif', d: 'A' },
+    piano:     { t: 'sparse grand-piano figure', d: 'A' },
+    synthArp:  { t: 'plucked synth arpeggio lead', d: 'E' },
+    sitar:     { t: 'sitar melodic phrase', d: 'A' },
+    celloLead: { t: 'long-phrased bowed cello lead', d: 'A' },
+    fmBell:    { t: 'glassy FM bell lead', d: 'E' },
+    detunedLd: { t: 'detuned analog synth lead with slow portamento', d: 'E' },
+    panFlute:  { t: 'breathy pan-flute melody', d: 'A' },
+    ney:       { t: 'reedy ney flute lead', d: 'A' },
+    erhu:      { t: 'bowed erhu melodic line', d: 'A' },
+    ebowGuitar:{ t: 'ebow sustained guitar lead', d: 'B' },
+    glassPluck:{ t: 'glassy plucked digital lead', d: 'E' },
   },
   harmony: {
-    minorModal: { t: 'slow minor-modal chord changes', d: 'B' },
-    suspended:  { t: 'suspended chords resolving on the chorus lift', d: 'B' },
-    droneTonic: { t: 'unresolved static drone-tonic', d: 'B' },
+    minorModal:{ t: 'slow minor-modal chord changes', d: 'B' },
+    suspended: { t: 'suspended chords resolving on the chorus lift', d: 'B' },
+    droneTonic:{ t: 'an unresolved static drone-tonic', d: 'B' },
+    add9:      { t: 'lush add9 chord voicings', d: 'B' },
+    phrygian:  { t: 'a dark phrygian cadence', d: 'B' },
+    majorLift: { t: 'a major-key chord lift on the chorus', d: 'B' },
   },
   voice: {
     latinChant:   { t: 'distant monastic Latin chant', d: 'A' },
-    femaleWash:   { t: 'ethereal wordless female vocal wash', d: 'A' },
-    euroChoir:    { t: 'Eastern-European choir texture', d: 'A' },
-    throatChant:  { t: 'throat-overtone chant drone', d: 'A' },
+    femaleWash:   { t: 'an ethereal wordless female vocal wash', d: 'A' },
+    euroChoir:    { t: 'an Eastern-European choir texture', d: 'A' },
+    throatChant:  { t: 'a throat-overtone chant drone', d: 'A' },
     vocalChops:   { t: 'rhythmic sampled ethnic vocal chops', d: 'B' },
-    vocoderPad:   { t: 'vocoded wordless vocal pad', d: 'E' },
-    granularVox:  { t: 'granular stretched-vocal drone', d: 'E' },
+    vocoderPad:   { t: 'a vocoded wordless vocal pad', d: 'E' },
+    granularVox:  { t: 'a granular stretched-vocal drone', d: 'E' },
+    sanskritChant:{ t: 'distant Sanskrit vocal chant', d: 'A' },
+    breathyFemale:{ t: 'a breathy close female vocal texture', d: 'A' },
+    maleDrone:    { t: 'a low male vocal drone', d: 'A' },
+    childChoir:   { t: "a distant children's choir wash", d: 'A' },
+    gregorianMale:{ t: 'Gregorian-style male chant', d: 'A' },
   },
   color: {
-    fingerCymb:   { t: 'finger cymbals and bells', d: 'A' },
-    dulcimer:     { t: 'hammered dulcimer run', d: 'A' },
-    sarangi:      { t: 'bowed sarangi ornament', d: 'A' },
-    gong:         { t: 'gong swell', d: 'A' },
-    kalimba:      { t: 'kalimba figure', d: 'A' },
-    bellArp:      { t: 'bell-synth arpeggio sparkle', d: 'E' },
-    revStab:      { t: 'reversed synth-stab accent', d: 'E' },
+    fingerCymb: { t: 'finger cymbals and bells', d: 'A' },
+    dulcimer:   { t: 'a hammered dulcimer run', d: 'A' },
+    sarangi:    { t: 'a bowed sarangi ornament', d: 'A' },
+    gong:       { t: 'a gong swell', d: 'A' },
+    kalimba:    { t: 'a kalimba figure', d: 'A' },
+    bellArp:    { t: 'a bell-synth arpeggio sparkle', d: 'E' },
+    revStab:    { t: 'a reversed synth-stab accent', d: 'E' },
+    windChimes: { t: 'a wind-chime shimmer', d: 'A' },
+    santoor:    { t: 'a santoor tremolo run', d: 'A' },
+    prepPiano:  { t: 'a prepared-piano pluck', d: 'A' },
+    glocken:    { t: 'a glockenspiel sparkle', d: 'B' },
   },
   movement: {
-    filterLFO:    { t: 'slow filter LFO sweep', d: 'E' },
-    delayThrows:  { t: 'tempo-synced delay throws', d: 'E' },
-    autopan:      { t: 'wide stereo autopan', d: 'E' },
-    reversedTr:   { t: 'reversed-swell transitions', d: 'E' },
-    reverbTail:   { t: 'long cathedral reverb tail', d: 'E' },
-    tremoloSwell: { t: 'tremolo bowed-string swell', d: 'A' },
-    handCresc:    { t: 'rolling hand-percussion crescendo', d: 'A' },
+    filterLFO:   { t: 'a slow filter LFO sweep', d: 'E' },
+    delayThrows: { t: 'tempo-synced delay throws', d: 'E' },
+    autopan:     { t: 'a wide stereo autopan', d: 'E' },
+    reversedTr:  { t: 'reversed-swell transitions', d: 'E' },
+    reverbTail:  { t: 'a long cathedral reverb tail', d: 'E' },
+    tremoloSwell:{ t: 'tremolo bowed-string swells', d: 'A' },
+    handCresc:   { t: 'rolling hand-percussion crescendos', d: 'A' },
+    dubEcho:     { t: 'dub delay echoes as a second voice', d: 'E' },
+    risers:      { t: 'filtered-noise risers into the lift', d: 'E' },
+    panSweep:    { t: 'a slow stereo pan sweep', d: 'E' },
   },
 };
 
-// ---- drum families ----
 const DRUMS = {
-  worldbeat: ['deep frame drum','tabla pattern','dumbek groove','hand-played djembe','congas and shakers with tambourine'],
-  softDown:  ['subdued soft programmed kick','brushed programmed snare','trip-hop-leaning downtempo groove'],
-  firefly:   ['denser driving programmed pulse'],
-  hybrid:    ['programmed kick under live hand percussion'],
+  worldbeat: ['deep frame drum','a tabla pattern','a dumbek groove','a hand-played djembe','congas and shakers with tambourine'],
+  softDown:  ['a subdued soft programmed kick','a brushed programmed snare','a trip-hop-leaning downtempo groove','a soft measured downtempo beat'],
+  firefly:   ['a denser driving programmed pulse','a propulsive sequenced groove'],
+  hybrid:    ['a programmed kick under live hand percussion','a downtempo beat laced with hand percussion'],
 };
 
-// pick helper: list role keys
 const r = (role, ...keys) => keys.map(k => P[role][k]);
 
-// ---- 5 character pools (Option B: each role 2-3 swaps) ----
 const CHARACTERS = {
   gothicAmbient: {
     label: 'Gothic Ambient', source: 'Faces / Morpheus',
@@ -84,12 +115,12 @@ const CHARACTERS = {
     beatless: true, energy: 'low', colorChance: 0.5,
     drums: { primary: null, secondary: null },
     pools: {
-      pads:     r('pads','darkDrone','cathedralPad','metallicDrone'),
-      bass:     r('bass','subBass','fretless'),
-      harmony:  r('harmony','droneTonic','minorModal'),
-      voice:    r('voice','throatChant','granularVox'),
-      lead:     r('lead','celloLead'),
-      color:    r('color','gong'),
+      pads:     r('pads','darkDrone','metallicDrone','glacialPad','celloDroneBed'),
+      bass:     r('bass','subBass','fretless','warmSine'),
+      harmony:  r('harmony','droneTonic','phrygian'),
+      voice:    r('voice','throatChant','granularVox','maleDrone'),
+      lead:     r('lead','celloLead','ebowGuitar','ney'),
+      color:    r('color','gong','windChimes','prepPiano'),
       movement: r('movement','reversedTr','reverbTail','tremoloSwell'),
     },
   },
@@ -99,13 +130,13 @@ const CHARACTERS = {
     beatless: false, bpm: [84,96], energy: 'low to medium', colorChance: 0.55,
     drums: { primary: 'worldbeat', secondary: null },
     pools: {
-      pads:     r('pads','darkDrone','harmoniumDrone','metallicDrone'),
-      bass:     r('bass','subBass','oudLow'),
-      harmony:  r('harmony','droneTonic','minorModal'),
-      voice:    r('voice','euroChoir','throatChant','vocalChops'),
-      lead:     r('lead','duduk','bambooFl','sitar'),
-      color:    r('color','fingerCymb','dulcimer','sarangi'),
-      movement: r('movement','filterLFO','handCresc','reverbTail'),
+      pads:     r('pads','harmoniumDrone','tanpuraBed','darkDrone'),
+      bass:     r('bass','subBass','oudLow','upright'),
+      harmony:  r('harmony','droneTonic','minorModal','phrygian'),
+      voice:    r('voice','euroChoir','sanskritChant','throatChant','vocalChops'),
+      lead:     r('lead','duduk','bambooFl','sitar','ney','erhu'),
+      color:    r('color','fingerCymb','dulcimer','sarangi','santoor'),
+      movement: r('movement','filterLFO','handCresc','dubEcho'),
     },
   },
   sacredDowntempo: {
@@ -114,12 +145,12 @@ const CHARACTERS = {
     beatless: false, bpm: [92,100], energy: 'medium', colorChance: 0.45,
     drums: { primary: 'softDown', secondary: 'hybrid' },
     pools: {
-      pads:     r('pads','cathedralPad','glassyPad','harmoniumDrone'),
-      bass:     r('bass','subBass','seqBass','upright'),
-      harmony:  r('harmony','minorModal','suspended'),
-      voice:    r('voice','latinChant','femaleWash','vocoderPad'),
-      lead:     r('lead','piano','duduk','fmBell'),
-      color:    r('color','fingerCymb','dulcimer','revStab'),
+      pads:     r('pads','cathedralPad','harmoniumDrone','choirPad','feltMalletBed'),
+      bass:     r('bass','subBass','upright','warmSine'),
+      harmony:  r('harmony','minorModal','suspended','add9'),
+      voice:    r('voice','latinChant','gregorianMale','childChoir','femaleWash'),
+      lead:     r('lead','piano','duduk','celloLead','panFlute'),
+      color:    r('color','fingerCymb','glocken','prepPiano'),
       movement: r('movement','delayThrows','reversedTr','reverbTail'),
     },
   },
@@ -129,13 +160,13 @@ const CHARACTERS = {
     beatless: false, bpm: [100,112], energy: 'medium', colorChance: 0.4,
     drums: { primary: 'softDown', secondary: 'hybrid' },
     pools: {
-      pads:     r('pads','cathedralPad','glassyPad','stringWash'),
-      bass:     r('bass','seqBass','analogBass','upright'),
-      harmony:  r('harmony','minorModal','suspended'),
-      voice:    r('voice','femaleWash','vocoderPad','granularVox'),
-      lead:     r('lead','piano','synthArp','detunedLd'),
-      color:    r('color','kalimba','bellArp'),
-      movement: r('movement','delayThrows','autopan','reverbTail'),
+      pads:     r('pads','cathedralPad','glassyPad','stringWash','analogueSwell'),
+      bass:     r('bass','analogBass','upright','warmSine','fretless'),
+      harmony:  r('harmony','suspended','add9','majorLift'),
+      voice:    r('voice','femaleWash','breathyFemale','vocoderPad','granularVox'),
+      lead:     r('lead','piano','synthArp','detunedLd','glassPluck','ebowGuitar'),
+      color:    r('color','kalimba','bellArp','glocken'),
+      movement: r('movement','delayThrows','autopan','dubEcho','panSweep'),
     },
   },
   firefly: {
@@ -144,125 +175,70 @@ const CHARACTERS = {
     beatless: false, bpm: [112,126], energy: 'medium to high', colorChance: 0.4,
     drums: { primary: 'firefly', secondary: 'hybrid' },
     pools: {
-      pads:     r('pads','cathedralPad','glassyPad','reversedPad'),
-      bass:     r('bass','subBass','seqBass'),
-      harmony:  r('harmony','suspended','minorModal'),
-      voice:    r('voice','femaleWash','vocoderPad','vocalChops'),
-      lead:     r('lead','synthArp','fmBell','detunedLd'),
-      color:    r('color','bellArp','revStab'),
-      movement: r('movement','delayThrows','autopan','reverbTail'),
+      pads:     r('pads','glassyPad','reversedPad','analogueSwell','choirPad'),
+      bass:     r('bass','seqBass','pulsingBass','subBass'),
+      harmony:  r('harmony','suspended','majorLift','minorModal'),
+      voice:    r('voice','vocoderPad','breathyFemale','vocalChops','femaleWash'),
+      lead:     r('lead','synthArp','fmBell','detunedLd','glassPluck'),
+      color:    r('color','bellArp','revStab','glocken'),
+      movement: r('movement','delayThrows','autopan','risers','panSweep'),
     },
   },
 };
 
-// ---- interplay / arrangement layer (the "score", not the "cast") ----
-// role-generic: references voices by FUNCTION only, never re-names an instrument.
-// conversation = how melodic voices relate; foundation = how bass/groove lock or
-// float; arc = how density/dynamics evolve. Present-participle, comma-free.
 const INTERPLAY = {
   gothicAmbient: {
-    conversation: [
-      'voices emerging and receding without hierarchy each layer equal in the field',
-      'the lead surfacing alone against deep space then dissolving back into texture',
-      'cross-fading tones with melody dissolved into atmosphere',
-    ],
-    foundation: [
-      'the low register holding a single harmonic centre with everything suspended above',
-      'a sustained drone anchoring while timbres drift over it unmoving',
-    ],
-    arc: [
-      'glacial evolution with the texture morphing so slowly change is felt rather than heard',
-      'harmonic stasis with motion replaced by the slow turn of timbre',
-      'tension sustained by what never resolves',
-    ],
+    conversation: ['surfacing alone against deep space then dissolving back into the texture',
+                   'emerging and receding without hierarchy each equal in the field',
+                   'cross-fading so the melody dissolves into atmosphere'],
+    foundation:   ['holding a single harmonic centre with everything suspended above',
+                   'anchoring in slow motion while the timbres drift unmoving'],
+    arc:          ['evolving so slowly that change is felt rather than heard',
+                   'replacing motion with the slow turn of timbre',
+                   'sustaining tension through what never resolves'],
+    voiceRel:     ['drifting over the top without hierarchy','breathing at the edge of the field','hanging in the deep reverb'],
+    colorRel:     ['ringing once into the silence','surfacing briefly then gone'],
   },
   worldbeatRitual: {
-    conversation: [
-      'the lead wind and choir wash trading phrases over the percussion',
-      'a flute motif answered now and then by an ornament rising through the mix',
-      'the lead stating a phrase while the vocal wash breathes beneath it',
-    ],
-    foundation: [
-      'hand percussion and deep bass locked in a rolling ritual pocket',
-      'the low drone anchoring while the hand drums drive above it',
-      'bass and frame drum interlocking in a loose earthy groove',
-    ],
-    arc: [
-      'voices layering in one at a time building the ritual organically',
-      'the percussion swelling and receding in long ceremonial waves',
-      'density rising through added hand drums then opening back to space',
-    ],
+    conversation: ['trading phrases over the percussion','stating the melody while the wash breathes beneath',
+                   'answered now and then by an ornament rising through the mix'],
+    foundation:   ['locked with the hand drums in a rolling ritual pocket',
+                   'interlocking in a loose earthy groove','anchoring while the hand drums drive above'],
+    arc:          ['building the ritual organically as voices layer in one at a time',
+                   'swelling and receding in long ceremonial waves','rising through added hand drums then opening back to space'],
+    voiceRel:     ['breathing beneath the lead','chanting in the distance','layering in call-and-response with the flute'],
+    colorRel:     ['ornamenting the gaps between phrases','sparkling through the ritual','answering the drums'],
   },
   sacredDowntempo: {
-    conversation: [
-      'the lead and choir wash rising together then answered by soft chord swells',
-      'a sparse lead phrase hanging over the chant with space between statements',
-      'the melody and vocal wash trading the foreground unhurried',
-    ],
-    foundation: [
-      'deep bass and the soft downtempo beat locked in a slow reverent pocket',
-      'the bass sustaining long tones beneath the pads anchoring without intruding',
-      'a gentle programmed groove holding steady while the low end floats',
-    ],
-    arc: [
-      'a slow dynamic arc with layers stacking toward a lush sacred peak then receding',
-      'the arrangement opening gradually with each voice given room to breathe',
-      'tension built through rising harmony and released into open sustained chords',
-    ],
+    conversation: ['rising together then answered by soft chord swells','hanging over the chant with space between statements',
+                   'trading the foreground unhurried'],
+    foundation:   ['locked in a slow reverent pocket','sustaining long tones beneath the pads anchoring without intruding',
+                   'holding steady while the low end floats'],
+    arc:          ['stacking toward a lush sacred peak then receding','opening gradually with each voice given room to breathe',
+                   'built through rising harmony then released into open sustained chords'],
+    voiceRel:     ['answering the lead from the reverb','rising over the chant','trading the foreground with the melody'],
+    colorRel:     ['marking the phrase ends','threading through the sacred space','answering the choir'],
   },
   ethereal: {
-    conversation: [
-      'the lead and chords trading phrases in warm ethereal dialogue',
-      'a soft melody drifting over the harmony answered by a second voice',
-      'the lead floating free while the chords comp around it',
-    ],
-    foundation: [
-      'bass and the light downtempo beat rolling forward in a smooth pocket',
-      'the bass gliding beneath the pulse tied to the cycle above',
-      'a steady groove anchoring while the low end moves smooth and unhurried',
-    ],
-    arc: [
-      'voices entering one at a time building organically with air around each',
-      'a gentle arc swelling toward an emotional lift then settling back',
-      'the arrangement layering toward immersion then thinning to open space',
-    ],
+    conversation: ['trading phrases in warm ethereal dialogue','floating free over the harmony',
+                   'drifting over the chords answered by a second voice'],
+    foundation:   ['rolling forward in a smooth unhurried pocket','gliding beneath the pulse tied to the cycle above',
+                   'anchoring while the low end moves smooth and unhurried'],
+    arc:          ['entering one at a time with air around each voice','swelling toward an emotional lift then settling back',
+                   'layering toward immersion then thinning to open space'],
+    voiceRel:     ['answering the lead in warm dialogue','entering with air around it','drifting over the harmony'],
+    colorRel:     ['threading through the spaces','shimmering between phrases','tracing the top of the harmony'],
   },
   firefly: {
-    conversation: [
-      'the lead and arpeggio interlocking in a tight bright weave',
-      'the lead motif answered by chord stabs over the drive',
-      'melodic fragments trading with their delayed repeats in call-and-response',
-    ],
-    foundation: [
-      'sequenced bass and the driving pulse locked tight and propulsive',
-      'the bass and beat chugging steady and forward beneath the layers',
-      'a relentless low pulse anchoring while the synths climb over it',
-    ],
-    arc: [
-      'the groove building through added layers toward an open peak',
-      'filtered synths opening over the drive into a full-energy lift',
-      'tension stacking through rising layers then released into the chorus',
-    ],
+    conversation: ['interlocking in a tight bright weave','answered by chord stabs over the drive',
+                   'trading with their own delayed repeats in call-and-response'],
+    foundation:   ['locked tight and propulsive','chugging steady and forward beneath the layers',
+                   'anchoring as a relentless low pulse while the synths climb over it'],
+    arc:          ['building through added layers toward an open peak','opening over the drive into a full-energy lift',
+                   'stacking through rising layers then released into the chorus'],
+    voiceRel:     ['climbing over the drive','answering the lead','riding above the pulse'],
+    colorRel:     ['sparkling over the groove','accenting the lift','flickering between the beats'],
   },
-};
-
-// ---- tight-style config (research-driven: front-weighted ~8-9 tag stack) ----
-// Only these roles enter the STYLE STRING (the "cast" is capped). harmony, color,
-// full drum phrase and the interplay prose stay in the structured arrangement for
-// the metatag/section layer + future overlays.
-const STYLE_FEATURED = ['pads', 'bass', 'lead', 'voice']; // 3 instruments + textural vocal directive
-const STYLE_ARC = {   // ONE distilled arc tag per character (tag-like, not prose)
-  gothicAmbient:   'slowly evolving, no resolution',
-  worldbeatRitual: 'ceremonial build and release',
-  sacredDowntempo: 'swelling to a sacred peak',
-  ethereal:        'gentle emotional lift',
-  firefly:         'building to a full-energy lift',
-};
-const GROOVE_TAG = {  // short groove tag (merged tempo/feel), by drum family
-  worldbeat: 'hand-percussion groove',
-  softDown:  'soft downtempo beat',
-  firefly:   'driving programmed pulse',
-  hybrid:    'programmed beat with live percussion',
 };
 
 export const DELERIUM = {
@@ -272,13 +248,9 @@ export const DELERIUM = {
   drums: DRUMS,
   characters: CHARACTERS,
   interplay: INTERPLAY,
-  styleFeatured: STYLE_FEATURED,
-  styleArc: STYLE_ARC,
-  grooveTag: GROOVE_TAG,
   sourceNegative: [
     'trance','four-on-the-floor','club anthem','EDM drop','supersaw',
     'hard kick','festival synths','big-room','pop hooks','radio pop',
   ],
-  // render order over the structured arrangement
-  order: ['pads','harmony','bass','drums','voice','lead','color','interplay','movement'],
+  order: ['pads','harmony','bass','drums','voice','lead','color','movement'],
 };

@@ -1,38 +1,30 @@
 import { DELERIUM } from './engines/delerium.js';
-import { build } from './core/resolver.js';
-import { ALWAYS_BAN } from './core/constants.js';
+import { build, resolveArrangement } from './core/resolver.js';
+import { ALWAYS_BAN, BEATLESS_BAN } from './core/constants.js';
 
 const chars = Object.keys(DELERIUM.characters);
 const palettes = ['electronic','acoustic','blend'];
-let max = 0, over = 0, beatLeak = 0, banLeak = 0, n = 0;
+const banned = [...ALWAYS_BAN, 'trance','four-on-the-floor','supersaw','big-room','pop hooks'];
 
-// stress: 400 draws per character per palette
-for (const ch of chars) for (const pal of palettes) {
-  for (let i = 0; i < 400; i++) {
-    const { style, arrangement, length, overLimit } = build(DELERIUM, { characterId: ch, palette: pal, seed: i * 7 + 1 });
-    n++; max = Math.max(max, length);
-    if (overLimit) over++;
-    if (arrangement.beatless && /\b(drums|kick|snare|percussion|beat)\b/i.test(style)) beatLeak++;
-    if (ALWAYS_BAN.some(b => style.toLowerCase().includes(b))) banLeak++;
-  }
+let over=0, bannedLeak=0, beatlessLeak=0, min=1e9, max=0, n=0;
+for (const id of chars) for (const p of palettes) for (let s=0;s<400;s++){
+  const {style,length,overLimit,arrangement}=build(DELERIUM,{characterId:id,palette:p,seed:s*7+1});
+  n++; if(overLimit)over++; min=Math.min(min,length); max=Math.max(max,length);
+  const low=style.toLowerCase();
+  if(banned.some(b=>low.includes(b)))bannedLeak++;
+  if(arrangement.beatless && BEATLESS_BAN.some(b=>new RegExp('\\b'+b+'\\b').test(low)))beatlessLeak++;
 }
-console.log(`draws=${n}  maxLen=${max}/1000  overLimit=${over}  beatlessLeak=${beatLeak}  banLeak=${banLeak}`);
+console.log(`draws=${n} over1000=${over} bannedLeak=${bannedLeak} beatlessLeak=${beatlessLeak} len=${min}-${max}`);
 
-console.log('\n--- one sample per character (electronic, seed 42) ---');
-for (const ch of chars) {
-  const b = build(DELERIUM, { characterId: ch, palette: 'electronic', seed: 42 });
-  console.log(`\n[${DELERIUM.characters[ch].label}]  (${b.length} chars)`);
-  console.log('STYLE   :', b.style);
-  console.log('NEGATIVE:', b.negative);
+// cross-character distinctness: for each pair, over 200 seeds, how often do pads+voice+movement all match?
+function sig(id,seed){const a=resolveArrangement(DELERIUM,{characterId:id,palette:'electronic',seed});return a.pads+'|'+a.voice+'|'+a.movement;}
+console.log('\n-- shared pad+voice+movement across character pairs (200 seeds, lower=more distinct) --');
+for(let i=0;i<chars.length;i++)for(let j=i+1;j<chars.length;j++){
+  let same=0; for(let s=0;s<200;s++) if(sig(chars[i],s*13+5)===sig(chars[j],s*13+5))same++;
+  if(same>0) console.log(`${DELERIUM.characters[chars[i]].label} vs ${DELERIUM.characters[chars[j]].label}: ${same}/200`);
 }
+console.log('(pairs not listed = 0 collisions)');
 
-console.log('\n--- palette contrast: Worldbeat Ritual, seed 42 ---');
-for (const pal of palettes) {
-  const b = build(DELERIUM, { characterId: 'worldbeatRitual', palette: pal, seed: 42 });
-  console.log(`\n[${pal}]`, b.style);
-}
-
-console.log('\n--- control levels: Ethereal, pads+lead locked, rest randomized ---');
-const locked = build(DELERIUM, { characterId: 'ethereal', palette: 'electronic', seed: 5,
-  locks: { pads: 'glassy digital pad with shimmering high partials', lead: 'sparse grand-piano figure' } });
-console.log(locked.style);
+// within-character variety: unique full styles over 200 seeds
+console.log('\n-- within-character unique styles / 200 seeds --');
+for(const id of chars){const set=new Set();for(let s=0;s<200;s++)set.add(build(DELERIUM,{characterId:id,palette:'electronic',seed:s*3+2}).style);console.log(`${DELERIUM.characters[id].label}: ${set.size}/200`);}

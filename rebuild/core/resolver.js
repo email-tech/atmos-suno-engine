@@ -11,10 +11,10 @@ export function resolveArrangement(engine, opts) {
   if (!c) throw new Error(`unknown character ${characterId}`);
   const rand = rng(seed);
   const pick = (role) => {
-    if (locks[role] != null) return locks[role];               // manual / locked
+    if (locks[role] != null) return locks[role];
     const pool = filterPalette(c.pools[role] || [], palette);
     if (!pool.length) return null;
-    return pool[Math.floor(rand() * pool.length)].t;           // randomized
+    return pool[Math.floor(rand() * pool.length)].t;
   };
 
   const arr = {
@@ -39,46 +39,75 @@ export function resolveArrangement(engine, opts) {
     const fam = engine.drums[c.drums.primary];
     arr.drums = fam[Math.floor(rand() * fam.length)];
   }
-  // color fires occasionally
+  // colour fires occasionally
   if (rand() < c.colorChance) arr.color = pick('color');
 
-  // interplay / arrangement layer: RESOLVED into the structured arrangement but
-  // NOT rendered into the style string. It is carried to the metatag/section
-  // layer as bracketed functional cues (Suno reads structure in the lyrics field).
-  const ip = (engine.interplay && engine.interplay[characterId]) || {};
-  arr.interplay = ['conversation','foundation','arc']
-    .map(dim => (ip[dim] && ip[dim].length) ? ip[dim][Math.floor(rand() * ip[dim].length)] : null)
-    .filter(Boolean);
-  // first-pass metatag cues (final functional rework happens in the metatag engine)
-  arr.metatagCues = arr.interplay.map(p => `[${p}]`);
-
-  // tight-style fields
-  arr.bpmSingle = c.bpm ? Math.round((c.bpm[0] + c.bpm[1]) / 2) : null;
-  arr.groove = (!c.beatless && c.drums.primary) ? (engine.grooveTag?.[c.drums.primary] || null) : null;
-  arr.styleArc = (engine.styleArc && engine.styleArc[characterId]) || null;
+  // interplay / arrangement layer — WOVEN into the style string (per John's Suno test).
+  // role-generic tails that hang off already-named instruments (never re-name one).
+  const ipPool = (engine.interplay && engine.interplay[characterId]) || {};
+  const one = (dim) => (ipPool[dim] && ipPool[dim].length)
+    ? ipPool[dim][Math.floor(rand() * ipPool[dim].length)] : null;
+  arr.ip = {
+    foundation:   one('foundation'),
+    conversation: one('conversation'),
+    arc:          one('arc'),
+    voiceRel:     one('voiceRel'),
+    colorRel:     one('colorRel'),
+  };
 
   return arr;
 }
 
-// STYLE STRING = tight, front-weighted tag stack (~8-9 tags). Order:
-// genre anchor -> tempo -> groove -> featured instruments -> production -> arc -> mastering.
-// Interplay prose, harmony, color and the full drum phrase are deliberately excluded
-// (they live in the structured arrangement for the metatag/section layer).
+// STYLE STRING = full woven cast (the approved gold-standard format). Instruments are
+// threaded with their interplay inline, in musical layers, not a flat tag list:
+//   genre -> tempo -> [drums+bass+foundation] -> [pads+lead+conversation] -> harmony
+//         -> [voice+voiceRel] -> [colour+colourRel if it fires] -> [movement+arc] -> mastering
 export function renderStyle(engine, arr) {
-  const parts = [arr.genre];
-  const tempo = arr.beatless ? 'beatless'
-    : `${arr.bpmSingle} BPM${arr.groove ? ' ' + arr.groove : ''}`;
-  parts.push(tempo);
-  for (const role of engine.styleFeatured) if (arr[role]) parts.push(arr[role]);
-  if (arr.movement) parts.push(arr.movement);   // one production cue
-  if (arr.styleArc) parts.push(arr.styleArc);    // one distilled arc tag
-  return parts.join(', ') + '. ' + MASTERING;
+  const ip = arr.ip || {};
+  const clauses = [arr.genre];
+
+  // tempo + energy
+  clauses.push(arr.beatless
+    ? `beatless, ${arr.energy} energy`
+    : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`);
+
+  // foundation: drums(+)bass + how they lock/float
+  if (arr.bass) {
+    const low = arr.drums ? `${arr.drums} and ${arr.bass}` : arr.bass;
+    clauses.push(ip.foundation ? `${low} ${ip.foundation}` : low);
+  } else if (arr.drums) {
+    clauses.push(ip.foundation ? `${arr.drums} ${ip.foundation}` : arr.drums);
+  }
+
+  // conversation: pads + lead + how they relate
+  if (arr.pads && arr.lead) {
+    clauses.push(ip.conversation ? `${arr.pads} with ${arr.lead} ${ip.conversation}`
+                                 : `${arr.pads} with ${arr.lead}`);
+  } else if (arr.pads) {
+    clauses.push(arr.pads);
+  } else if (arr.lead) {
+    clauses.push(arr.lead);
+  }
+
+  // harmony (musicality slot — its own clause)
+  if (arr.harmony) clauses.push(arr.harmony);
+
+  // voice + how it sits
+  if (arr.voice) clauses.push(ip.voiceRel ? `${arr.voice} ${ip.voiceRel}` : arr.voice);
+
+  // colour (only when it fired) + how it sits
+  if (arr.color) clauses.push(ip.colorRel ? `${arr.color} ${ip.colorRel}` : arr.color);
+
+  // production movement + the arc of the whole arrangement
+  if (arr.movement) clauses.push(ip.arc ? `${arr.movement} and ${ip.arc}` : arr.movement);
+  else if (ip.arc) clauses.push(ip.arc);
+
+  return clauses.join(', ') + '. ' + MASTERING;
 }
 
 export function renderNegative(engine, arr) {
   const bans = [...engine.sourceNegative, ...ALWAYS_BAN];
   if (arr.beatless) bans.push(...BEATLESS_BAN);
-  // de-dupe, preserve order
   return [...new Set(bans)].join(', ');
 }
 
