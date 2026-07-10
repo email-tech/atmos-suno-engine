@@ -7,7 +7,8 @@ import { getEngine, resolverCharacters, legacyPresetMap, legacyClusters, legacyC
 export function newSeed() { return (Math.random() * 2147483647) >>> 0; }
 
 export function initState() {
-  const S = { engineId: 'Delerium', seed: newSeed(), res: null, leg: null };
+  // maxMode is global (persists across engine switches); res/leg are per-kind.
+  const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false, res: null, leg: null };
   syncEngineDefaults(S, 'Delerium');
   return S;
 }
@@ -33,6 +34,7 @@ export function syncEngineDefaults(S, engineId) {
     const classic = legacyClassic(engineId);
     S.leg = {
       presetDriven: !!presetMap,
+      engineMode: 'preset',      // preset-driven engines (Enigma): 'preset' | 'manual'
       preset: presetMap ? Object.keys(presetMap)[0] : (classic.presets[0] || ''),
       phase: classic.phases[0] || '',
       buildMode: clusters.length ? 'cluster' : 'classic',
@@ -45,6 +47,8 @@ export function syncEngineDefaults(S, engineId) {
         rhythm: classic.slots.rhythm[0] || '', percussion: classic.slots.percussion[0] || '',
         motif: classic.slots.motif[0] || '', movement: classic.slots.movement[0] || '',
       },
+      slotLevel: 'random',       // classic manual: 'random' | 'lockSome' | 'manual'
+      slotLocks: {},             // role -> chosen value (classic slot roles)
       vocalMode: 'Instrumental',
     };
     S.res = null;

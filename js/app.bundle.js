@@ -182,6 +182,12 @@ const P = {
     glacialPad:    { t: 'glacial slow-attack ambient pad', d: 'E' },
     tanpuraBed:    { t: 'shimmering tanpura drone bed', d: 'A' },
     feltMalletBed: { t: 'soft felt-mallet resonant bed', d: 'A' },
+    jarrePad:      { t: 'spacey analog Jarre-style lead pad', d: 'E' },
+    broodingPad:   { t: 'brooding dark atmospheric synth pad', d: 'E' },
+    mellotronBed:  { t: 'Mellotron choir-and-flute pad', d: 'B' },
+    fmCrystalPad:  { t: 'glassy FM crystalline pad', d: 'E' },
+    warmStringEns: { t: 'warm sampled-string ensemble pad', d: 'B' },
+    airVocalPad:   { t: 'airy layered vocal-synth pad', d: 'E' },
   },
   bass: {
     subBass:    { t: 'deep sustained sub-bass', d: 'E' },
@@ -192,6 +198,9 @@ const P = {
     oudLow:     { t: 'low oud register', d: 'A' },
     pulsingBass:{ t: 'pulsing filtered synth bass', d: 'E' },
     warmSine:   { t: 'warm sine sub with a soft attack', d: 'E' },
+    seqDriveBass:{ t: 'rolling sequenced bassline driving the groove', d: 'E' },
+    filterBass: { t: 'warm filtered analog bassline', d: 'E' },
+    dubBass:    { t: 'deep dub bassline with a long decay', d: 'E' },
   },
   lead: {
     duduk:     { t: 'sustained duduk lead', d: 'A' },
@@ -207,6 +216,10 @@ const P = {
     erhu:      { t: 'bowed erhu melodic line', d: 'A' },
     ebowGuitar:{ t: 'ebow sustained guitar lead', d: 'B' },
     glassPluck:{ t: 'glassy plucked digital lead', d: 'E' },
+    harpFigure:{ t: 'a plucked harp figure', d: 'A' },
+    nylonGtr:  { t: 'a nylon acoustic-guitar motif', d: 'A' },
+    shakuhachi:{ t: 'a breathy shakuhachi flute lead', d: 'A' },
+    bansuri:   { t: 'a bansuri bamboo-flute melody', d: 'A' },
   },
   harmony: {
     minorModal:{ t: 'slow minor-modal chord changes', d: 'B' },
@@ -215,6 +228,11 @@ const P = {
     add9:      { t: 'lush add9 chord voicings', d: 'B' },
     phrygian:  { t: 'a dark phrygian cadence', d: 'B' },
     majorLift: { t: 'a major-key chord lift on the chorus', d: 'B' },
+    plagalCadence:{ t: 'a plagal cadence resolving to the tonic', d: 'B' },
+    modalResolve: { t: 'a modal cadence landing on the root', d: 'B' },
+    minorToMajor: { t: 'a minor-to-relative-major resolution on the chorus', d: 'B' },
+    risingProg:   { t: 'a rising chord progression that resolves upward', d: 'B' },
+    sacredCadence:{ t: 'a sacred choral cadence resolving on the final chord', d: 'B' },
   },
   voice: {
     latinChant:   { t: 'distant monastic Latin chant', d: 'A' },
@@ -229,6 +247,10 @@ const P = {
     maleDrone:    { t: 'a low male vocal drone', d: 'A' },
     childChoir:   { t: "a distant children's choir wash", d: 'A' },
     gregorianMale:{ t: 'Gregorian-style male chant', d: 'A' },
+    liveChoirSwell:{ t: 'a live choir swell', d: 'A' },
+    femaleHarmony: { t: 'layered ethereal female vocal harmonies', d: 'A' },
+    bakaChant:     { t: 'a Baka-forest-style pygmy chant', d: 'A' },
+    prayerCall:    { t: 'a distant call-to-prayer melisma', d: 'A' },
   },
   color: {
     fingerCymb: { t: 'finger cymbals and bells', d: 'A' },
@@ -242,6 +264,10 @@ const P = {
     santoor:    { t: 'a santoor tremolo run', d: 'A' },
     prepPiano:  { t: 'a prepared-piano pluck', d: 'A' },
     glocken:    { t: 'a glockenspiel sparkle', d: 'B' },
+    harpGliss:  { t: 'a harp glissando', d: 'A' },
+    handDrumFill:{ t: 'a tuned hand-drum fill', d: 'A' },
+    tambShaker: { t: 'tambourine and shaker accents', d: 'A' },
+    tablaFill:  { t: 'a tabla fill', d: 'A' },
   },
   movement: {
     filterLFO:   { t: 'a slow filter LFO sweep', d: 'E' },
@@ -254,6 +280,10 @@ const P = {
     dubEcho:     { t: 'dub delay echoes as a second voice', d: 'E' },
     risers:      { t: 'filtered-noise risers into the lift', d: 'E' },
     panSweep:    { t: 'a slow stereo pan sweep', d: 'E' },
+    phaserSweep: { t: 'a slow phaser sweep across the pads', d: 'E' },
+    flangeVocal: { t: 'a flanged sweep on the vocal', d: 'E' },
+    tapeEcho:    { t: 'analog tape-echo repeats', d: 'E' },
+    filterGate:  { t: 'a rhythmic filter-gate pulse', d: 'E' },
   },
 };
 
@@ -273,13 +303,13 @@ const CHARACTERS = {
     beatless: true, energy: 'low', colorChance: 0.5,
     drums: { primary: null, secondary: null },
     pools: {
-      pads:     r('pads','darkDrone','metallicDrone','glacialPad','celloDroneBed'),
-      bass:     r('bass','subBass','fretless','warmSine'),
-      harmony:  r('harmony','droneTonic','phrygian'),
-      voice:    r('voice','throatChant','granularVox','maleDrone'),
-      lead:     r('lead','celloLead','ebowGuitar','ney'),
-      color:    r('color','gong','windChimes','prepPiano'),
-      movement: r('movement','reversedTr','reverbTail','tremoloSwell'),
+      pads:     r('pads','darkDrone','metallicDrone','glacialPad','celloDroneBed','broodingPad','mellotronBed'),
+      bass:     r('bass','subBass','fretless','warmSine','dubBass','filterBass'),
+      harmony:  r('harmony','droneTonic','phrygian','modalResolve','sacredCadence'),
+      voice:    r('voice','throatChant','granularVox','maleDrone','bakaChant','prayerCall'),
+      lead:     r('lead','celloLead','ebowGuitar','ney','shakuhachi'),
+      color:    r('color','gong','windChimes','prepPiano','harpGliss'),
+      movement: r('movement','reversedTr','reverbTail','tremoloSwell','phaserSweep','tapeEcho'),
     },
   },
   worldbeatRitual: {
@@ -288,13 +318,13 @@ const CHARACTERS = {
     beatless: false, bpm: [84,96], energy: 'low to medium', colorChance: 0.55,
     drums: { primary: 'worldbeat', secondary: null },
     pools: {
-      pads:     r('pads','harmoniumDrone','tanpuraBed','darkDrone'),
-      bass:     r('bass','subBass','oudLow','upright'),
-      harmony:  r('harmony','droneTonic','minorModal','phrygian'),
-      voice:    r('voice','euroChoir','sanskritChant','throatChant','vocalChops'),
-      lead:     r('lead','duduk','bambooFl','sitar','ney','erhu'),
-      color:    r('color','fingerCymb','dulcimer','sarangi','santoor'),
-      movement: r('movement','filterLFO','handCresc','dubEcho'),
+      pads:     r('pads','harmoniumDrone','tanpuraBed','darkDrone','mellotronBed','broodingPad'),
+      bass:     r('bass','subBass','oudLow','upright','dubBass','filterBass'),
+      harmony:  r('harmony','droneTonic','minorModal','phrygian','modalResolve','sacredCadence'),
+      voice:    r('voice','euroChoir','sanskritChant','throatChant','vocalChops','bakaChant','liveChoirSwell','prayerCall'),
+      lead:     r('lead','duduk','bambooFl','sitar','ney','erhu','bansuri','shakuhachi','harpFigure'),
+      color:    r('color','fingerCymb','dulcimer','sarangi','santoor','tablaFill','handDrumFill','tambShaker','harpGliss'),
+      movement: r('movement','filterLFO','handCresc','dubEcho','tapeEcho','filterGate'),
     },
   },
   sacredDowntempo: {
@@ -303,13 +333,13 @@ const CHARACTERS = {
     beatless: false, bpm: [92,100], energy: 'medium', colorChance: 0.45,
     drums: { primary: 'softDown', secondary: 'hybrid' },
     pools: {
-      pads:     r('pads','cathedralPad','harmoniumDrone','choirPad','feltMalletBed'),
-      bass:     r('bass','subBass','upright','warmSine'),
-      harmony:  r('harmony','minorModal','suspended','add9'),
-      voice:    r('voice','latinChant','gregorianMale','childChoir','femaleWash'),
-      lead:     r('lead','piano','duduk','celloLead','panFlute'),
-      color:    r('color','fingerCymb','glocken','prepPiano'),
-      movement: r('movement','delayThrows','reversedTr','reverbTail'),
+      pads:     r('pads','cathedralPad','harmoniumDrone','choirPad','feltMalletBed','warmStringEns','mellotronBed'),
+      bass:     r('bass','subBass','upright','warmSine','filterBass','dubBass'),
+      harmony:  r('harmony','minorModal','suspended','add9','sacredCadence','plagalCadence','minorToMajor'),
+      voice:    r('voice','latinChant','gregorianMale','childChoir','femaleWash','liveChoirSwell','femaleHarmony','prayerCall'),
+      lead:     r('lead','piano','duduk','celloLead','panFlute','harpFigure','nylonGtr','shakuhachi'),
+      color:    r('color','fingerCymb','glocken','prepPiano','harpGliss','handDrumFill','tambShaker'),
+      movement: r('movement','delayThrows','reversedTr','reverbTail','phaserSweep','tapeEcho'),
     },
   },
   ethereal: {
@@ -318,13 +348,13 @@ const CHARACTERS = {
     beatless: false, bpm: [100,112], energy: 'medium', colorChance: 0.4,
     drums: { primary: 'softDown', secondary: 'hybrid' },
     pools: {
-      pads:     r('pads','cathedralPad','glassyPad','stringWash','analogueSwell'),
-      bass:     r('bass','analogBass','upright','warmSine','fretless'),
-      harmony:  r('harmony','suspended','add9','majorLift'),
-      voice:    r('voice','femaleWash','breathyFemale','vocoderPad','granularVox'),
-      lead:     r('lead','piano','synthArp','detunedLd','glassPluck','ebowGuitar'),
-      color:    r('color','kalimba','bellArp','glocken'),
-      movement: r('movement','delayThrows','autopan','dubEcho','panSweep'),
+      pads:     r('pads','cathedralPad','glassyPad','stringWash','analogueSwell','jarrePad','fmCrystalPad','airVocalPad'),
+      bass:     r('bass','analogBass','upright','warmSine','fretless','seqDriveBass','filterBass'),
+      harmony:  r('harmony','suspended','add9','majorLift','minorToMajor','risingProg','plagalCadence'),
+      voice:    r('voice','femaleWash','breathyFemale','vocoderPad','granularVox','femaleHarmony','liveChoirSwell'),
+      lead:     r('lead','piano','synthArp','detunedLd','glassPluck','ebowGuitar','nylonGtr','harpFigure','shakuhachi'),
+      color:    r('color','kalimba','bellArp','glocken','harpGliss','tambShaker'),
+      movement: r('movement','delayThrows','autopan','dubEcho','panSweep','phaserSweep','flangeVocal','tapeEcho'),
     },
   },
   firefly: {
@@ -333,13 +363,13 @@ const CHARACTERS = {
     beatless: false, bpm: [112,126], energy: 'medium to high', colorChance: 0.4,
     drums: { primary: 'firefly', secondary: 'hybrid' },
     pools: {
-      pads:     r('pads','glassyPad','reversedPad','analogueSwell','choirPad'),
-      bass:     r('bass','seqBass','pulsingBass','subBass'),
-      harmony:  r('harmony','suspended','majorLift','minorModal'),
-      voice:    r('voice','vocoderPad','breathyFemale','vocalChops','femaleWash'),
+      pads:     r('pads','glassyPad','reversedPad','analogueSwell','choirPad','fmCrystalPad','airVocalPad','jarrePad'),
+      bass:     r('bass','seqBass','pulsingBass','subBass','seqDriveBass','filterBass','dubBass'),
+      harmony:  r('harmony','suspended','majorLift','minorModal','risingProg','minorToMajor'),
+      voice:    r('voice','vocoderPad','breathyFemale','vocalChops','femaleWash','femaleHarmony','liveChoirSwell'),
       lead:     r('lead','synthArp','fmBell','detunedLd','glassPluck'),
-      color:    r('color','bellArp','revStab','glocken'),
-      movement: r('movement','delayThrows','autopan','risers','panSweep'),
+      color:    r('color','bellArp','revStab','glocken','harpGliss'),
+      movement: r('movement','delayThrows','autopan','risers','panSweep','flangeVocal','tapeEcho','filterGate'),
     },
   },
 };
@@ -353,7 +383,9 @@ const INTERPLAY = {
                    'anchoring in slow motion while the timbres drift unmoving'],
     arc:          ['evolving so slowly that change is felt rather than heard',
                    'replacing motion with the slow turn of timbre',
-                   'sustaining tension through what never resolves'],
+                   'sustaining tension through what never resolves',
+                   'finally settling onto a single resolved chord',
+                   'resolving at last into a sustained tonic'],
     voiceRel:     ['drifting over the top without hierarchy','breathing at the edge of the field','hanging in the deep reverb'],
     colorRel:     ['ringing once into the silence','surfacing briefly then gone'],
   },
@@ -363,7 +395,8 @@ const INTERPLAY = {
     foundation:   ['locked with the hand drums in a rolling ritual pocket',
                    'interlocking in a loose earthy groove','anchoring while the hand drums drive above'],
     arc:          ['building the ritual organically as voices layer in one at a time',
-                   'swelling and receding in long ceremonial waves','rising through added hand drums then opening back to space'],
+                   'swelling and receding in long ceremonial waves','rising through added hand drums then opening back to space',
+                   'resolving the ritual onto a final grounded chord'],
     voiceRel:     ['breathing beneath the lead','chanting in the distance','layering in call-and-response with the flute'],
     colorRel:     ['ornamenting the gaps between phrases','sparkling through the ritual','answering the drums'],
   },
@@ -373,7 +406,8 @@ const INTERPLAY = {
     foundation:   ['locked in a slow reverent pocket','sustaining long tones beneath the pads anchoring without intruding',
                    'holding steady while the low end floats'],
     arc:          ['stacking toward a lush sacred peak then receding','opening gradually with each voice given room to breathe',
-                   'built through rising harmony then released into open sustained chords'],
+                   'built through rising harmony then released into open sustained chords',
+                   'resolving into a lush final cadence'],
     voiceRel:     ['answering the lead from the reverb','rising over the chant','trading the foreground with the melody'],
     colorRel:     ['marking the phrase ends','threading through the sacred space','answering the choir'],
   },
@@ -383,7 +417,8 @@ const INTERPLAY = {
     foundation:   ['rolling forward in a smooth unhurried pocket','gliding beneath the pulse tied to the cycle above',
                    'anchoring while the low end moves smooth and unhurried'],
     arc:          ['entering one at a time with air around each voice','swelling toward an emotional lift then settling back',
-                   'layering toward immersion then thinning to open space'],
+                   'layering toward immersion then thinning to open space',
+                   'resolving into a warm final chord as it closes'],
     voiceRel:     ['answering the lead in warm dialogue','entering with air around it','drifting over the harmony'],
     colorRel:     ['threading through the spaces','shimmering between phrases','tracing the top of the harmony'],
   },
@@ -393,7 +428,8 @@ const INTERPLAY = {
     foundation:   ['locked tight and propulsive','chugging steady and forward beneath the layers',
                    'anchoring as a relentless low pulse while the synths climb over it'],
     arc:          ['building through added layers toward an open peak','opening over the drive into a full-energy lift',
-                   'stacking through rising layers then released into the chorus'],
+                   'stacking through rising layers then released into the chorus',
+                   'resolving the climb onto a bright final chord'],
     voiceRel:     ['climbing over the drive','answering the lead','riding above the pulse'],
     colorRel:     ['sparkling over the groove','accenting the lift','flickering between the beats'],
   },
@@ -484,7 +520,7 @@ const STYLE_ENGINES = {
   },
   Enigma: {
     accent: "violet",
-    genre: "ethereal world-electronic downtempo",
+    genre: "Enigma Style, ethereal world-electronic downtempo",
     presets: ["Gregorian sacred (MCMXC)", "Ethnic (Cross of Changes)", "Cinematic distorted (Screen)", "Ethereal ambient", "Modern (Voyageur)", "Breakbeat drive"],
     phases: [
       "Mid-low Tempo 84-90 BPM, low energy.",
@@ -1777,7 +1813,8 @@ const {getEngine, resolverCharacters, legacyPresetMap, legacyClusters, legacyCla
 function newSeed() { return (Math.random() * 2147483647) >>> 0; }
 
 function initState() {
-  const S = { engineId: 'Delerium', seed: newSeed(), res: null, leg: null };
+  // maxMode is global (persists across engine switches); res/leg are per-kind.
+  const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false, res: null, leg: null };
   syncEngineDefaults(S, 'Delerium');
   return S;
 }
@@ -1803,6 +1840,7 @@ function syncEngineDefaults(S, engineId) {
     const classic = legacyClassic(engineId);
     S.leg = {
       presetDriven: !!presetMap,
+      engineMode: 'preset',      // preset-driven engines (Enigma): 'preset' | 'manual'
       preset: presetMap ? Object.keys(presetMap)[0] : (classic.presets[0] || ''),
       phase: classic.phases[0] || '',
       buildMode: clusters.length ? 'cluster' : 'classic',
@@ -1815,6 +1853,8 @@ function syncEngineDefaults(S, engineId) {
         rhythm: classic.slots.rhythm[0] || '', percussion: classic.slots.percussion[0] || '',
         motif: classic.slots.motif[0] || '', movement: classic.slots.movement[0] || '',
       },
+      slotLevel: 'random',       // classic manual: 'random' | 'lockSome' | 'manual'
+      slotLocks: {},             // role -> chosen value (classic slot roles)
       vocalMode: 'Instrumental',
     };
     S.res = null;
@@ -1830,10 +1870,20 @@ Object.assign(window.__ATMOS, { newSeed, initState, syncEngineDefaults });
 (function(){
 // Routes a generate request to the right path for the engine's kind and returns a
 // uniform result: { style, negative, lyrics, length, over }.
-const {getEngine} = window.__ATMOS;
+// Max Mode (global S.maxMode) prepends the MAX directive block for every engine:
+//   - legacy engines apply it through their proven maxMode path (byte-identical to old app)
+//   - resolver engines get it here in the router
+const {getEngine, legacyClassic} = window.__ATMOS;
 const {build} = window.__ATMOS;
-const {CHAR_LIMIT} = window.__ATMOS;
+const {CHAR_LIMIT, rng} = window.__ATMOS;
+const {MAX_MODE_STR} = window.__ATMOS;
 const {buildStylePrompt, buildNegativePrompt, buildLyricsField} = window.__ATMOS;
+
+function applyMax(style, on) {
+  if (!on) return style;
+  const out = MAX_MODE_STR + '\n' + style;
+  return out.length <= CHAR_LIMIT ? out : out.slice(0, CHAR_LIMIT - 3).trimEnd() + '...';
+}
 
 function generate(S) {
   const eng = getEngine(S.engineId);
@@ -1844,14 +1894,15 @@ function generate(S) {
     const out = build(eng.module, {
       characterId: r.characterId, palette: r.palette, locks, seed: S.seed,
     });
+    const style = applyMax(out.style, S.maxMode);
     return {
-      style: out.style, negative: out.negative, lyrics: '',
-      length: out.length, over: out.overLimit, arrangement: out.arrangement,
+      style, negative: out.negative, lyrics: '',
+      length: style.length, over: style.length > CHAR_LIMIT, arrangement: out.arrangement,
     };
   }
 
   if (eng.kind === 'legacy') {
-    const state = toLegacyState(S);
+    const state = toLegacyState(S);            // proven builder handles maxMode itself
     const style = buildStylePrompt(state);
     return {
       style,
@@ -1865,9 +1916,43 @@ function generate(S) {
   return { style: '', negative: '', lyrics: '', length: 0, over: false, stub: true };
 }
 
+// Resolve classic slots for the 3-level manual control (Randomize all / Lock some / Full manual).
+// Each role is either locked (chosen) or drawn fresh from the proven STYLE_ENGINES array.
+function resolveClassicSlots(engineId, l, seed) {
+  const arrs = legacyClassic(engineId).slots;   // {pad:[],bass:[],rhythm:[],percussion:[],motif:[],movement:[]}
+  const roll = rng(seed);
+  const rand = a => (a && a.length) ? a[Math.floor(roll() * a.length)] : '';
+  const out = {};
+  ['pad', 'bass', 'rhythm', 'percussion', 'motif', 'movement'].forEach(role => {
+    if (l.slotLevel === 'random') out[role] = rand(arrs[role]);
+    else {
+      const locked = l.slotLocks[role];
+      out[role] = (locked != null && locked !== '') ? locked : rand(arrs[role]);
+    }
+  });
+  return out;
+}
+
 // Map the shell's legacy sub-state onto the nested shape the proven builder reads.
 function toLegacyState(S) {
   const l = S.leg;
+
+  // Preset-driven engine (Enigma) in MANUAL mode -> proven classic slot path with 3-level locks.
+  if (l.presetDriven && l.engineMode === 'manual') {
+    const s = resolveClassicSlots(S.engineId, l, S.seed);
+    return {
+      engine: S.engineId,
+      style: {
+        buildMode: 'classic', cluster: '', preset: '',   // unmapped preset -> classic path
+        palette: l.palette, arrangement: false, bpmOverride: '',
+        phase: l.phase,
+        pad: s.pad, bass: s.bass, rhythm: s.rhythm, percussion: s.percussion, motif: s.motif, movement: s.movement,
+        vocalMode: l.vocalMode, vocalDescriptor: '', vocalPersona: '',
+        maxMode: S.maxMode, negativePrompt: '',
+      },
+    };
+  }
+
   return {
     engine: S.engineId,
     style: {
@@ -1880,10 +1965,8 @@ function toLegacyState(S) {
       phase: l.phase,
       pad: l.slots.pad, bass: l.slots.bass, rhythm: l.slots.rhythm,
       percussion: l.slots.percussion, motif: l.slots.motif, movement: l.slots.movement,
-      vocalMode: l.vocalMode,
-      vocalDescriptor: '', vocalPersona: '',
-      maxMode: false,
-      negativePrompt: '',
+      vocalMode: l.vocalMode, vocalDescriptor: '', vocalPersona: '',
+      maxMode: S.maxMode, negativePrompt: '',
     },
   };
 }
@@ -1924,6 +2007,27 @@ function segmented(options, value, onpick) {
   return el('div', { class: 'seg' }, options.map(o =>
     el('button', { class: o.value === value ? 'active' : '', text: o.label, onclick: () => onpick(o.value) })));
 }
+
+// Shared 3-level control (Randomize all / Lock some / Full manual) over any role set.
+// opts: { roles, labelFor, optionsFor(role)->[{value,label}], level, onLevel(v), locks }
+function lockControl(root, opts) {
+  root.appendChild(field('Control level', segmented(
+    [['random', 'Randomize all'], ['lockSome', 'Lock some'], ['manual', 'Full manual']].map(([value, label]) => ({ value, label })),
+    opts.level, v => opts.onLevel(v))));
+  if (opts.level === 'random') return;
+  const box = el('div', { class: 'locks' });
+  opts.roles.forEach(role => {
+    const options = [{ value: '', label: '\uD83C\uDFB2 random' }, ...opts.optionsFor(role)];
+    const cur = opts.locks[role] != null ? opts.locks[role] : '';
+    box.appendChild(field(opts.labelFor(role),
+      select(options, cur, v => { if (v === '') delete opts.locks[role]; else opts.locks[role] = v; refreshOutput(); })));
+  });
+  root.appendChild(box);
+}
+function classicSlotLabel(role) {
+  return { pad: 'Pad', bass: 'Bass', rhythm: 'Rhythm', percussion: 'Percussion', motif: 'Motif', movement: 'Movement' }[role] || role;
+}
+const CLASSIC_ROLES = ['pad', 'bass', 'rhythm', 'percussion', 'motif', 'movement'];
 
 // ---- module state ----------------------------------------------------------
 let S, rootEl;
@@ -1967,22 +2071,14 @@ function renderResolverControls(root, eng) {
     segmented([['electronic', 'Electronic'], ['acoustic', 'Acoustic'], ['blend', 'Blend']].map(([value, label]) => ({ value, label })),
       r.palette, v => { r.palette = v; r.locks = {}; renderAll(); })));
 
-  root.appendChild(field('Control level',
-    segmented([['random', 'Randomize all'], ['lockSome', 'Lock some'], ['manual', 'Full manual']].map(([value, label]) => ({ value, label })),
-      r.level, v => { r.level = v; r.locks = {}; if (v === 'manual') seedManualLocks(eng, r); renderAll(); })));
-
-  if (r.level !== 'random') {
-    const locks = el('div', { class: 'locks' });
-    RESOLVER_ROLES.forEach(role => {
-      if (role === 'color' && c.colorChance === 0) return;
-      const pool = resolverRolePool(eng.module, r.characterId, role, r.palette);
-      const opts = [{ value: '', label: '\uD83C\uDFB2 random' }, ...pool];
-      const cur = r.locks[role] != null ? r.locks[role] : '';
-      locks.appendChild(field(roleLabel(role),
-        select(opts, cur, v => { if (v === '') delete r.locks[role]; else r.locks[role] = v; refreshOutput(); })));
-    });
-    root.appendChild(locks);
-  }
+  lockControl(root, {
+    roles: RESOLVER_ROLES.filter(role => !(role === 'color' && c.colorChance === 0)),
+    labelFor: roleLabel,
+    optionsFor: role => resolverRolePool(eng.module, r.characterId, role, r.palette),
+    level: r.level,
+    onLevel: v => { r.level = v; r.locks = {}; if (v === 'manual') seedManualLocks(eng, r); renderAll(); },
+    locks: r.locks,
+  });
 
   const drums = c.beatless ? 'Beatless (no drum pool)' : `Auto \u2014 ${c.drums.primary} family`;
   root.appendChild(el('p', { class: 'note', text: `Drums: ${drums}. Colour fires ~${Math.round(c.colorChance * 100)}% of draws.` }));
@@ -2000,22 +2096,47 @@ function seedManualLocks(eng, r) {
 function roleLabel(role) {
   return { pads: 'Pads', harmony: 'Harmony', bass: 'Bass', lead: 'Lead', voice: 'Voice', color: 'Colour', movement: 'Movement' }[role] || role;
 }
+function seedClassicManual(engineId, l) {
+  const arrs = legacyClassic(engineId).slots;
+  CLASSIC_ROLES.forEach(role => { const a = arrs[role] || []; if (a.length) l.slotLocks[role] = a[0]; });
+}
 
 // ---- legacy controls -------------------------------------------------------
 function renderLegacyControls(root, eng) {
   const l = S.leg;
 
   if (l.presetDriven) {
-    const map = (window.__ATMOS.EngineExtras[eng.id] || {}).presetMap;
-    root.appendChild(field('Engine preset',
-      select(Object.keys(map).map(k => ({ value: k, label: k })), l.preset,
-        v => { l.preset = v; refreshOutput(); })));
+    root.appendChild(field('Engine mode',
+      segmented([['preset', 'Engine preset'], ['manual', 'Manual mix']].map(([value, label]) => ({ value, label })),
+        l.engineMode, v => { l.engineMode = v; renderAll(); })));
+
+    if (l.engineMode === 'preset') {
+      const map = (window.__ATMOS.EngineExtras[eng.id] || {}).presetMap;
+      root.appendChild(field('Engine preset',
+        select(Object.keys(map).map(k => ({ value: k, label: k })), l.preset,
+          v => { l.preset = v; refreshOutput(); })));
+      root.appendChild(field('Phase (tempo / energy)',
+        select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase,
+          v => { l.phase = v; refreshOutput(); })));
+      root.appendChild(field('Palette',
+        segmented(seg3(), l.palette, v => { l.palette = v; refreshOutput(); })));
+      root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
+      root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
+      root.appendChild(buttons());
+      return;
+    }
+
+    // manual mix — proven classic slot path with the same 3-level control as Delerium
     root.appendChild(field('Phase (tempo / energy)',
-      select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase,
-        v => { l.phase = v; refreshOutput(); })));
-    root.appendChild(field('Palette',
-      segmented(seg3(), l.palette, v => { l.palette = v; refreshOutput(); })));
-    root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
+      select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase, v => { l.phase = v; refreshOutput(); })));
+    lockControl(root, {
+      roles: CLASSIC_ROLES,
+      labelFor: classicSlotLabel,
+      optionsFor: role => (legacyClassic(eng.id).slots[role] || []).map(x => ({ value: x, label: x })),
+      level: l.slotLevel,
+      onLevel: v => { l.slotLevel = v; l.slotLocks = {}; if (v === 'manual') seedClassicManual(eng.id, l); renderAll(); },
+      locks: l.slotLocks,
+    });
     root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
     root.appendChild(buttons());
     return;
@@ -2065,9 +2186,12 @@ function renderStub(root, eng) {
 
 // ---- shared buttons + output ----------------------------------------------
 function buttons() {
-  return el('div', { class: 'actions' }, [
-    el('button', { class: 'primary', text: 'Generate', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
-    el('button', { class: 'ghost', text: 'Re-roll instruments', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
+  return el('div', { class: 'actions-wrap' }, [
+    el('div', { class: 'maxmode' }, toggle('Max Mode', S.maxMode, v => { S.maxMode = v; refreshOutput(); })),
+    el('div', { class: 'actions' }, [
+      el('button', { class: 'primary', text: 'Generate', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
+      el('button', { class: 'ghost', text: 'Re-roll instruments', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
+    ]),
   ]);
 }
 

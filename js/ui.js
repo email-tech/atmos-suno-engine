@@ -33,6 +33,27 @@ function segmented(options, value, onpick) {
     el('button', { class: o.value === value ? 'active' : '', text: o.label, onclick: () => onpick(o.value) })));
 }
 
+// Shared 3-level control (Randomize all / Lock some / Full manual) over any role set.
+// opts: { roles, labelFor, optionsFor(role)->[{value,label}], level, onLevel(v), locks }
+function lockControl(root, opts) {
+  root.appendChild(field('Control level', segmented(
+    [['random', 'Randomize all'], ['lockSome', 'Lock some'], ['manual', 'Full manual']].map(([value, label]) => ({ value, label })),
+    opts.level, v => opts.onLevel(v))));
+  if (opts.level === 'random') return;
+  const box = el('div', { class: 'locks' });
+  opts.roles.forEach(role => {
+    const options = [{ value: '', label: '\uD83C\uDFB2 random' }, ...opts.optionsFor(role)];
+    const cur = opts.locks[role] != null ? opts.locks[role] : '';
+    box.appendChild(field(opts.labelFor(role),
+      select(options, cur, v => { if (v === '') delete opts.locks[role]; else opts.locks[role] = v; refreshOutput(); })));
+  });
+  root.appendChild(box);
+}
+function classicSlotLabel(role) {
+  return { pad: 'Pad', bass: 'Bass', rhythm: 'Rhythm', percussion: 'Percussion', motif: 'Motif', movement: 'Movement' }[role] || role;
+}
+const CLASSIC_ROLES = ['pad', 'bass', 'rhythm', 'percussion', 'motif', 'movement'];
+
 // ---- module state ----------------------------------------------------------
 let S, rootEl;
 export function mount(state, root) { S = state; rootEl = root; renderAll(); }
@@ -75,22 +96,14 @@ function renderResolverControls(root, eng) {
     segmented([['electronic', 'Electronic'], ['acoustic', 'Acoustic'], ['blend', 'Blend']].map(([value, label]) => ({ value, label })),
       r.palette, v => { r.palette = v; r.locks = {}; renderAll(); })));
 
-  root.appendChild(field('Control level',
-    segmented([['random', 'Randomize all'], ['lockSome', 'Lock some'], ['manual', 'Full manual']].map(([value, label]) => ({ value, label })),
-      r.level, v => { r.level = v; r.locks = {}; if (v === 'manual') seedManualLocks(eng, r); renderAll(); })));
-
-  if (r.level !== 'random') {
-    const locks = el('div', { class: 'locks' });
-    RESOLVER_ROLES.forEach(role => {
-      if (role === 'color' && c.colorChance === 0) return;
-      const pool = resolverRolePool(eng.module, r.characterId, role, r.palette);
-      const opts = [{ value: '', label: '\uD83C\uDFB2 random' }, ...pool];
-      const cur = r.locks[role] != null ? r.locks[role] : '';
-      locks.appendChild(field(roleLabel(role),
-        select(opts, cur, v => { if (v === '') delete r.locks[role]; else r.locks[role] = v; refreshOutput(); })));
-    });
-    root.appendChild(locks);
-  }
+  lockControl(root, {
+    roles: RESOLVER_ROLES.filter(role => !(role === 'color' && c.colorChance === 0)),
+    labelFor: roleLabel,
+    optionsFor: role => resolverRolePool(eng.module, r.characterId, role, r.palette),
+    level: r.level,
+    onLevel: v => { r.level = v; r.locks = {}; if (v === 'manual') seedManualLocks(eng, r); renderAll(); },
+    locks: r.locks,
+  });
 
   const drums = c.beatless ? 'Beatless (no drum pool)' : `Auto \u2014 ${c.drums.primary} family`;
   root.appendChild(el('p', { class: 'note', text: `Drums: ${drums}. Colour fires ~${Math.round(c.colorChance * 100)}% of draws.` }));
@@ -108,22 +121,47 @@ function seedManualLocks(eng, r) {
 function roleLabel(role) {
   return { pads: 'Pads', harmony: 'Harmony', bass: 'Bass', lead: 'Lead', voice: 'Voice', color: 'Colour', movement: 'Movement' }[role] || role;
 }
+function seedClassicManual(engineId, l) {
+  const arrs = legacyClassic(engineId).slots;
+  CLASSIC_ROLES.forEach(role => { const a = arrs[role] || []; if (a.length) l.slotLocks[role] = a[0]; });
+}
 
 // ---- legacy controls -------------------------------------------------------
 function renderLegacyControls(root, eng) {
   const l = S.leg;
 
   if (l.presetDriven) {
-    const map = (window.__ATMOS.EngineExtras[eng.id] || {}).presetMap;
-    root.appendChild(field('Engine preset',
-      select(Object.keys(map).map(k => ({ value: k, label: k })), l.preset,
-        v => { l.preset = v; refreshOutput(); })));
+    root.appendChild(field('Engine mode',
+      segmented([['preset', 'Engine preset'], ['manual', 'Manual mix']].map(([value, label]) => ({ value, label })),
+        l.engineMode, v => { l.engineMode = v; renderAll(); })));
+
+    if (l.engineMode === 'preset') {
+      const map = (window.__ATMOS.EngineExtras[eng.id] || {}).presetMap;
+      root.appendChild(field('Engine preset',
+        select(Object.keys(map).map(k => ({ value: k, label: k })), l.preset,
+          v => { l.preset = v; refreshOutput(); })));
+      root.appendChild(field('Phase (tempo / energy)',
+        select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase,
+          v => { l.phase = v; refreshOutput(); })));
+      root.appendChild(field('Palette',
+        segmented(seg3(), l.palette, v => { l.palette = v; refreshOutput(); })));
+      root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
+      root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
+      root.appendChild(buttons());
+      return;
+    }
+
+    // manual mix — proven classic slot path with the same 3-level control as Delerium
     root.appendChild(field('Phase (tempo / energy)',
-      select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase,
-        v => { l.phase = v; refreshOutput(); })));
-    root.appendChild(field('Palette',
-      segmented(seg3(), l.palette, v => { l.palette = v; refreshOutput(); })));
-    root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
+      select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase, v => { l.phase = v; refreshOutput(); })));
+    lockControl(root, {
+      roles: CLASSIC_ROLES,
+      labelFor: classicSlotLabel,
+      optionsFor: role => (legacyClassic(eng.id).slots[role] || []).map(x => ({ value: x, label: x })),
+      level: l.slotLevel,
+      onLevel: v => { l.slotLevel = v; l.slotLocks = {}; if (v === 'manual') seedClassicManual(eng.id, l); renderAll(); },
+      locks: l.slotLocks,
+    });
     root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
     root.appendChild(buttons());
     return;
@@ -173,9 +211,12 @@ function renderStub(root, eng) {
 
 // ---- shared buttons + output ----------------------------------------------
 function buttons() {
-  return el('div', { class: 'actions' }, [
-    el('button', { class: 'primary', text: 'Generate', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
-    el('button', { class: 'ghost', text: 'Re-roll instruments', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
+  return el('div', { class: 'actions-wrap' }, [
+    el('div', { class: 'maxmode' }, toggle('Max Mode', S.maxMode, v => { S.maxMode = v; refreshOutput(); })),
+    el('div', { class: 'actions' }, [
+      el('button', { class: 'primary', text: 'Generate', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
+      el('button', { class: 'ghost', text: 'Re-roll instruments', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
+    ]),
   ]);
 }
 

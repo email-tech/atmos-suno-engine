@@ -64,7 +64,7 @@ export const STYLE_ENGINES = {
   },
   Enigma: {
     accent: "violet",
-    genre: "ethereal world-electronic downtempo",
+    genre: "Enigma Style, ethereal world-electronic downtempo",
     presets: ["Gregorian sacred (MCMXC)", "Ethnic (Cross of Changes)", "Cinematic distorted (Screen)", "Ethereal ambient", "Modern (Voyageur)", "Breakbeat drive"],
     phases: [
       "Mid-low Tempo 84-90 BPM, low energy.",

@@ -56,3 +56,8 @@ select:focus,.txt:focus{outline:none;border-color:var(--accent)}
 .out-head .meter + .copy{margin-left:10px}
 .out{width:100%;background:#0b0e13;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:var(--mono);font-size:12.5px;resize:vertical}
 .hint{color:var(--dim);font-size:11.5px;margin:5px 0 0}
+
+.actions-wrap{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.maxmode{display:flex}
+.maxmode .toggle{margin:0;padding:8px 12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;width:100%}
+.maxmode .toggle span{font-weight:600;color:var(--accent2)}
