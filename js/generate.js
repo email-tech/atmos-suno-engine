@@ -67,8 +67,9 @@ function resolveClassicSlots(engineId, l, seed) {
 function toLegacyState(S) {
   const l = S.leg;
 
-  // Preset-driven engine (Enigma) in MANUAL mode -> proven classic slot path with 3-level locks.
-  if (l.presetDriven && l.engineMode === 'manual') {
+  // Classic slot path with the 3-level control: Enigma 'Manual mix' OR Balearic 'Classic mix'.
+  const classicManual = (l.presetDriven && l.engineMode === 'manual') || (!l.presetDriven && l.buildMode === 'classic');
+  if (classicManual) {
     const s = resolveClassicSlots(S.engineId, l, S.seed);
     return {
       engine: S.engineId,

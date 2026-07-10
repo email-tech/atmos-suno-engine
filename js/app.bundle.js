@@ -1937,8 +1937,9 @@ function resolveClassicSlots(engineId, l, seed) {
 function toLegacyState(S) {
   const l = S.leg;
 
-  // Preset-driven engine (Enigma) in MANUAL mode -> proven classic slot path with 3-level locks.
-  if (l.presetDriven && l.engineMode === 'manual') {
+  // Classic slot path with the 3-level control: Enigma 'Manual mix' OR Balearic 'Classic mix'.
+  const classicManual = (l.presetDriven && l.engineMode === 'manual') || (!l.presetDriven && l.buildMode === 'classic');
+  if (classicManual) {
     const s = resolveClassicSlots(S.engineId, l, S.seed);
     return {
       engine: S.engineId,
@@ -2154,16 +2155,15 @@ function renderLegacyControls(root, eng) {
     root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
     root.appendChild(field('BPM override', el('input', { class: 'txt', type: 'text', value: l.bpmOverride, placeholder: 'optional', oninput: e => { l.bpmOverride = e.target.value; refreshOutput(); } })));
   } else {
-    const classic = legacyClassic(eng.id);
-    root.appendChild(field('Preset', select(classic.presets.map(p => ({ value: p, label: p })), l.preset, v => { l.preset = v; refreshOutput(); })));
-    root.appendChild(field('Phase', select(classic.phases.map(p => ({ value: p, label: p })), l.phase, v => { l.phase = v; refreshOutput(); })));
-    const slots = el('details', { class: 'slots' }, [el('summary', { text: 'Fine-tune arrangement' })]);
-    [['pad', 'Pad'], ['bass', 'Bass'], ['rhythm', 'Rhythm'], ['percussion', 'Percussion'], ['motif', 'Motif'], ['movement', 'Movement']].forEach(([key, label]) => {
-      const arr = classic.slots[key];
-      if (!arr.length) return;
-      slots.appendChild(field(label, select(arr.map(x => ({ value: x, label: x })), l.slots[key], v => { l.slots[key] = v; refreshOutput(); })));
+    root.appendChild(field('Phase', select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase, v => { l.phase = v; refreshOutput(); })));
+    lockControl(root, {
+      roles: CLASSIC_ROLES,
+      labelFor: classicSlotLabel,
+      optionsFor: role => (legacyClassic(eng.id).slots[role] || []).map(x => ({ value: x, label: x })),
+      level: l.slotLevel,
+      onLevel: v => { l.slotLevel = v; l.slotLocks = {}; if (v === 'manual') seedClassicManual(eng.id, l); renderAll(); },
+      locks: l.slotLocks,
     });
-    root.appendChild(slots);
   }
   root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
   root.appendChild(buttons());
