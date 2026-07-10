@@ -452,6 +452,282 @@ const DELERIUM = {
 Object.assign(window.__ATMOS, { DELERIUM });
 })();
 
+/* engines/era.js */
+(function(){
+// Era engine (Eric Lévi / +eRa+) — trilogy-era identity: Era (1996) -> Era 2 (2000)
+// -> The Mass (2003), with Reborn's (2008) Arabic/electronic edge as colour.
+// Core sound = pseudo-Latin / invented-language Gregorian CHOIR (the signature voice)
+// over orchestral strings + pipe organ + lush synths + downtempo-to-driving beats +
+// Lévi's rock electric guitar. Cinematic medieval-heroic grandeur (Carmina Burana on
+// The Mass). Domains: 'E' electronic, 'A' acoustic/orchestral, 'B' both.
+//
+// Built to the Delerium resolver pattern: deep, DE-OVERLAPPED pools so each character
+// owns a distinct pad / voice / movement signature (never "tempo is the only change"),
+// with the interplay layer WOVEN into the style string per John's Suno test.
+
+const P = {
+  pads: {
+    stringOrchestra: { t: 'a sweeping orchestral string section', d: 'B' },
+    synthPadLush:    { t: 'lush warm analog synth pads', d: 'E' },
+    choirPadWordless:{ t: 'a sustained wordless choir pad', d: 'B' },
+    pipeOrgan:       { t: 'a swelling cathedral pipe organ', d: 'A' },
+    darkOrchPad:     { t: 'a brooding low orchestral drone', d: 'A' },
+    glassSynthPad:   { t: 'a glassy digital synth pad', d: 'E' },
+    mellotronStrings:{ t: 'a Mellotron string-and-choir pad', d: 'B' },
+    brassSwell:      { t: 'a low orchestral brass swell', d: 'A' },
+    analogueSwell:   { t: 'a warm analogue polysynth swell', d: 'E' },
+    cinematicDrone:  { t: 'a cinematic sub-orchestral drone bed', d: 'B' },
+    shimmerPad:      { t: 'a shimmering high-string tremolo pad', d: 'A' },
+    fmCrystalPad:    { t: 'a glassy FM crystalline pad', d: 'E' },
+    hybridOrchSynth: { t: 'a hybrid orchestra-and-synth wash', d: 'B' },
+    airVocalPad:     { t: 'an airy layered vocal-synth pad', d: 'E' },
+  },
+  bass: {
+    orchestralCello: { t: 'a deep orchestral cello-and-contrabass foundation', d: 'A' },
+    synthSubBass:    { t: 'a deep sustained synth sub-bass', d: 'E' },
+    electricBass:    { t: 'a driving electric bass', d: 'B' },
+    seqBass:         { t: 'a sequenced synth bass pulsing eighth notes', d: 'E' },
+    pizzBass:        { t: 'a pizzicato double-bass', d: 'A' },
+    warmSine:        { t: 'a warm sine sub with a soft attack', d: 'E' },
+    rockBass:        { t: 'a distorted rock bass locked to the kick', d: 'B' },
+    filterBass:      { t: 'a warm filtered analog bassline', d: 'E' },
+    organPedal:      { t: 'a low organ pedal tone', d: 'A' },
+    oudLow:          { t: 'a low oud register', d: 'A' },
+  },
+  lead: {
+    soaringViolin:   { t: 'a soaring solo violin lead', d: 'A' },
+    celloLead:       { t: 'a long-phrased solo cello lead', d: 'A' },
+    electricGuitar:  { t: 'a soaring electric guitar lead', d: 'B' },
+    pianoFigure:     { t: 'a dramatic grand-piano figure', d: 'A' },
+    oboeLead:        { t: 'a plaintive oboe melody', d: 'A' },
+    synthLead:       { t: 'a bright analog synth lead', d: 'E' },
+    panFlute:        { t: 'a breathy pan-flute melody', d: 'A' },
+    duduk:           { t: 'a mournful duduk lead', d: 'A' },
+    distortedRiff:   { t: 'a driving distorted-guitar riff', d: 'B' },
+    fmBellLead:      { t: 'a glassy FM bell lead', d: 'E' },
+    harpFigure:      { t: 'a cascading harp figure', d: 'A' },
+    brassFanfare:    { t: 'a heroic brass fanfare line', d: 'A' },
+    neyLead:         { t: 'a reedy ney flute lead', d: 'A' },
+    stringOstinato:  { t: 'a driving string ostinato line', d: 'A' },
+  },
+  harmony: {
+    minorCinematic: { t: 'dark minor-key cinematic chord changes', d: 'B' },
+    carminaProg:    { t: 'a Carmina-Burana-style ostinato progression', d: 'A' },
+    suspendedLift:  { t: 'suspended chords resolving on the chorus lift', d: 'B' },
+    majorAnthem:    { t: 'a triumphant major-key anthem progression', d: 'B' },
+    modalGregorian: { t: 'a modal Gregorian chord movement', d: 'B' },
+    risingProg:     { t: 'a rising chord progression that resolves upward', d: 'B' },
+    minorToMajor:   { t: 'a minor-to-relative-major resolution on the chorus', d: 'B' },
+    plagalCadence:  { t: 'a plagal cadence resolving to the tonic', d: 'B' },
+    phrygianCadence:{ t: 'a dark phrygian cadence', d: 'B' },
+    sacredCadence:  { t: 'a sacred choral cadence resolving on the final chord', d: 'B' },
+    pedalTonic:     { t: 'a sustained tonic pedal under shifting harmony', d: 'B' },
+  },
+  voice: {
+    pseudoLatinChoir:{ t: 'a dramatic mixed choir chanting in a pseudo-Latin language', d: 'A' },
+    gregorianMale:   { t: 'Gregorian-style male chant', d: 'A' },
+    soaringFemale:   { t: 'a soaring operatic female lead vocal', d: 'A' },
+    layeredChoirSATB:{ t: 'a full layered SATB choir', d: 'A' },
+    solemnLatin:     { t: 'solemn liturgical Latin chant', d: 'A' },
+    femaleAria:      { t: 'an ethereal female aria in an invented sacred language', d: 'A' },
+    maleChoirLow:    { t: 'a deep male-choir drone', d: 'A' },
+    boysChoir:       { t: "a distant boys' choir", d: 'A' },
+    callResponse:    { t: 'a call-and-response choir exchange', d: 'A' },
+    multitracked:    { t: 'a massive multi-tracked chant chorus', d: 'A' },
+    arabicFemale:    { t: 'a Middle-Eastern female vocal melisma', d: 'A' },
+    breathyFemale:   { t: 'a breathy close female vocal texture', d: 'A' },
+    wordlessSoprano: { t: 'a wordless soprano melisma', d: 'A' },
+    chantStabs:      { t: 'chant-fragment vocal stabs', d: 'A' },
+  },
+  color: {
+    timpaniRoll:  { t: 'a timpani roll swelling into the phrase', d: 'A' },
+    tubularBells: { t: 'tubular bells tolling', d: 'A' },
+    harpGliss:    { t: 'a harp glissando', d: 'A' },
+    glocken:      { t: 'a glockenspiel sparkle', d: 'B' },
+    orchHit:      { t: 'an orchestral stab hit', d: 'A' },
+    choirStab:    { t: 'a staccato choir stab', d: 'A' },
+    cymbalSwell:  { t: 'a cymbal-swell transition', d: 'A' },
+    pizzStrings:  { t: 'a pizzicato string accent', d: 'A' },
+    oudRun:       { t: 'an oud ornament run', d: 'A' },
+    windChimes:   { t: 'a wind-chime shimmer', d: 'A' },
+    brassStab:    { t: 'a brass stab accent', d: 'A' },
+    reversedStab: { t: 'a reversed synth-stab accent', d: 'E' },
+    bellArp:      { t: 'a bell-synth arpeggio sparkle', d: 'E' },
+    sitarAccent:  { t: 'a sitar ornament', d: 'A' },
+  },
+  movement: {
+    orchestralSwell:{ t: 'sweeping orchestral crescendos', d: 'A' },
+    delayThrows:    { t: 'tempo-synced delay throws', d: 'E' },
+    cinematicRiser: { t: 'a cinematic riser into the drop', d: 'B' },
+    reverbTail:     { t: 'a long cathedral reverb tail', d: 'E' },
+    filterLFO:      { t: 'a slow filter LFO sweep', d: 'E' },
+    guitarSustain:  { t: 'a sustained wall of electric guitar', d: 'B' },
+    autopan:        { t: 'a wide stereo autopan', d: 'E' },
+    reversedTr:     { t: 'reversed-swell transitions', d: 'E' },
+    stringRiser:    { t: 'a rising string glissando into the chorus', d: 'A' },
+    tapeEcho:       { t: 'analog tape-echo repeats', d: 'E' },
+    risers:         { t: 'filtered-noise risers into the lift', d: 'E' },
+    panSweep:       { t: 'a slow stereo pan sweep', d: 'E' },
+  },
+};
+
+const DRUMS = {
+  softDown:  ['a soft downtempo electronic beat','a mid-tempo programmed groove','a trip-hop-leaning downtempo beat','a subdued measured downtempo beat'],
+  cinematic: ['a syncopated cinematic beat with orchestral percussion','a driving programmed beat under rolling timpani','a big cinematic drum groove with taiko hits'],
+  driving:   ['a driving rock-electronic beat','a propulsive programmed pulse with live drums','a punchy rock groove with a programmed kick'],
+  hybrid:    ['a programmed beat laced with orchestral percussion','a downtempo beat under a live drum kit'],
+};
+
+const r = (role, ...keys) => keys.map(k => P[role][k]);
+
+const CHARACTERS = {
+  cathedralOverture: {
+    label: 'Cathedral Overture', source: 'Classics / orchestral',
+    genre: 'Era Style, orchestral choral cinematic',
+    beatless: true, energy: 'low', colorChance: 0.5,
+    drums: { primary: null, secondary: null },
+    pools: {
+      pads:     r('pads','stringOrchestra','pipeOrgan','darkOrchPad','choirPadWordless','mellotronStrings','shimmerPad'),
+      bass:     r('bass','orchestralCello','pizzBass','organPedal','synthSubBass'),
+      harmony:  r('harmony','modalGregorian','minorCinematic','sacredCadence','pedalTonic','plagalCadence'),
+      voice:    r('voice','layeredChoirSATB','wordlessSoprano','gregorianMale','maleChoirLow','boysChoir','femaleAria'),
+      lead:     r('lead','soaringViolin','celloLead','oboeLead','harpFigure','brassFanfare'),
+      color:    r('color','timpaniRoll','tubularBells','harpGliss','cymbalSwell','pizzStrings'),
+      movement: r('movement','orchestralSwell','reverbTail','reversedTr','stringRiser'),
+    },
+  },
+  neoGregorianAnthem: {
+    label: 'Neo-Gregorian Anthem', source: 'Era (Ameno / Mother)',
+    genre: 'Era Style, neo-Gregorian downtempo anthem',
+    beatless: false, bpm: [88,98], energy: 'medium', colorChance: 0.5,
+    drums: { primary: 'softDown', secondary: 'hybrid' },
+    pools: {
+      pads:     r('pads','stringOrchestra','synthPadLush','choirPadWordless','mellotronStrings','hybridOrchSynth','analogueSwell'),
+      bass:     r('bass','synthSubBass','orchestralCello','electricBass','warmSine','filterBass'),
+      harmony:  r('harmony','minorCinematic','suspendedLift','modalGregorian','minorToMajor','sacredCadence','majorAnthem'),
+      voice:    r('voice','pseudoLatinChoir','soaringFemale','gregorianMale','layeredChoirSATB','femaleAria','callResponse','multitracked'),
+      lead:     r('lead','soaringViolin','pianoFigure','synthLead','electricGuitar','panFlute','oboeLead','harpFigure'),
+      color:    r('color','timpaniRoll','glocken','harpGliss','choirStab','orchHit','bellArp'),
+      movement: r('movement','delayThrows','orchestralSwell','reverbTail','stringRiser','tapeEcho'),
+    },
+  },
+  etherealBallad: {
+    label: 'Ethereal Ballad', source: 'Era 2 (Don\u2019t Go Away)',
+    genre: 'Era Style, ethereal orchestral ballad',
+    beatless: false, bpm: [72,84], energy: 'low to medium', colorChance: 0.4,
+    drums: { primary: 'softDown', secondary: 'hybrid' },
+    pools: {
+      pads:     r('pads','synthPadLush','stringOrchestra','glassSynthPad','shimmerPad','airVocalPad','mellotronStrings'),
+      bass:     r('bass','orchestralCello','synthSubBass','pizzBass','warmSine','filterBass'),
+      harmony:  r('harmony','suspendedLift','minorToMajor','majorAnthem','risingProg','plagalCadence','pedalTonic'),
+      voice:    r('voice','soaringFemale','breathyFemale','femaleAria','wordlessSoprano','layeredChoirSATB','boysChoir'),
+      lead:     r('lead','pianoFigure','soaringViolin','celloLead','oboeLead','panFlute','harpFigure','synthLead'),
+      color:    r('color','harpGliss','glocken','tubularBells','windChimes','pizzStrings'),
+      movement: r('movement','delayThrows','reverbTail','autopan','stringRiser','panSweep','tapeEcho'),
+    },
+  },
+  cinematicMass: {
+    label: 'Cinematic Mass', source: 'The Mass',
+    genre: 'Era Style, epic choral cinematic',
+    beatless: false, bpm: [100,112], energy: 'medium to high', colorChance: 0.55,
+    drums: { primary: 'cinematic', secondary: 'driving' },
+    pools: {
+      pads:     r('pads','stringOrchestra','pipeOrgan','choirPadWordless','brassSwell','cinematicDrone','hybridOrchSynth'),
+      bass:     r('bass','orchestralCello','electricBass','rockBass','synthSubBass','organPedal'),
+      harmony:  r('harmony','carminaProg','minorCinematic','phrygianCadence','risingProg','sacredCadence','majorAnthem'),
+      voice:    r('voice','multitracked','pseudoLatinChoir','layeredChoirSATB','maleChoirLow','callResponse','chantStabs','soaringFemale'),
+      lead:     r('lead','electricGuitar','distortedRiff','brassFanfare','stringOstinato','soaringViolin','synthLead'),
+      color:    r('color','timpaniRoll','orchHit','choirStab','brassStab','cymbalSwell','tubularBells'),
+      movement: r('movement','orchestralSwell','cinematicRiser','guitarSustain','stringRiser','risers','reversedTr'),
+    },
+  },
+  drivingEpic: {
+    label: 'Driving Epic', source: 'The Mass / Reborn',
+    genre: 'Era Style, driving rock-electronic epic',
+    beatless: false, bpm: [116,128], energy: 'high', colorChance: 0.45,
+    drums: { primary: 'driving', secondary: 'cinematic' },
+    pools: {
+      pads:     r('pads','glassSynthPad','synthPadLush','cinematicDrone','hybridOrchSynth','fmCrystalPad','airVocalPad'),
+      bass:     r('bass','seqBass','rockBass','synthSubBass','electricBass','filterBass'),
+      harmony:  r('harmony','minorCinematic','carminaProg','risingProg','majorAnthem','minorToMajor','phrygianCadence'),
+      voice:    r('voice','multitracked','chantStabs','pseudoLatinChoir','arabicFemale','callResponse','soaringFemale'),
+      lead:     r('lead','distortedRiff','electricGuitar','synthLead','stringOstinato','fmBellLead','neyLead'),
+      color:    r('color','orchHit','choirStab','brassStab','reversedStab','oudRun','sitarAccent','bellArp'),
+      movement: r('movement','cinematicRiser','guitarSustain','risers','delayThrows','filterLFO','panSweep','autopan'),
+    },
+  },
+};
+
+const INTERPLAY = {
+  cathedralOverture: {
+    conversation: ['answering the choir from across the orchestra','stating the theme alone then swallowed by the ensemble',
+                   'trading long phrases with the strings in call-and-response'],
+    foundation:   ['grounding the harmony with a slow pedal beneath the swells','anchoring in slow motion while the upper voices soar',
+                   'holding a single harmonic centre with everything rising above'],
+    arc:          ['building from a lone voice to full orchestral grandeur','swelling toward a towering climax then falling to silence',
+                   'resolving at last into a sustained sacred final chord','landing the overture on a resolved tonic cadence'],
+    voiceRel:     ['soaring over the orchestra','chanting from the depth of the reverb','answering the theme in layered harmony'],
+    colorRel:     ['tolling once into the vast space','swelling under the climax','marking the turn of the phrase'],
+  },
+  neoGregorianAnthem: {
+    conversation: ['trading the melody with the choir over the groove','stating the hook while the chant breathes beneath',
+                   'answered by soaring vocal lines on the lift'],
+    foundation:   ['locked with the beat in a steady hypnotic pocket','rolling forward beneath the choir grounding the anthem',
+                   'holding steady while the low end drives the groove'],
+    arc:          ['building through layered chant toward a soaring chorus','stacking voices to an anthemic peak then easing back',
+                   'lifting into a triumphant resolved chorus','resolving the anthem onto a bright final cadence'],
+    voiceRel:     ['soaring over the groove','chanting beneath the lead','rising in call-and-response with the melody'],
+    colorRel:     ['punctuating the downbeats','sparkling over the chant','answering the chorus hits'],
+  },
+  etherealBallad: {
+    conversation: ['weaving in intimate dialogue over the pads','floating free above the harmony answered by strings',
+                   'trading tender phrases with a second voice'],
+    foundation:   ['moving slow and unhurried beneath the vocal','gliding under the arrangement tied to the gentle pulse',
+                   'anchoring softly while the low end breathes'],
+    arc:          ['opening one voice at a time with air around each','swelling to an emotional lift then settling back to stillness',
+                   'building tenderly toward a resolved final chord','easing into a warm resolving cadence as it closes'],
+    voiceRel:     ['carrying the melody with aching clarity','answering the lead in soft harmony','entering with air around it'],
+    colorRel:     ['shimmering between the phrases','tracing the top of the harmony','glinting in the quiet spaces'],
+  },
+  cinematicMass: {
+    conversation: ['answered by the guitar over the pounding choir','trading heroic phrases with the full ensemble',
+                   'locking with the string ostinato in driving unison'],
+    foundation:   ['pounding in lockstep with the cinematic beat','driving relentless beneath the massed choir',
+                   'anchoring the ritual as the low end thunders'],
+    arc:          ['building from ritual chant to a thunderous climax','stacking choir and orchestra to an overwhelming peak',
+                   'released from the build into a triumphant resolved chorus','resolving the mass onto a towering final chord'],
+    voiceRel:     ['thundering over the orchestra','chanting massed beneath the guitar','trading the foreground with the lead'],
+    colorRel:     ['hammering the accents','crashing under the climax','punctuating the ritual build'],
+  },
+  drivingEpic: {
+    conversation: ['interlocking with the guitar in a driving weave','answered by chant stabs over the pulse',
+                   'trading with its own delayed repeats in call-and-response'],
+    foundation:   ['locked tight and propulsive under the layers','chugging relentless beneath the climbing synths',
+                   'anchoring as a driving low pulse while the epic builds'],
+    arc:          ['building through stacked layers toward an open peak','opening over the drive into a full-energy lift',
+                   'released from the climb into a soaring resolved chorus','resolving the drive onto a bright final chord'],
+    voiceRel:     ['riding high over the drive','stabbing rhythmically against the pulse','climbing over the groove'],
+    colorRel:     ['sparking over the groove','accenting the lift','flickering between the beats'],
+  },
+};
+
+const ERA = {
+  id: 'Era',
+  styleAnchor: 'Era Style',
+  master: P,
+  drums: DRUMS,
+  characters: CHARACTERS,
+  interplay: INTERPLAY,
+  sourceNegative: [
+    'radio pop','cheesy pop hooks','rap verse','trap hi-hats','EDM festival drop',
+    'supersaw stacks','chiptune','autotuned vocals','lo-fi',
+  ],
+  order: ['pads','harmony','bass','drums','voice','lead','color','movement'],
+};
+
+Object.assign(window.__ATMOS, { ERA });
+})();
+
 /* legacy/data-style-engines.js */
 (function(){
 const MAX_MODE_STR = `[Is_MAX_MODE: MAX](MAX)
@@ -1748,6 +2024,7 @@ Object.assign(window.__ATMOS, { buildLyricsField, buildClusterPrompt, buildClust
 //   'legacy'   — proven cluster/classic path harvested verbatim (Balearic, Enigma)
 //   'stub'     — registered scope, not yet built (Era, Deep Forest)
 const {DELERIUM} = window.__ATMOS;
+const {ERA} = window.__ATMOS;
 const {EngineExtras} = window.__ATMOS;
 const {STYLE_ENGINES} = window.__ATMOS;
 
@@ -1755,7 +2032,7 @@ const ENGINES = [
   { id: 'Balearic',    kind: 'legacy',   label: 'Balearic' },
   { id: 'Enigma',      kind: 'legacy',   label: 'Enigma' },
   { id: 'Delerium',    kind: 'resolver', label: 'Delerium', module: DELERIUM },
-  { id: 'Era',         kind: 'stub',     label: 'Era' },
+  { id: 'Era',         kind: 'resolver', label: 'Era', module: ERA },
   { id: 'Deep Forest', kind: 'stub',     label: 'Deep Forest' },
 ];
 

@@ -13,6 +13,7 @@ const files = [
   'core/constants.js',
   'core/resolver.js',
   'engines/delerium.js',
+  'engines/era.js',
   'legacy/data-style-engines.js',
   'legacy/engine-extras.js',
   'legacy/prompt-style-builder.js',
