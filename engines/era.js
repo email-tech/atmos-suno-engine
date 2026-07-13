@@ -37,6 +37,8 @@ const P = {
     filterBass:      { t: 'a warm filtered analog bassline', d: 'E' },
     organPedal:      { t: 'a low organ pedal tone', d: 'A' },
     oudLow:          { t: 'a low oud register', d: 'A' },
+    pulseCello:      { t: 'a staccato cello-and-contrabass ostinato', d: 'A' },
+    driveSub:        { t: 'a hard-edged driving synth bass', d: 'E' },
   },
   lead: {
     soaringViolin:   { t: 'a soaring solo violin lead', d: 'A' },
@@ -52,7 +54,8 @@ const P = {
     harpFigure:      { t: 'a cascading harp figure', d: 'A' },
     brassFanfare:    { t: 'a heroic brass fanfare line', d: 'A' },
     neyLead:         { t: 'a reedy ney flute lead', d: 'A' },
-    stringOstinato:  { t: 'a driving string ostinato line', d: 'A' },
+    stringOstinato:  { t: 'a driving sixteenth-note string ostinato', d: 'A' },
+    arpSynth:        { t: 'a climbing synth arpeggio lead', d: 'E' },
   },
   harmony: {
     minorCinematic: { t: 'dark minor-key cinematic chord changes', d: 'B' },
@@ -112,6 +115,7 @@ const P = {
     tapeEcho:       { t: 'analog tape-echo repeats', d: 'E' },
     risers:         { t: 'filtered-noise risers into the lift', d: 'E' },
     panSweep:       { t: 'a slow stereo pan sweep', d: 'E' },
+    gatedPulse:     { t: 'a gated rhythmic pulse across the pads', d: 'E' },
   },
 };
 
@@ -120,6 +124,7 @@ const DRUMS = {
   cinematic: ['a syncopated cinematic beat with orchestral percussion','a driving programmed beat under rolling timpani','a big cinematic drum groove with taiko hits'],
   driving:   ['a driving rock-electronic beat','a propulsive programmed pulse with live drums','a punchy rock groove with a programmed kick'],
   hybrid:    ['a programmed beat laced with orchestral percussion','a downtempo beat under a live drum kit'],
+  epicDrive: ['a driving electronic beat under rolling timpani','a propulsive four-on-the-floor electronic pulse with taiko accents','a fast programmed groove with darbuka and tribal frame drums','a punchy programmed kick locked to orchestral percussion'],
 };
 
 const r = (role, ...keys) => keys.map(k => P[role][k]);
@@ -187,17 +192,22 @@ const CHARACTERS = {
   },
   drivingEpic: {
     label: 'Driving Epic', source: 'The Mass / Reborn',
-    genre: 'Era Style, driving rock-electronic epic',
+    genre: 'Era Style, driving orchestral-electronic epic',
     beatless: false, bpm: [116,128], energy: 'high', colorChance: 0.45,
-    drums: { primary: 'driving', secondary: 'cinematic' },
+    drums: { primary: 'epicDrive', secondary: 'cinematic' },
+    // NO rock/guitar sources: propulsion comes from the sixteenth-note string ostinato,
+    // sequenced synth pulse and tribal/orchestral percussion (Reborn's Arabic-electronic edge).
+    negative: ['rock','heavy metal','symphonic metal','death metal','metal guitar',
+               'distorted electric guitar','power chords','double-kick blast beats',
+               'screamed vocals','growled vocals','guitar solo'],
     pools: {
       pads:     r('pads','glassSynthPad','synthPadLush','cinematicDrone','hybridOrchSynth','fmCrystalPad','airVocalPad'),
-      bass:     r('bass','seqBass','rockBass','synthSubBass','electricBass','filterBass'),
+      bass:     r('bass','seqBass','driveSub','synthSubBass','filterBass','pulseCello','oudLow'),
       harmony:  r('harmony','minorCinematic','carminaProg','risingProg','majorAnthem','minorToMajor','phrygianCadence'),
       voice:    r('voice','multitracked','chantStabs','pseudoLatinChoir','arabicFemale','callResponse','soaringFemale'),
-      lead:     r('lead','distortedRiff','electricGuitar','synthLead','stringOstinato','fmBellLead','neyLead'),
+      lead:     r('lead','stringOstinato','arpSynth','synthLead','fmBellLead','neyLead','brassFanfare','soaringViolin'),
       color:    r('color','orchHit','choirStab','brassStab','reversedStab','oudRun','sitarAccent','bellArp'),
-      movement: r('movement','cinematicRiser','guitarSustain','risers','delayThrows','filterLFO','panSweep','autopan'),
+      movement: r('movement','cinematicRiser','gatedPulse','risers','delayThrows','filterLFO','panSweep','stringRiser'),
     },
   },
 };
@@ -244,10 +254,10 @@ const INTERPLAY = {
     colorRel:     ['hammering the accents','crashing under the climax','punctuating the ritual build'],
   },
   drivingEpic: {
-    conversation: ['interlocking with the guitar in a driving weave','answered by chant stabs over the pulse',
-                   'trading with its own delayed repeats in call-and-response'],
-    foundation:   ['locked tight and propulsive under the layers','chugging relentless beneath the climbing synths',
-                   'anchoring as a driving low pulse while the epic builds'],
+    conversation: ['interlocking with the string ostinato in a driving weave','answered by chant stabs over the pulse',
+                   'trading with its own delayed repeats in call-and-response','climbing over the sequenced pulse as the choir answers'],
+    foundation:   ['locked tight and propulsive under the layers','pulsing relentless beneath the climbing synths',
+                   'anchoring as a driving low pulse while the epic builds','pushing the groove forward beneath the massed voices'],
     arc:          ['building through stacked layers toward an open peak','opening over the drive into a full-energy lift',
                    'released from the climb into a soaring resolved chorus','resolving the drive onto a bright final chord'],
     voiceRel:     ['riding high over the drive','stabbing rhythmically against the pulse','climbing over the groove'],

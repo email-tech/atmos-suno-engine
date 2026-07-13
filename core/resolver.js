@@ -32,6 +32,7 @@ export function resolveArrangement(engine, opts) {
     movement: pick('movement'),
     color: null,
     drums: null,
+    negative: c.negative || null,   // optional per-character bans (e.g. Era Driving Epic: no rock/metal)
   };
 
   // drums (skip when beatless)
@@ -107,6 +108,7 @@ export function renderStyle(engine, arr) {
 
 export function renderNegative(engine, arr) {
   const bans = [...engine.sourceNegative, ...ALWAYS_BAN];
+  if (arr.negative) bans.push(...arr.negative);
   if (arr.beatless) bans.push(...BEATLESS_BAN);
   return [...new Set(bans)].join(', ');
 }
