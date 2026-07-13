@@ -14,6 +14,8 @@ const files = [
   'core/resolver.js',
   'engines/delerium.js',
   'engines/era.js',
+  'engines/deepforest.js',
+  'engines/sacredspirit.js',
   'legacy/data-style-engines.js',
   'legacy/engine-extras.js',
   'legacy/prompt-style-builder.js',

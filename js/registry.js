@@ -1,9 +1,11 @@
 // Engine registry (Option B): two engine KINDS live in one shell.
 //   'resolver' — new engine-agnostic resolver (Delerium; Era/Deep Forest slot in here later)
 //   'legacy'   — proven cluster/classic path harvested verbatim (Balearic, Enigma)
-//   'stub'     — registered scope, not yet built (Era, Deep Forest)
+//   'stub'     — registered scope, not yet built (none remaining: all six engines are live)
 import { DELERIUM } from '../engines/delerium.js';
 import { ERA } from '../engines/era.js';
+import { DEEPFOREST } from '../engines/deepforest.js';
+import { SACREDSPIRIT } from '../engines/sacredspirit.js';
 import { EngineExtras } from '../legacy/engine-extras.js';
 import { STYLE_ENGINES } from '../legacy/data-style-engines.js';
 
@@ -12,7 +14,8 @@ export const ENGINES = [
   { id: 'Enigma',      kind: 'legacy',   label: 'Enigma' },
   { id: 'Delerium',    kind: 'resolver', label: 'Delerium', module: DELERIUM },
   { id: 'Era',         kind: 'resolver', label: 'Era', module: ERA },
-  { id: 'Deep Forest', kind: 'stub',     label: 'Deep Forest' },
+  { id: 'Deep Forest',   kind: 'resolver', label: 'Deep Forest', module: DEEPFOREST },
+  { id: 'Sacred Spirit', kind: 'resolver', label: 'Sacred Spirit', module: SACREDSPIRIT },
 ];
 
 export function getEngine(id) {
