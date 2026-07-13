@@ -66,6 +66,7 @@ function resolveArrangement(engine, opts) {
     color: null,
     drums: null,
     negative: c.negative || null,   // optional per-character bans (e.g. Era Driving Epic: no rock/metal)
+    tempoLock: c.tempoLock || null, // optional tempo-stability directive (stops Suno double-timing)
   };
 
   // drums (skip when beatless)
@@ -104,6 +105,7 @@ function renderStyle(engine, arr) {
   clauses.push(arr.beatless
     ? `beatless, ${arr.energy} energy`
     : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`);
+  if (arr.tempoLock) clauses.push(arr.tempoLock);
 
   // foundation: drums(+)bass + how they lock/float
   if (arr.bass) {
@@ -887,9 +889,10 @@ const P = {
 const DRUMS = {
   downtempo:  ['a soft downtempo breakbeat','a laid-back trip-hop groove with hand percussion','a mellow programmed beat with shakers and congas','a slow half-time groove under a djembe'],
   worldbeat:  ['a mid-tempo programmed beat with djembe and talking drum','a syncopated worldbeat groove with hand percussion','a breakbeat laced with tribal percussion'],
-  balkanbeat: ['a driving breakbeat with tabla and frame drum','a mid-tempo programmed groove with tambourine and hand percussion','a folk-inflected breakbeat with dumbek'],
+  balkanbeat: ['a steady mid-tempo programmed groove with tabla and frame drum','a mid-tempo programmed groove with tambourine and hand percussion','an even mid-tempo groove with dumbek and light hand percussion'],
   carnival:   ['a rolling conga-and-timbale carnival groove','an Afro-Cuban percussion groove with congas and guiro','a live-feel Latin percussion groove with bongos and shakers'],
   tribalHouse:['a four-on-the-floor house beat with tribal percussion','a driving house groove with djembe and shakers','a punchy club beat with layered hand percussion'],
+  tribalOrganic:['a rolling djembe-and-talking-drum groove','a layered hand-percussion groove with shakers and log drum','an organic tribal drum groove with congas and frame drum','a loping djembe groove with woven hand percussion'],
 };
 
 const r = (role, ...keys) => keys.map(k => P[role][k]);
@@ -901,12 +904,12 @@ const CHARACTERS = {
     beatless: true, energy: 'low', colorChance: 0.5,
     drums: { primary: null, secondary: null },
     pools: {
-      pads:     r('pads','forestDrone','warmAnalogPad','fluteBed','choirPad','glassPad','bellPad'),
+      pads:     r('pads','forestDrone','warmAnalogPad','synthStringPad','choirPad','glassPad','bellPad'),
       bass:     r('bass','pedalDrone','subBass','celloLow','fretlessBass'),
       harmony:  r('harmony','droneTonic','pentatonic','modalMinor','aeolianClose','plagalHome'),
       voice:    r('voice','loneLullaby','wordlessChoir','pygmyHocket','breathyFemale','maleTribalCall'),
       lead:     r('lead','kalimba','woodenFlute','panpipes','ocarinaLead','marimbaLead'),
-      color:    r('color','thumbPiano','bellChime','harpGliss','fluteFlourish','gongSwell'),
+      color:    r('color','thumbPiano','bellChime','harpGliss','marimbaAccent','gongSwell'),
       movement: r('movement','reverbTail','delayThrows','pitchGlide','autopan','stringSwell'),
     },
   },
@@ -919,9 +922,9 @@ const CHARACTERS = {
       pads:     r('pads','warmAnalogPad','synthStringPad','marimbaBed','choirPad','rhodesBed','bellPad'),
       bass:     r('bass','dubBass','subBass','fretlessBass','balafonBass','pluckedBass'),
       harmony:  r('harmony','suspendedLoop','pentatonic','minorToMajor','majorLift','droneTonic'),
-      voice:    r('voice','loneLullaby','pygmyHocket','chantHook','breathyFemale','forestYodel','wordlessChoir'),
-      lead:     r('lead','kalimba','panpipes','woodenFlute','marimbaLead','rhodesFigure','synthLead'),
-      color:    r('color','thumbPiano','bellChime','fluteFlourish','marimbaAccent','bellArp'),
+      voice:    r('voice','loneLullaby','breathyFemale','pygmyHocket','chantHook','wordlessChoir'),
+      lead:     r('lead','kalimba','panpipes','rhodesFigure','synthLead','marimbaLead'),
+      color:    r('color','thumbPiano','bellChime','harpGliss','marimbaAccent','bellArp'),
       movement: r('movement','dubDelay','delayThrows','reverbTail','autopan','tapeEcho','pitchGlide'),
     },
   },
@@ -929,15 +932,20 @@ const CHARACTERS = {
     label: 'Bohemian Fusion', source: 'Boheme (Marta\u2019s Song / Freedom Cry)',
     genre: 'Deep Forest Style, Eastern European folk-electronica',
     beatless: false, bpm: [100,110], energy: 'medium', colorChance: 0.55,
+    // TEMPO GUARD: fast Balkan folk playing over a breakbeat made Suno double-time into
+    // jungle/DnB mid-song. Breakbeat removed from the drum family; tempo pinned here.
+    tempoLock: 'one steady constant tempo held from start to finish',
+    negative: ['drum and bass','jungle','breakcore','breakbeat','double-time','half-time switch',
+               'tempo change','speeding up','accelerando','gabber','hardcore rave'],
     drums: { primary: 'balkanbeat', secondary: 'worldbeat' },
     pools: {
-      pads:     r('pads','accordionDrone','stringSection','synthStringPad','hybridWash','choirPad','fluteBed'),
+      pads:     r('pads','accordionDrone','stringSection','synthStringPad','hybridWash','choirPad','rhodesBed'),
       bass:     r('bass','uprightBass','subBass','celloLow','fretlessBass','seqBass'),
       harmony:  r('harmony','romaniMinor','modalMinor','minorToMajor','risingProg','aeolianClose'),
       voice:    r('voice','hungarianFolk','bulgarianHarm','romaniLament','wordlessChoir','breathyFemale','chantHook'),
       lead:     r('lead','cimbalom','folkViolin','accordionLead','balkanClarinet','gypsyGuitar'),
       color:    r('color','cimbalomRun','harpGliss','bellChime','synthStab','fluteFlourish'),
-      movement: r('movement','delayThrows','stringSwell','tapeEcho','breakdown','filterSweep','reverbTail'),
+      movement: r('movement','delayThrows','stringSwell','tapeEcho','autopan','filterSweep','reverbTail'),
     },
   },
   comparsaCarnival: {
@@ -953,6 +961,25 @@ const CHARACTERS = {
       lead:     r('lead','steelPan','nylonGuitar','latinBrass','marimbaLead','rhodesFigure','balafon'),
       color:    r('color','steelPanAccent','brassStab','marimbaAccent','bellChime','harpGliss'),
       movement: r('movement','delayThrows','breakdown','tapeEcho','autopan','stringSwell','filterSweep'),
+    },
+  },
+  tribalWorldbeat: {
+    label: 'Tribal Worldbeat', source: 'Deep Forest / Savana Dance, Hunting (album versions)',
+    genre: 'Deep Forest Style, organic tribal worldbeat',
+    beatless: false, bpm: [104,116], energy: 'medium to high', colorChance: 0.5,
+    // The tribal character WITHOUT the club mix: organic percussion only, no house kit,
+    // no four-on-the-floor, no dance-floor production.
+    negative: ['house music','four-on-the-floor club beat','club remix','EDM drop',
+               'techno','trance','dance remix','sidechain pumping'],
+    drums: { primary: 'tribalOrganic', secondary: 'worldbeat' },
+    pools: {
+      pads:     r('pads','forestDrone','warmAnalogPad','choirPad','synthStringPad','hybridWash','bellPad'),
+      bass:     r('bass','balafonBass','fretlessBass','subBass','pluckedBass','pedalDrone'),
+      harmony:  r('harmony','pentatonic','modalMinor','suspendedLoop','droneTonic','risingProg'),
+      voice:    r('voice','pygmyHocket','maleTribalCall','forestYodel','ululation','chantHook'),
+      lead:     r('lead','balafon','kalimba','woodenFlute','marimbaLead','ocarinaLead','panpipes'),
+      color:    r('color','thumbPiano','bellChime','gongSwell','marimbaAccent','harpGliss'),
+      movement: r('movement','dubDelay','delayThrows','tapeEcho','filterSweep','reverbTail','breakdown'),
     },
   },
   tribalDance: {
@@ -1000,8 +1027,8 @@ const INTERPLAY = {
     foundation:   ['walking steadily beneath the breakbeat','driving the groove forward under the folk melody',
                    'holding the low centre while the ornaments fly above'],
     arc:          ['building from a solo voice to a full folk-electronic weave','lifting through each verse toward a soaring chorus',
-                   'released from the break into a resolved final chorus','resolving the lament onto a settled tonic'],
-    voiceRel:     ['carrying the melody with raw folk edge','soaring over the breakbeat','answering the lead in open harmony'],
+                   'opening out into a resolved final chorus','resolving the lament onto a settled tonic'],
+    voiceRel:     ['carrying the melody with raw folk edge','soaring over the steady groove','answering the lead in open harmony'],
     colorRel:     ['flashing across the top of the groove','ornamenting the turnaround','punctuating the phrase ends'],
   },
   comparsaCarnival: {
@@ -1013,6 +1040,16 @@ const INTERPLAY = {
                    'released into a bright resolved final chorus','landing the carnival on a resolved major chord'],
     voiceRel:     ['calling out over the percussion','answered by the crowd on the refrain','trading the foreground with the lead'],
     colorRel:     ['flashing over the groove','punctuating the downbeats','answering the brass hits'],
+  },
+  tribalWorldbeat: {
+    conversation: ['interlocking with the hand percussion in a rolling weave','answered by the chant across the groove',
+                   'trading phrases with the drums in call-and-response','riding the djembe as the chant answers'],
+    foundation:   ['locking with the drums in a deep organic pocket','rolling forward beneath the massed chant',
+                   'anchoring the groove while the percussion breathes above'],
+    arc:          ['building from one drum to a full tribal weave','layering voices and percussion toward an open peak',
+                   'released from the break into a resolved final chorus','landing the procession on a resolved tonic'],
+    voiceRel:     ['calling out over the drums','interlocking with the percussion','answered by the group in call-and-response'],
+    colorRel:     ['ringing across the groove','marking the turn of the phrase','answering the drums'],
   },
   tribalDance: {
     conversation: ['interlocking with the chant stabs in a driving weave','answered by its own delayed repeats',
@@ -1196,7 +1233,7 @@ const CHARACTERS = {
     beatless: true, energy: 'low', colorChance: 0.5,
     drums: { primary: null, secondary: null },
     pools: {
-      pads:     r('pads','lowDrone','celloBed','fluteBed','choirPad','warmPad','shimmerPad'),
+      pads:     r('pads','lowDrone','celloBed','choirPad','warmPad','shimmerPad','openAirWash'),
       bass:     r('bass','pedalDrone','celloBass','subBass','fretlessBass'),
       harmony:  r('harmony','droneTonic','pentatonic','aeolianClose','plagalHome','pedalHarmony'),
       voice:    r('voice','elderChant','lowVocalDrone','vocables','wordlessFemale','layeredChant'),
@@ -1216,7 +1253,7 @@ const CHARACTERS = {
       harmony:  r('harmony','modalMinor','aeolianClose','minorToMajor','pedalHarmony','plagalHome'),
       voice:    r('voice','elderChant','groupChant','vocables','lowVocalDrone','callResponse','wordlessFemale'),
       lead:     r('lead','soloCello','cedarFlute','soloViolin','pianoFigure','lowDroneFlute'),
-      color:    r('color','celloSwell','bellChime','pizzStrings','fluteFlourish','gongSwell'),
+      color:    r('color','celloSwell','bellChime','pizzStrings','harpGliss','gongSwell'),
       movement: r('movement','stringSwell','reverbTail','delayThrows','tapeEcho','autopan'),
     },
   },
@@ -1231,7 +1268,7 @@ const CHARACTERS = {
       harmony:  r('harmony','suspendedLoop','pentatonic','majorLift','minorToMajor','droneTonic'),
       voice:    r('voice','chantHook','elderChant','vocables','layeredChant','breathyFemale','callResponse'),
       lead:     r('lead','cedarFlute','nylonGuitar','rhodesFigure','soloCello','synthLead','ocarinaLead'),
-      color:    r('color','fluteFlourish','bellChime','harpGliss','bellArp','celloSwell'),
+      color:    r('color','bellChime','harpGliss','bellArp','celloSwell','windChimes'),
       movement: r('movement','dubDelay','delayThrows','reverbTail','tapeEcho','autopan','filterSweep'),
     },
   },
@@ -1246,7 +1283,7 @@ const CHARACTERS = {
       harmony:  r('harmony','modalMinor','risingProg','suspendedLoop','minorToMajor','majorLift'),
       voice:    r('voice','layeredChant','chantHook','yoikVocal','highCry','vocables','chantStabs'),
       lead:     r('lead','synthArp','synthLead','fmBellLead','cedarFlute','rhodesFigure','soloViolin'),
-      color:    r('color','bellArp','synthStab','reversedStab','windChimes','fluteFlourish'),
+      color:    r('color','bellArp','synthStab','reversedStab','windChimes','pizzStrings'),
       movement: r('movement','filterSweep','delayThrows','risers','autopan','breakdown','pitchGlide'),
     },
   },
@@ -1292,7 +1329,7 @@ const INTERPLAY = {
   chantGroove: {
     conversation: ['weaving around the chant loop without crowding it','answered by the vocal hook every second bar',
                    'trading warm phrases with the pads over the groove','locking with the chant hook in a rolling weave'],
-    foundation:   ['rolling deep and unhurried under the chant','sitting low in the pocket while the flute breathes',
+    foundation:   ['rolling deep and unhurried under the chant','sitting low in the pocket while the melody breathes',
                    'anchoring the groove as the voice floats above'],
     arc:          ['building layer by layer then stripping back to the chant','swelling into a warm lift then easing home',
                    'resolving onto a warm final chord','settling into a resolved closing cadence'],

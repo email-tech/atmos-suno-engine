@@ -33,6 +33,7 @@ export function resolveArrangement(engine, opts) {
     color: null,
     drums: null,
     negative: c.negative || null,   // optional per-character bans (e.g. Era Driving Epic: no rock/metal)
+    tempoLock: c.tempoLock || null, // optional tempo-stability directive (stops Suno double-timing)
   };
 
   // drums (skip when beatless)
@@ -71,6 +72,7 @@ export function renderStyle(engine, arr) {
   clauses.push(arr.beatless
     ? `beatless, ${arr.energy} energy`
     : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`);
+  if (arr.tempoLock) clauses.push(arr.tempoLock);
 
   // foundation: drums(+)bass + how they lock/float
   if (arr.bass) {
