@@ -194,11 +194,11 @@ function renderLegacyControls(root, eng) {
           v => { l.phase = v; refreshOutput(); })));
       root.appendChild(field('Palette',
         segmented(seg3(), l.palette, v => { l.palette = v; l.clusterLocks = {}; l.chord = ''; renderAll(); })));
-      root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
       root.appendChild(chordField(
         legacyClusterRolePool(eng.id, (map[l.preset] || {}).cluster, 'harmony', l.palette),
         l.chord, v => { l.chord = v; refreshOutput(); }));
       clusterLockControl(root, eng.id, (map[l.preset] || {}).cluster, l);
+      root.appendChild(el('p', { class: 'note', text: 'Interaction / arrangement language is always on.' }));
       root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
       root.appendChild(buttons());
       return;

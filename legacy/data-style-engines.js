@@ -74,13 +74,16 @@ export const STYLE_ENGINES = {
     accent: "violet",
     genre: "Enigma Style, ethereal world-electronic downtempo",
     presets: ["Gregorian sacred (MCMXC)", "Ethnic (Cross of Changes)", "Cinematic distorted (Screen)", "Ethereal ambient", "Modern (Voyageur)", "Breakbeat drive"],
+    // Rebased 2026-07-14 to album tempo. The catalogue sits at 78-100 BPM; the
+    // 118-140 BPM versions are club remixes. The upper bands exist for the later
+    // instrumental/orchestral eras (A Posteriori, Seven Lives), not for remixes.
     phases: [
+      "Slow Tempo 78-84 BPM, low energy.",
       "Mid-low Tempo 84-90 BPM, low energy.",
-      "Mid-low Tempo 88-92 BPM, low energy.",
-      "Mid-low Tempo 90-96 BPM, low to medium energy.",
-      "Mid Tempo 98-102 BPM, low to medium energy.",
-      "Mid Tempo 102-108 BPM, low to medium energy.",
-      "Mid Tempo 104-112 BPM, medium energy."
+      "Mid-low Tempo 88-94 BPM, low to medium energy.",
+      "Mid Tempo 92-100 BPM, medium energy.",
+      "Mid Tempo 100-108 BPM, medium energy.",
+      "Mid-high Tempo 108-118 BPM, medium energy."
     ],
     pads: [
       "Dark analogue pads layered with rich ambient textures and slow evolving harmonic beds.",

@@ -1454,13 +1454,16 @@ const STYLE_ENGINES = {
     accent: "violet",
     genre: "Enigma Style, ethereal world-electronic downtempo",
     presets: ["Gregorian sacred (MCMXC)", "Ethnic (Cross of Changes)", "Cinematic distorted (Screen)", "Ethereal ambient", "Modern (Voyageur)", "Breakbeat drive"],
+    // Rebased 2026-07-14 to album tempo. The catalogue sits at 78-100 BPM; the
+    // 118-140 BPM versions are club remixes. The upper bands exist for the later
+    // instrumental/orchestral eras (A Posteriori, Seven Lives), not for remixes.
     phases: [
+      "Slow Tempo 78-84 BPM, low energy.",
       "Mid-low Tempo 84-90 BPM, low energy.",
-      "Mid-low Tempo 88-92 BPM, low energy.",
-      "Mid-low Tempo 90-96 BPM, low to medium energy.",
-      "Mid Tempo 98-102 BPM, low to medium energy.",
-      "Mid Tempo 102-108 BPM, low to medium energy.",
-      "Mid Tempo 104-112 BPM, medium energy."
+      "Mid-low Tempo 88-94 BPM, low to medium energy.",
+      "Mid Tempo 92-100 BPM, medium energy.",
+      "Mid Tempo 100-108 BPM, medium energy.",
+      "Mid-high Tempo 108-118 BPM, medium energy."
     ],
     pads: [
       "Dark analogue pads layered with rich ambient textures and slow evolving harmonic beds.",
@@ -2185,245 +2188,427 @@ const EngineExtras = {
 
   // ---- Stubs: same shape, empty for now. Fleshed out in later sessions. ----
   // The batch generator reads these identically and simply skips empty parts.
-    Enigma: {
-    // presetMap: the human-facing Engine Preset (a recognizable Enigma character/
-    // era) drives the whole sound. Each preset selects a flavour cluster (which
-    // carries the instrumentation + vocal texture + genre anchor) and a default
-    // palette, so instruments are set behind the scenes. Phase controls tempo.
+  Enigma: {
+    // Interaction/arrangement language is mandatory in the style string
+    // (standing project rule) — no longer an optional toggle.
+    interplayAlways: true,
+    // ------------------------------------------------------------------------
+    // Rebuilt 2026-07-14 against the actual catalogue (John: presets were
+    // outputting the wrong music). Every cluster is now anchored to a real
+    // album, with that album's INSTRUMENTATION, GROOVE FAMILY and BEHAVIOUR.
+    //
+    // Catalogue-wide constants (present in every cluster, era-shaded):
+    //   groove  - slow hypnotic swung beat, hip-hop-derived, 78-100 BPM on the
+    //             albums. The 118-140 BPM versions are CLUB REMIXES, not album
+    //             tracks. Never four-on-the-floor.
+    //   bass    - deep sub with a short recurring low-end motif (a riff, not a
+    //             pad): the hook under the hook.
+    //   chant   - sampled chant/choir is a TEXTURAL LAYER (strings slot), never
+    //             the lead. Era decides WHICH chant: Gregorian (MCMXC),
+    //             indigenous/tribal (Cross of Changes), Gregorian + Sanskrit
+    //             (Le Roi), Carmina-style massed Latin chorus (Screen), none
+    //             (Voyageur, A Posteriori).
+    //   hook    - ONE repeating instrumental melodic hook (motif slot), usually
+    //             breathy flute (shakuhachi / panpipe) or a vocal-style synth
+    //             lead. Enigma writes SONGS: verse -> chorus lift, hook returns.
+    //   colour  - the ethnic/acoustic sources are OCCASIONAL colour that fills
+    //             gaps, never the spine.
+    //   space   - deep cathedral reverb, long delay tails, wide slow panning.
+    //
+    // "Enigma Style" is KEPT in the genre anchor (John: Suno does not dismiss
+    // it) and is now followed by the era's real genre traits rather than an
+    // invented sub-genre.
+    // ------------------------------------------------------------------------
     presetMap: {
-      "Gregorian sacred (MCMXC)":     { cluster: "sacred",    palette: "electronic" },
-      "Ethnic (Cross of Changes)":    { cluster: "ethnic",    palette: "blend" },
-      "Cinematic distorted (Screen)": { cluster: "cinematic", palette: "electronic" },
-      "Ethereal ambient":             { cluster: "ambient",   palette: "electronic" },
-      "Modern (Voyageur)":            { cluster: "modern",    palette: "electronic" },
-      "Breakbeat drive":              { cluster: "breakbeat", palette: "electronic" }
+      "Gregorian sacred (MCMXC a.D.)":        { cluster: "sacred",     palette: "electronic" },
+      "Tribal worldbeat (Cross of Changes)":  { cluster: "tribal",     palette: "blend" },
+      "Sanskrit hybrid (Le Roi Est Mort)":    { cluster: "sanskrit",   palette: "electronic" },
+      "Carmina choral (Screen)":              { cluster: "carmina",    palette: "electronic" },
+      "Heavy break (Push the Limits)":        { cluster: "heavybreak", palette: "electronic" },
+      "Modern synth-pop (Voyageur)":          { cluster: "modern",     palette: "electronic" },
+      "Cosmic instrumental (A Posteriori)":   { cluster: "cosmic",     palette: "electronic" },
+      "Symphonic chillout (Seven Lives)":     { cluster: "symphonic",  palette: "blend" },
+      "Beatless ambient interlude":           { cluster: "ambient",    palette: "electronic" }
     },
-    // Corrected against the real catalogue: Enigma writes SONGS, not soundscapes.
-    // Core = hypnotic sensual downtempo beat + deep bass + lush SYNTH pads + a
-    // melodic HOOK (motif slot, always on, instrumental). Chant/choir = signature
-    // textural layer (strings slot). Ethnic instruments (shakuhachi, pan flute,
-    // sitar, ethnic percussion, acoustic guitar) = OCCASIONAL colour that fills
-    // gaps (color slot, fires ~40-55%). Every cluster carries explicit harmonic
-    // direction (harmony slot) so it reads as a song, not a film cue. Six clusters
-    // anchored to the eras: sacred (MCMXC), ethnic (Cross of Changes), cinematic
-    // (Screen Behind the Mirror), melodic ambient, modern (Voyageur), breakbeat.
     bannedInstruments: [],
     moodBundles: {},
     flavourClusters: {
 
+      // ---- MCMXC a.D. (1990) -------------------------------------------------
+      // Gregorian chant samples over a slow Soul II Soul-style shuffle break,
+      // breathy shakuhachi/panpipe hook, deep sub, church bells, low horn call.
       sacred: {
-        label: "Sacred downtempo",
-        genre: "Enigma Style, sacred downtempo electronica",
-        band: "88-96", bpm: 92, beatless: false, colorChance: 0.5,
-        phase: "88-96 BPM, low-medium energy, hypnotic sensual swing", energy: "low-medium energy",
+        label: "Gregorian sacred (MCMXC a.D.)",
+        genre: "Enigma Style, new-age worldbeat downtempo with Gregorian chant",
+        band: "78-90", bpm: 84, beatless: false, colorChance: 0.5,
+        phase: "78-90 BPM, low energy, slow hypnotic swing", energy: "low energy",
         palettes: {
           electronic: {
-            pads: ["Lush dark analogue synth pads with slow evolving harmonic layers","Warm layered synth pads with a deep evolving harmonic bed","Rich analogue pad wash with soft cathedral depth"],
-            harmony: ["built on a clear minor-key progression moving from verse into a lifting chorus","moving through a warm minor progression with a resolving turnaround each cycle","a modal minor chord cycle giving the track a clear verse-chorus shape"],
-            bass: ["Deep sub bass with a slow hypnotic pulse anchoring the groove","Warm analogue bass with a sensual rolling low-end pulse","Deep rounded synth bass with a recurring low-end motif"],
-            rhythm: ["Downtempo electronic beat with a sensual swing and soft programmed kick and snare","Slow programmed groove with a swung kick soft snare and light shaker","Hypnotic downtempo beat with a laid-back club swing and brushed electronic percussion"],
-            strings: ["Layered choir wash and Gregorian-style chant texture drifting through the harmony","Soft sampled choir pad with a sacred chant texture underneath","Warm string bed blended with a distant chant layer"],
-            motif: ["A clear synth lead carrying the main melodic hook with gentle repetition","A warm synth motif stating the theme and returning through the track","A melodic synth line delivering a defined vocal-style hook"],
-            color: ["an occasional breathy shakuhachi phrase answering in the gaps","a brief bell and chime accent drifting through the space","a short chant fragment surfacing between phrases","an occasional bamboo flute phrase filling a gap in the arrangement"],
-            movement: ["Deep cathedral reverb with long delay trails and subtle stereo movement","Wide stereo field with tempo-synced delay and evolving modulation","Warm spatial reverb with slow filter movement across the pads"]
+            pads: ["Lush dark analogue synth pads with slow evolving harmonic layers","Warm analogue pad wash with deep cathedral space","Rich layered synth pads with a soft harmonic bed"],
+            harmony: ["a hypnotic minor-key vamp opening into a lifting chorus","a modal minor cycle moving from verse into a clear chorus","a slow minor progression with a resolving turnaround each cycle"],
+            bass: ["Deep sub bass with a short recurring low-end riff under the groove","Warm analogue bass rolling through a slow repeating low motif","Deep rounded synth bass with a sensual recurring pulse"],
+            rhythm: ["Slow swung sampled shuffle break with a soft kick, rimshot snare and shaker","Laid-back downtempo beat with a swung programmed kick, brushed snare and light hats","Hypnotic slow break with a soft kick, tight snare and shaker groove"],
+            perc: ["light shaker and tambourine ticking under the shuffle","a soft frame-drum pulse beneath the break"],
+            strings: ["A sampled Gregorian male chant choir drifting through the harmony","A layered monastic Latin chant choir wash sitting behind the harmony","A distant sampled choir pad with a plainsong texture"],
+            texture: ["a low pipe-organ layer sustaining beneath the chant","a soft mellotron string layer drifting under the harmony"],
+            motif: ["A breathy shakuhachi hook stating the main melody and returning through the track","A panpipe-style flute hook with a simple repeating melodic phrase","A warm synth lead carrying a vocal-style hook with gentle repetition"],
+            counter: ["a soft harp counter-figure weaving beneath the lead","a cello counter-line answering the melodic hook"],
+            color: ["an occasional church-bell toll marking the phrase","a brief low horn call opening the section","an occasional panpipe answer in the gaps","a short chant fragment surfacing between phrases"],
+            movement: ["Deep cathedral reverb with long delay trails and slow stereo drift","Wide stereo field with tempo-synced delay and slow filter movement","Warm spatial reverb with the pads drifting across the field"]
           },
           acoustic: {
-            pads: ["Warm harmonium chords breathing beneath the harmony","Soft nylon-string chord bed with warm sustained voicings"],
-            harmony: ["built on a clear minor-key progression cycling through verse and chorus","a warm minor chord cycle resolving each turnaround"],
-            bass: ["Warm upright bass with a slow rounded pulse","Deep fretless bass with a sensual gliding low end"],
-            rhythm: ["Soft live downtempo kit with brushed snare and light hand percussion","Gentle hand-drum and shaker groove with a laid-back swing"],
-            strings: ["Live choir wash with a sacred chant texture underneath","Soft-bowed string bed blended with a distant chant layer"],
-            motif: ["A warm Rhodes lead carrying the main melodic hook","A nylon-guitar motif stating the melodic theme with gentle repetition"],
-            color: ["an occasional shakuhachi phrase answering in the gaps","a brief hand-bell accent drifting through the space","a short chant fragment surfacing between phrases"],
-            movement: ["Warm reverberant space with the players easing through the groove","Soft tape-delay drifting phrases through a deep reverb"]
+            pads: ["Warm harmonium chords breathing under the groove","Soft bowed-string chord bed with cathedral depth"],
+            bass: ["Deep upright bass with a short recurring low-end figure","Warm plucked contrabass rolling through a slow repeating motif"],
+            rhythm: ["Slow swung live kit with a soft kick, rimshot snare and shaker","Laid-back organic break with brushed snare and light hand percussion"],
+            strings: ["A live Gregorian male chant choir drifting through the harmony","A monastic Latin chant choir wash sitting behind the harmony"],
+            motif: ["A breathy shakuhachi hook stating the main melody and returning","A wooden panpipe hook with a simple repeating melodic phrase"],
+            color: ["an occasional church-bell toll marking the phrase","a brief low horn call opening the section","a short chant fragment between phrases"],
+            movement: ["Vast natural reverb with long tails and slow stereo drift","Warm reverberant space with the ensemble breathing"]
           }
         },
         interplay: {
-          conversation: ["the synth hook leading while the chant wash breathes beneath it","the lead motif and an occasional flute phrase trading space over the beat"],
-          foundation: ["deep bass and the hypnotic downtempo beat locked in a sensual pocket"],
-          arc: ["a soft intro opening into a full verse then lifting into a hook-driven chorus","the groove building through the verse and dropping back for the bridge"]
+          conversation: ["the melodic hook stating the theme while the chant layer answers beneath","the hook and the chant layer trading the foreground across the phrases"],
+          foundation: ["a deep sub riff and a slow swung break locked in a hypnotic pocket"],
+          arc: ["a bare groove opening into a chant-backed chorus then falling away","the hook returning each cycle with layers added around it"]
         },
-        bannedAdd: [], bannedRemove: []
+        // The groove is hip-hop-derived (Soul II Soul shuffle) — lift that ban.
+        bannedAdd: ["four-on-the-floor", "house beat", "club tempo", "fast tempo"],
+        bannedRemove: ["hip hop beats"]
       },
 
-      ethnic: {
-        label: "Ethnic voyage",
-        genre: "Enigma Style, ethnic downtempo electronica",
-        band: "90-100", bpm: 96, beatless: false, colorChance: 0.55,
-        phase: "ethnic downtempo, 90-100 BPM, medium energy, earthy melodic groove", energy: "medium energy",
+      // ---- The Cross of Changes (1993) ---------------------------------------
+      // Indigenous/Amis chant sample, heavy slow sampled rock break (the
+      // "When the Levee Breaks" family), acoustic steel-string guitar hook,
+      // duduk / Middle-Eastern colour. No sitar — never an Enigma source.
+      tribal: {
+        label: "Tribal worldbeat (Cross of Changes)",
+        genre: "Enigma Style, tribal worldbeat downtempo with indigenous chant",
+        band: "84-96", bpm: 88, beatless: false, colorChance: 0.55,
+        phase: "84-96 BPM, low-medium energy, heavy slow swing", energy: "low-medium energy",
         palettes: {
           electronic: {
-            pads: ["Warm analogue synth pads with an earthy evolving harmonic bed","Organic-tinged synth pad wash with warm harmonic layers","Textured polysynth layers with earthy warmth"],
-            harmony: ["built on a bright modal progression with a clear verse-chorus lift","a warm major-minor progression cycling with an earthy lift","a folk-modal chord cycle giving a clear melodic shape"],
-            bass: ["Warm analogue bass with a steady earthy pulse","Deep sub bass with a rolling melodic low end","Rounded bass locking a warm downtempo groove"],
-            rhythm: ["Downtempo electronic beat with ethnic percussion accents and a soft programmed kick","Warm programmed groove with hand-percussion accents and a laid-back swing","Steady downtempo beat with shakers congas and a soft electronic backbone"],
-            strings: ["Warm string bed with a distant ethnic vocal chant texture","Soft synth strings blended with an indigenous-style chant layer","Sustained string wash under an ethnic chant texture"],
-            motif: ["A clear acoustic-guitar riff carrying the main melodic hook","A melodic synth lead stating the theme with folk phrasing","A bright melodic synth hook with an ethnic-scale flavour"],
-            color: ["an occasional pan flute phrase drifting over the groove","a brief sitar lick answering in the gaps","a short ethnic chant fragment surfacing between phrases","an occasional shakuhachi phrase filling a gap"],
-            movement: ["Wide stereo field with rhythmic delay and evolving modulation","Warm spatial reverb with tempo-synced delay across the percussion","Deep reverb with subtle stereo drift and filter movement"]
+            pads: ["Warm analogue synth pads with an earthy evolving wash","Deep ambient pad bed with a warm worldbeat colour","Layered analogue pads with a soft open harmonic bed"],
+            harmony: ["a modal minor cycle rising into a big singable chorus","a folk-modal chord cycle with an earthy resolving turnaround","a minor progression lifting into an open melodic chorus"],
+            bass: ["Deep sub bass with a rolling recurring low-end riff","Warm analogue bass locking the heavy break with a repeating motif","Deep synth bass driving a slow repeating low figure"],
+            rhythm: ["Heavy slow sampled rock break with a fat backbeat snare and a half-time feel","Slow heavy breakbeat with a deep kick, big room snare and tribal hand percussion","Dragging sampled break with a thick snare backbeat and shaker groove"],
+            perc: ["djembe and frame-drum layers threading the break","light shaker and rattle accents ticking through the groove"],
+            strings: ["A sampled indigenous chant vocal layered over a warm string bed","A tribal chant chorus wash sitting behind the harmony","A layered indigenous vocal sample drifting through the strings"],
+            texture: ["a low bowed drone layer sustaining beneath the chant","a warm organ layer sitting under the harmony"],
+            motif: ["A steel-string acoustic guitar hook carrying the main melody","A duduk-style reed lead stating the melodic hook","A nylon-string guitar hook with warm folk phrasing"],
+            counter: ["a low bamboo-flute counter-line answering the guitar hook","a plucked santoor counter-figure weaving against the lead"],
+            color: ["an occasional oud lick answering in the gaps","a short tribal chant fragment surfacing between phrases","an occasional Middle-Eastern plucked-string lick","a brief panpipe phrase drifting over the groove"],
+            movement: ["Wide stereo field with tempo-synced delay across the percussion","Deep reverb with slow stereo drift and filter movement","Big open reverb with the break breathing in the space"]
           },
           acoustic: {
-            pads: ["Warm harmonium chords breathing under the groove","Soft-strummed nylon-string chords with warm movement"],
-            harmony: ["built on a bright modal progression with a clear chorus lift","a folk-modal chord cycle with an earthy resolving turnaround"],
-            bass: ["Warm upright bass walking a loose earthy groove","Deep fretless bass with a rolling melodic pulse"],
-            rhythm: ["Live downtempo kit with congas shakers and hand percussion","Organic groove with frame drums and light hand percussion"],
-            strings: ["Live string bed with a distant ethnic chant texture","Soft-bowed strings under an indigenous-style chant layer"],
-            motif: ["A steel-string acoustic-guitar riff carrying the melodic hook","A plucked-string lead stating the melodic theme with folk phrasing"],
-            color: ["an occasional real pan flute phrase drifting over the groove","a brief sitar lick answering in the gaps","a short ethnic chant fragment between phrases"],
-            movement: ["Warm reverberant space with the percussion breathing","Hand-played dynamics lifting and easing the groove"]
+            pads: ["Warm harmonium chords breathing under the groove","Soft-strummed nylon-string chords with warm open movement"],
+            bass: ["Deep upright bass rolling a recurring low-end figure","Warm fretless bass locking the heavy break with a repeating motif"],
+            rhythm: ["Heavy slow live break with a fat backbeat snare and a half-time feel","Slow heavy live break with a deep kick, thick snare and tribal hand percussion"],
+            strings: ["A live indigenous chant vocal layered over a warm string bed","A tribal chant chorus wash sitting behind the harmony"],
+            motif: ["A steel-string acoustic guitar hook carrying the main melody","A duduk reed lead stating the melodic hook"],
+            color: ["an occasional oud lick answering in the gaps","a short tribal chant fragment between phrases","an occasional low reed phrase filling a gap"],
+            movement: ["Warm reverberant space with the hand percussion breathing","Hand-played dynamics lifting and easing the break"]
           }
         },
         interplay: {
-          conversation: ["the guitar or flute hook leading while ethnic percussion moves beneath","the melodic hook and an occasional sitar phrase trading space"],
-          foundation: ["warm bass and a downtempo beat with ethnic percussion locked in an earthy pocket"],
-          arc: ["an acoustic intro opening into a full melodic verse and chorus","the groove building with percussion then easing for a bridge"]
+          conversation: ["the melodic hook leading while the chant layer answers beneath","the hook and an occasional colour phrase trading space over the break"],
+          foundation: ["a deep sub riff and a heavy half-time break locked in an earthy pocket"],
+          arc: ["a stripped verse opening into a full chant-backed chorus","the break dropping out for a bridge then returning with the hook"]
         },
-        bannedAdd: [], bannedRemove: []
+        bannedAdd: ["drum and bass", "big beat", "breakbeat hardcore", "jungle", "fast breaks", "four-on-the-floor", "club tempo"],
+        bannedRemove: ["hip hop beats"]
       },
 
-      cinematic: {
-        label: "Cinematic sacral",
-        genre: "Enigma Style, cinematic downtempo electronica",
-        band: "92-102", bpm: 98, beatless: false, colorChance: 0.5,
-        phase: "cinematic downtempo, 92-102 BPM, medium energy, dark and melodic", energy: "medium energy",
+      // ---- Le Roi Est Mort, Vive Le Roi! (1996) -------------------------------
+      // The two earlier records fused, with a tighter, more futuristic digital
+      // production: Gregorian chant AND Sanskrit/Vedic chant, harder programmed
+      // beats, sampled brass stabs (T.N.T. for the Brain).
+      sanskrit: {
+        label: "Sanskrit hybrid (Le Roi Est Mort)",
+        genre: "Enigma Style, new-age downtempo with Gregorian and Sanskrit chant",
+        band: "88-98", bpm: 94, beatless: false, colorChance: 0.5,
+        phase: "88-98 BPM, medium energy, tight hypnotic swing", energy: "medium energy",
         palettes: {
           electronic: {
-            pads: ["Dark cinematic synth pads with a heavy evolving harmonic bed","Shadowed analogue pad mass with orchestral depth","Deep synth pads layered with orchestral string textures"],
-            harmony: ["built on a dramatic minor-key progression with a strong chorus lift","a dark minor chord cycle rising to a clear melodic peak","a cinematic minor progression with a resolving turnaround into the hook"],
-            bass: ["Deep sub bass with a driving controlled pulse","Dark analogue bass with a heavy rhythmic low end","Rounded bass driving the downtempo groove with weight"],
-            rhythm: ["Driving downtempo electronic beat with a firm programmed kick and snare","Mid-tempo electronic groove with a strong kick crisp snare and layered percussion","Steady driving beat with cinematic weight and tight percussion"],
-            strings: ["Full orchestral choir wash in a Carmina-style sacred texture","Layered choir and orchestral strings carrying dramatic weight","Massed choir texture blended with cinematic strings"],
-            motif: ["A soaring synth lead carrying a strong melodic chorus hook","A bold melodic synth motif stating a dramatic theme","A clear lead line delivering a big cinematic hook"],
-            color: ["an occasional shakuhachi phrase cutting through the space","a brief electric-guitar accent answering the hook","an occasional distorted electric-guitar accent cutting through the mix","a short chant fragment surfacing between phrases","an occasional bell toll marking the phrase"],
-            movement: ["Deep cathedral reverb with long delay trails and wide stereo movement","Wide cinematic stereo field with tempo-synced delay and modulation","Big spatial reverb with dramatic filter movement"]
+            pads: ["Glassy digital synth pads with a futuristic harmonic sheen","Hybrid analogue-digital pad bed with cold evolving layers","Bright layered synth pads with a clean harmonic wash"],
+            harmony: ["a minor progression with a defined verse-chorus shape","a suspended minor cycle resolving into the hook","a modal minor progression with a firm turnaround into the chorus"],
+            bass: ["Tight sub bass with a punchy recurring low-end riff","Deep synth bass with a firm repeating low figure","Hard rounded synth bass driving a short low motif"],
+            rhythm: ["Tight programmed downtempo beat with a crisp snare, swung hats and shaker","Mid-tempo electronic groove with a firm kick, snappy snare and light percussion","Hard swung programmed break with a punchy kick and tight snare"],
+            perc: ["tabla and shaker accents ticking under the beat","light frame-drum accents threading the groove"],
+            strings: ["A sampled Gregorian chant layered with a Sanskrit mantra texture","A monastic chant sample blended with a Vedic chant layer","A choir wash carrying both a Latin chant and a Sanskrit mantra texture"],
+            texture: ["a low pipe-organ layer sustaining beneath the chant","a glassy string-synth layer drifting under the harmony"],
+            motif: ["A breathy shakuhachi hook stating the melody and returning","A bright digital flute-synth lead carrying the hook","A clean synth lead delivering a defined melodic hook"],
+            counter: ["a cello counter-line answering the melodic hook","a plucked santoor counter-figure weaving against the lead"],
+            color: ["an occasional sampled brass stab punching the phrase","a short Sanskrit mantra fragment surfacing between phrases","an occasional bell and chime accent","a brief breathy reed answer in the gaps"],
+            movement: ["Wide stereo field with tempo-synced delay and evolving modulation","Deep reverb with long delay tails and rhythmic filter movement","Sharp spatial delay driving movement across the beat"]
+          },
+          acoustic: {
+            pads: ["Warm harmonium chords with a firm sustained bed","Soft bowed-string chord bed with clean depth"],
+            bass: ["Tight upright bass with a punchy recurring low figure","Deep plucked contrabass driving a short repeating motif"],
+            rhythm: ["Tight live downtempo kit with a crisp snare, swung hats and shaker","Mid-tempo organic groove with a firm kick and snappy snare"],
+            strings: ["A live Gregorian chant layered with a Sanskrit mantra texture","A chant choir blended with a Vedic mantra layer"],
+            motif: ["A breathy shakuhachi hook stating the melody and returning","A wooden flute lead carrying the melodic hook"],
+            color: ["a short Sanskrit mantra fragment between phrases","an occasional bell accent marking the phrase","a brief reed answer in the gaps"],
+            movement: ["Big natural reverb with long tails and rhythmic space","Warm reverberant space with the percussion driving"]
+          }
+        },
+        interplay: {
+          conversation: ["the melodic hook leading while the two chant layers answer beneath","the hook and a short stab punctuating each other across the beat"],
+          foundation: ["a tight sub riff and a firm swung beat locked hard beneath the layers"],
+          arc: ["a tight verse driving into a chant-backed chorus","layers stacking through the verse then stripping back to the hook"]
+        },
+        bannedAdd: ["trance", "drum and bass", "four-on-the-floor", "club tempo"],
+        bannedRemove: ["hip hop beats", "orchestral hits"]
+      },
+
+      // ---- The Screen Behind the Mirror (2000) --------------------------------
+      // Carmina Burana (O Fortuna) massed Latin chorus samples + DISTORTED
+      // ELECTRIC GUITAR + the low horn call, over the heavy sampled break.
+      // Not "cinematic" — that framing was pulling Suno toward trailer music.
+      carmina: {
+        label: "Carmina choral (Screen Behind the Mirror)",
+        genre: "Enigma Style, new-age downtempo with massed Latin chorus and distorted guitar",
+        band: "88-100", bpm: 94, beatless: false, colorChance: 0.5,
+        phase: "88-100 BPM, medium energy, heavy hypnotic swing", energy: "medium energy",
+        palettes: {
+          electronic: {
+            pads: ["Dark analogue pad mass with deep orchestral weight","Shadowed synth pads layered with orchestral string texture","Deep pad bed with a heavy evolving harmonic mass"],
+            harmony: ["a dramatic minor progression with a strong chorus lift","a dark minor cycle rising to a clear melodic peak","a minor progression with a resolving turnaround into the hook"],
+            bass: ["Deep sub bass with a heavy driving recurring riff","Dark analogue bass with a controlled repeating low figure","Heavy synth bass pushing a short low-end motif"],
+            rhythm: ["Heavy sampled rock break with a fat backbeat snare and a half-time feel","Driving downtempo beat with a firm kick, hard snare and layered percussion","Slow heavy break with a cracking snare and tight hats"],
+            perc: ["deep taiko-style toms and shaker under the break","heavy tambourine and rim accents driving the groove"],
+            strings: ["A massed Latin chorus sample in a Carmina-style choral texture","A sampled classical choir singing Latin over orchestral strings","A heavy massed choir sample carrying the choral weight"],
+            texture: ["a low pipe-organ layer sustaining beneath the chorus","a dark mellotron string layer drifting under the mass"],
+            motif: ["A soaring synth lead carrying the main melodic hook","A distorted electric guitar riff carrying the hook","A big melodic lead line stating the chorus hook"],
+            counter: ["a cello counter-line answering the lead hook","a low brass counter-line pushing against the riff"],
+            color: ["a low horn call marking the section","a short Latin chorus fragment surfacing between phrases","an occasional bell toll punctuating the phrase","an occasional orchestral swell lifting the phrase"],
+            movement: ["Deep cathedral reverb with long delay trails and wide stereo movement","Big spatial reverb with heavy filter movement across the break","Wide stereo field with tempo-synced delay and dramatic swells"]
           },
           acoustic: {
             pads: ["Dark harmonium and bowed-string chord mass with orchestral weight","Deep bowed-string chord bed swelling under the harmony"],
-            harmony: ["built on a dramatic minor progression rising to a clear chorus","a dark minor chord cycle lifting into a melodic peak"],
-            bass: ["Deep bowed upright bass driving the low end","Dark cello-led bass with heavy rhythmic weight"],
-            rhythm: ["Live driving kit with firm snare and layered hand percussion","Mid-tempo organic groove with strong snare and percussion"],
-            strings: ["Full live choir wash in a sacred cinematic texture","Massed bowed strings and choir carrying dramatic weight"],
-            motif: ["A soaring string lead carrying the melodic chorus hook","A bold string-and-choir melodic theme"],
-            color: ["an occasional electric-guitar accent answering the hook","an occasional gritty distorted-guitar accent answering the hook","a brief shakuhachi phrase cutting through","a short chant fragment between phrases"],
-            movement: ["Vast reverberant space with dramatic dynamic swells","Big natural reverb with the ensemble rising to a peak"]
+            bass: ["Deep bowed upright bass driving a heavy recurring low figure","Dark contrabass with a controlled repeating low motif"],
+            rhythm: ["Heavy live rock break with a fat backbeat snare and a half-time feel","Driving live kit with a firm kick, hard snare and layered hand percussion"],
+            strings: ["A live massed Latin chorus in a Carmina-style choral texture","A classical choir singing Latin over bowed orchestral strings"],
+            motif: ["A distorted electric guitar riff carrying the hook","A soaring string lead carrying the main melodic hook"],
+            color: ["a low horn call marking the section","a short Latin chorus fragment between phrases","an occasional bell toll punctuating the phrase"],
+            movement: ["Vast reverberant space with heavy dynamic swells","Big natural reverb with the ensemble rising to a peak"]
           }
         },
         interplay: {
-          conversation: ["the lead hook soaring while the choir wash swells beneath","the melodic hook and a guitar accent answering across the beat"],
-          foundation: ["deep driving bass and a firm downtempo beat anchoring the drama"],
-          arc: ["a dark verse building to a soaring choir-backed chorus then falling back","tension rising through the verse and released into a big melodic peak"]
+          conversation: ["the lead hook soaring while the massed chorus swells beneath","the hook and a colour accent answering each other across the break"],
+          foundation: ["a heavy sub riff and a half-time break anchoring the weight"],
+          arc: ["a dark verse building into a chorus-backed peak then falling back","tension stacking through the verse and released on the hook"]
         },
-        // Screen-era Enigma leans on electric/distorted guitar; lift the rock-guitar
-        // ban for this cluster so its occasional distorted-guitar colour can land.
-        bannedAdd: [], bannedRemove: ["rock guitars"]
+        // Screen leans on distorted guitar, orchestral choral samples and the
+        // heavy hip-hop-derived break — lift those three bans here only.
+        bannedAdd: ["metal guitars", "symphonic metal", "trailer braams", "cinematic trailer music", "four-on-the-floor"],
+        bannedRemove: ["rock guitars", "hip hop beats", "orchestral hits"]
       },
 
+      // ---- Push the Limits / Modern Crusaders ---------------------------------
+      // The break-driven Enigma character, at ALBUM tempo. Previously 118-126
+      // BPM "driving hip-hop breakbeat", which is club-remix territory (the
+      // 128/133/140 BPM versions are all remixes) and was rendering as big beat.
+      heavybreak: {
+        label: "Heavy break (Push the Limits)",
+        genre: "Enigma Style, downtempo worldbeat with a heavy sampled break",
+        band: "92-100", bpm: 96, beatless: false, colorChance: 0.45,
+        phase: "92-100 BPM, medium energy, heavy half-time drive", energy: "medium energy",
+        palettes: {
+          electronic: {
+            pads: ["Dark analogue synth pads with a heavy evolving bed","Deep pad mass with a shadowed harmonic wash","Warm dark pads layered under the break"],
+            harmony: ["a driving minor riff-cycle repeating with a hard chorus lift","a dark minor progression built around a repeating low riff","a modal minor cycle pushing into a heavy chorus"],
+            bass: ["Heavy sub bass riff driving a hard recurring low motif","Dark analogue bass pushing a repeating low-end figure","Deep distorted-edge synth bass locking the break"],
+            rhythm: ["Heavy chopped sampled break with a fat snare backbeat and half-time swing","Hard slow breakbeat with a deep kick, cracking snare and tight hats","Thick sampled break with a dragging backbeat and shaker groove"],
+            perc: ["heavy toms and tambourine driving under the break","hard shaker and rim accents pushing the groove"],
+            strings: ["A massed Latin chorus sample carrying weight behind the riff","A sampled chant choir wash sitting under the break","A choir texture layered with orchestral strings under the groove"],
+            texture: ["a dark pipe-organ layer sustaining under the riff","a low mellotron string layer thickening the break"],
+            motif: ["A heavy distorted electric guitar riff carrying the hook","A big synth lead riff stating the main hook","A low horn-call hook driving the section"],
+            counter: ["a cello counter-line answering the riff","a low brass counter-figure pushing against the hook"],
+            color: ["a low horn call marking the section","a short chant fragment surfacing between phrases","an occasional shakuhachi phrase cutting across the groove","an occasional bell toll punctuating the phrase"],
+            movement: ["Wide stereo field with tempo-synced delay across the break","Heavy filter movement opening over the groove","Deep reverb with hard rhythmic delay driving the break"]
+          },
+          acoustic: {
+            pads: ["Dark harmonium chord mass with heavy weight","Deep bowed-string chord bed under the break"],
+            bass: ["Heavy upright bass riff driving a recurring low motif","Dark contrabass pushing a repeating low-end figure"],
+            rhythm: ["Heavy chopped live break with a fat snare backbeat and half-time swing","Hard slow live break with a deep kick, cracking snare and hand percussion"],
+            strings: ["A live massed chorus carrying weight behind the riff","A chant choir wash sitting under the break"],
+            motif: ["A heavy distorted electric guitar riff carrying the hook","A low brass-call hook driving the section"],
+            color: ["a low horn call marking the section","a short chant fragment between phrases","an occasional shakuhachi phrase cutting across the groove"],
+            movement: ["Big natural reverb with the break breathing hard in the space","Heavy dynamic swells lifting the groove"]
+          }
+        },
+        interplay: {
+          conversation: ["the riff hook driving while the chorus layer swells behind it","the riff and the chant layer answering across the break"],
+          foundation: ["a heavy sub riff and a chopped half-time break locked in a hard pocket"],
+          arc: ["the break dropping out for a stripped bridge then slamming back with the riff","the riff returning each cycle with layers stacked around it"]
+        },
+        bannedAdd: ["big beat", "drum and bass", "breakbeat hardcore", "jungle", "club house", "uptempo breaks", "four-on-the-floor", "club tempo"],
+        bannedRemove: ["hip hop beats", "rock guitars"]
+      },
+
+      // ---- Voyageur (2003) ----------------------------------------------------
+      // The departure record: pop-oriented songs, synth-driven, electric guitar,
+      // and NO chant at all. Still minor/modal — the old "bright major-key"
+      // harmony pool was what pushed this cluster into generic pop.
+      modern: {
+        label: "Modern synth-pop (Voyageur)",
+        genre: "Enigma Style, electronic downtempo synth-pop",
+        band: "96-110", bpm: 104, beatless: false, colorChance: 0.4,
+        phase: "96-110 BPM, medium energy, steady synth-driven groove", energy: "medium energy",
+        palettes: {
+          electronic: {
+            pads: ["Clean modern synth pads with a smooth evolving wash","Polished synth pad bed with clean tonal depth","Lush contemporary synth layers with smooth harmonic movement"],
+            harmony: ["a minor-key electronic progression with a clear chorus lift","a modal minor cycle with a strong resolving hook","a minor progression giving a defined verse-chorus shape"],
+            bass: ["Warm analogue bass with a steady driving recurring pulse","Rounded synth bass locking a tight repeating low figure","Deep sub bass with a smooth modern low-end groove"],
+            rhythm: ["Clean programmed electronic beat with a steady kick, tight hats and light percussion","Modern downtempo kit with a soft kick, crisp snare and subtle percussion","Controlled electronic groove with programmed drums and light shaker"],
+            perc: ["light shaker and tambourine ticking under the beat","soft conga accents threading the groove"],
+            strings: ["Soft synth strings supporting the harmony","Smooth string texture sitting under the chords","Light synth string bed adding depth beneath the pads"],
+            texture: ["a warm string-machine layer sustaining under the chords","a soft mellotron layer drifting beneath the harmony"],
+            motif: ["A bright synth lead carrying a strong modern hook","A clean arpeggiated synth line stating the main hook","A melodic electric guitar line carrying the hook"],
+            counter: ["a plucked synth counter-line answering the hook","a warm clavinet counter-figure weaving beneath the lead"],
+            color: ["a brief bell accent marking the phrase","an occasional filtered synth stab lifting the bar","an occasional plucked-string accent answering the hook"],
+            movement: ["Wide stereo field with tempo-synced delay and evolving modulation","Filter and modulation movement using LFO, chorus and phaser","Rhythmic autopan and tempo-synced delay creating modern space"]
+          },
+          acoustic: {
+            pads: ["Warm electric-piano chords with smooth voicings","Soft nylon-string chord comping with clean movement"],
+            bass: ["Warm fingerstyle electric bass with a steady recurring groove","Rounded upright bass with a tight repeating low figure"],
+            rhythm: ["Soft live kit with a steady downtempo groove and light percussion","Organic groove with a crisp snare, tight hats and warm percussion"],
+            strings: ["Soft live strings supporting the harmony","Warm string texture sitting under the chords"],
+            motif: ["A melodic electric guitar line carrying the hook","A warm Rhodes lead stating the main hook"],
+            color: ["a brief bell accent marking the phrase","an occasional plucked-string accent answering the hook"],
+            movement: ["Warm reverb with the players easing through the groove","Soft tape-delay drifting phrases through the mix"]
+          }
+        },
+        interplay: {
+          conversation: ["the lead hook leading while a second voice answers in the gaps","the lead hook and the chord bed rising together into the chorus"],
+          foundation: ["a steady bass pulse and a clean programmed beat driving the song"],
+          arc: ["a clean verse opening into a full chorus then stripping back","the hook returning across the chorus with layers added"]
+        },
+        // Era-accurate: Voyageur has no chant and no Gregorian sampling at all.
+        bannedAdd: ["Gregorian chant", "monastic chant", "plainsong", "Latin chorus", "sampled choir"],
+        bannedRemove: []
+      },
+
+      // ---- A Posteriori (2006) ------------------------------------------------
+      // Cosmic, largely instrumental, trance-leaning arpeggios, grand piano
+      // themes, orchestral swells. No chant, no vocal hook.
+      cosmic: {
+        label: "Cosmic instrumental (A Posteriori)",
+        genre: "Enigma Style, cosmic instrumental electronica with ambient and trance textures",
+        band: "104-118", bpm: 112, beatless: false, colorChance: 0.45,
+        phase: "104-118 BPM, medium energy, steady instrumental drive", energy: "medium energy",
+        palettes: {
+          electronic: {
+            pads: ["Vast cold synth pads with deep cosmic space","Wide digital pad wash with slow evolving layers","Deep space-synth pad bed with glassy harmonic depth"],
+            harmony: ["a slow minor progression developing across long instrumental sections","a suspended minor cycle evolving without a vocal chorus","a modal minor progression unfolding through the piece"],
+            bass: ["Deep pulsing synth bass with a steady rolling low motif","Tight sub bass driving a repeating low-end figure","Rounded analogue bass with a smooth recurring pulse"],
+            rhythm: ["Steady electronic beat with a tight kick, crisp hats and programmed percussion","Driving programmed groove with a clean kick, snappy snare and light percussion","Controlled electronic beat with a firm kick and rolling hats"],
+            perc: ["light shaker and rim accents ticking under the beat","soft hand-percussion layers threading the groove"],
+            strings: ["Orchestral string layer swelling beneath the synths","Soft wordless choir pad drifting under the harmony","Warm string section rising under the electronic layers"],
+            texture: ["a warm string-machine layer sustaining beneath the arpeggio","a soft mellotron layer drifting under the theme"],
+            motif: ["A cycling arpeggio carrying the main theme","A grand piano theme stating the melody","A melodic synth lead developing the theme across the piece"],
+            counter: ["a viola counter-line answering the theme","a plucked synth counter-figure weaving against the arpeggio"],
+            color: ["an occasional harp figure surfacing between phrases","a brief bell and chime accent with soft decay","an occasional filtered arpeggio burst lifting the bar"],
+            movement: ["Wide stereo field with tempo-synced delay and slow evolving modulation","Deep reverb with long tails and cosmic filter sweeps","Big spatial movement with the layers rising and receding"]
+          },
+          acoustic: {
+            pads: ["Soft bowed-string chord bed drifting under the theme","Warm harmonium bed sustaining beneath the harmony"],
+            bass: ["Deep upright bass with a steady rolling low motif","Low cello line driving a repeating low figure"],
+            rhythm: ["Steady live kit with a tight kick, crisp hats and light percussion","Driving organic groove with a clean snare and rolling hats"],
+            strings: ["Live orchestral strings swelling beneath the theme","Soft wordless choir wash drifting under the harmony"],
+            motif: ["A grand piano theme stating the melody","A bowed string-section theme carrying the melodic line"],
+            color: ["an occasional harp figure surfacing between phrases","a brief bell accent with soft decay"],
+            movement: ["Big natural reverb with long tails and slow swells","Wide orchestral space with the layers rising and receding"]
+          }
+        },
+        interplay: {
+          conversation: ["the cycling figure driving while the theme answers over it","the theme passing between the lead and the counter voice"],
+          foundation: ["a rolling bass motif and a steady beat carrying the instrumental drive"],
+          arc: ["a theme stated then developed through layered instrumental sections","the piece building through stacked layers then opening out"]
+        },
+        bannedAdd: ["Gregorian chant", "monastic chant", "vocal hooks", "hard trance", "EDM drops", "supersaw leads"],
+        bannedRemove: []
+      },
+
+      // ---- Seven Lives Many Faces (2008) / Fall of a Rebel Angel (2016) --------
+      // Orchestral arrangement fused with modern electronic rhythm; Spanish
+      // nylon-guitar and ethnic vocal colour; symphonic chillout.
+      symphonic: {
+        label: "Symphonic chillout (Seven Lives / Rebel Angel)",
+        genre: "Enigma Style, symphonic chillout downtempo with orchestral arrangement and modern electronic rhythm",
+        band: "92-104", bpm: 98, beatless: false, colorChance: 0.5,
+        phase: "92-104 BPM, medium energy, orchestral downtempo drive", energy: "medium energy",
+        palettes: {
+          electronic: {
+            pads: ["Lush orchestral-synth hybrid pad bed with warm depth","Wide synth pads layered with orchestral texture","Rich pad wash blended with a soft string section"],
+            harmony: ["a minor progression opening into a full orchestral chorus lift","a modal minor cycle resolving into a broad melodic chorus","a warm minor progression with a strong turnaround into the hook"],
+            bass: ["Deep sub bass with a modern recurring low-end groove","Warm synth bass driving a repeating low figure","Rounded electronic bass locking a steady low motif"],
+            rhythm: ["Modern downtempo electronic beat with a punchy kick, crisp snare and layered percussion","Mid-tempo programmed groove with a firm kick, tight hats and hand percussion","Clean electronic beat with a driving kick and warm percussion"],
+            perc: ["light congas and shaker threading the groove","soft tambourine and rim accents lifting the beat"],
+            strings: ["Full orchestral string section woven with a wordless choir","Layered orchestral strings with a distant ethnic vocal texture","Warm string section swelling behind the harmony"],
+            texture: ["a warm harmonium layer sustaining beneath the strings","a soft organ layer drifting under the orchestra"],
+            motif: ["A Spanish nylon-guitar hook carrying the main melody","A soaring synth lead stating the melodic hook","An orchestral string theme carrying the chorus melody"],
+            counter: ["a soft oboe counter-figure weaving beneath the lead","a low brass counter-line answering the hook"],
+            color: ["an occasional Spanish guitar flourish answering the hook","a brief ethnic vocal fragment surfacing between phrases","an occasional piano figure lifting the phrase","a short low horn call marking the section"],
+            movement: ["Wide cinematic stereo field with tempo-synced delay and orchestral swells","Deep reverb with the orchestra rising beneath the beat","Big spatial movement with the strings breathing across the groove"]
+          },
+          acoustic: {
+            pads: ["Warm orchestral string chord bed with soft depth","Live bowed-string and woodwind chord layers under the harmony"],
+            bass: ["Deep upright bass with a recurring low-end groove","Warm fingerstyle electric bass locking a steady low motif"],
+            rhythm: ["Live downtempo kit with a punchy kick, crisp snare and layered hand percussion","Mid-tempo organic groove with a firm kick, tight hats and warm percussion"],
+            strings: ["Full live orchestral strings woven with a wordless choir","Live string section with a distant ethnic vocal texture"],
+            motif: ["A Spanish nylon-guitar hook carrying the main melody","A live string theme carrying the chorus melody"],
+            color: ["an occasional Spanish guitar flourish answering the hook","a brief ethnic vocal fragment between phrases","an occasional piano figure lifting the phrase"],
+            movement: ["Vast orchestral reverb with the ensemble swelling beneath the beat","Big natural space with the strings breathing across the groove"]
+          }
+        },
+        interplay: {
+          conversation: ["the melodic hook leading while the orchestra swells beneath","the lead theme and the string section answering each other into the chorus"],
+          foundation: ["a modern electronic beat and a deep bass motif carrying the orchestra"],
+          arc: ["a restrained verse opening into a full orchestral chorus","the arrangement stacking strings and choir toward the melodic peak"]
+        },
+        bannedAdd: ["EDM drops", "trailer braams", "four-on-the-floor"],
+        bannedRemove: ["orchestral hits"]
+      },
+
+      // ---- Beatless interludes (Rivers of Belief / Shadows in Silence) ---------
       ambient: {
-        label: "Melodic ambient",
-        genre: "Enigma Style, melodic ambient electronica",
-        band: "free-tempo", bpm: null, beatless: true, colorChance: 0.5,
-        phase: "beatless melodic ambient, free-floating, low energy, melody-led", energy: "low energy",
+        label: "Beatless ambient interlude",
+        genre: "Enigma Style, beatless new-age ambient with chant",
+        band: "beatless", bpm: null, beatless: true, colorChance: 0.5,
+        phase: "beatless, no drums, free-floating, melody-led", energy: "low energy",
         palettes: {
           electronic: {
             pads: ["Lush evolving synth pads with a warm harmonic bed","Deep ambient synth layers with slow evolving harmony","Warm analogue pad wash with soft cathedral depth"],
-            harmony: ["built on a slow clear minor-key chord progression that resolves each cycle","a warm suspended progression moving gently through the piece","a modal chord cycle giving the ambient piece a clear melodic shape"],
+            harmony: ["a slow minor progression resolving gently each cycle","a suspended chord cycle moving gently through the piece","a modal chord cycle giving the piece a clear melodic shape"],
             bass: ["Soft sub drone giving weightless low-end support","Deep tonal drone anchoring the harmony softly"],
-            strings: ["Soft choir wash and chant texture drifting through the harmony","Layered choir pad carrying a sacred texture","Warm string wash blended with a distant chant layer"],
-            motif: ["A clear synth lead carrying a slow melodic theme","A warm melodic synth line stating the main theme softly","A gentle lead motif delivering a defined melodic hook"],
-            color: ["an occasional shakuhachi phrase drifting through the space","a brief bell and chime accent with soft decay","a short chant fragment surfacing between phrases","an occasional flute phrase filling a gap"],
+            rhythm: [],
+            strings: ["A sampled chant choir wash drifting through the harmony","A layered choir pad carrying a sacred chant texture","A warm string wash blended with a distant chant layer"],
+            texture: ["a soft mellotron string layer drifting beneath the drone","a low pipe-organ layer sustaining under the chant"],
+            motif: ["A breathy shakuhachi line carrying a slow melodic theme","A warm synth lead stating the theme softly","A gentle lead motif delivering a defined melodic hook"],
+            counter: ["a viola counter-line rising slowly beneath the theme","a soft harp counter-figure drifting through the space"],
+            color: ["an occasional bell and chime accent with soft decay","a short chant fragment surfacing between phrases","an occasional panpipe phrase filling a gap","a brief low horn call drifting through the space"],
             movement: ["Deep cathedral reverb with long delay trails and glacial stereo movement","Wide stereo field with slow spatial layering and evolving modulation","Reversed swells and long reverb tails drifting across the field"]
           },
           acoustic: {
             pads: ["Warm harmonium drone breathing slowly","Soft bowed-string chord bed drifting through the harmony"],
-            harmony: ["built on a slow clear minor progression resolving each cycle","a warm suspended chord cycle moving gently"],
             bass: ["Low cello drone anchoring the harmony","Deep bowed drone giving a soft weightless foundation"],
-            strings: ["Soft live choir wash with a chant texture","Bowed-string wash blended with a distant chant layer"],
-            motif: ["A warm piano lead carrying a slow melodic theme","A soft viola lead stating the main melodic theme"],
-            color: ["an occasional shakuhachi phrase drifting through","a brief hand-bell accent with soft decay","a short chant fragment between phrases"],
-            movement: ["Vast natural reverb with tones drifting and dissolving","Slow dynamic swell rising and receding"]
+            rhythm: [],
+            strings: ["A live chant choir wash with a sacred texture","A bowed-string wash blended with a distant chant layer"],
+            motif: ["A breathy shakuhachi line carrying a slow melodic theme","A warm piano lead stating the main theme softly"],
+            color: ["a brief hand-bell accent with soft decay","a short chant fragment between phrases","an occasional wooden flute phrase drifting through"],
+            movement: ["Vast natural reverb with tones drifting and dissolving","Slow dynamic swells rising and receding"]
           }
         },
         interplay: {
-          conversation: ["the melodic lead drifting while the choir wash breathes beneath","the lead theme and an occasional flute phrase dissolving into the space"],
+          conversation: ["the melodic lead drifting while the chant wash breathes beneath","the theme and an occasional colour phrase dissolving into the space"],
           foundation: ["a deep drone holding beneath the harmony sustaining without pulse"],
-          arc: ["a slow melodic theme stated then developed with layered harmony","the piece building gently through evolving chords then dissolving"]
+          arc: ["a slow theme stated then developed with layered harmony","the piece building gently through evolving chords then dissolving"]
         },
         bannedAdd: [], bannedRemove: []
-      },
-
-      modern: {
-        label: "Modern voyage",
-        genre: "Enigma Style, modern electronic downtempo",
-        band: "100-112", bpm: 106, beatless: false, colorChance: 0.4,
-        phase: "modern electronic downtempo, 100-112 BPM, medium energy, synth-driven", energy: "medium energy",
-        palettes: {
-          electronic: {
-            pads: ["Clean modern synth pads with a bright evolving harmonic wash","Lush contemporary synth layers with smooth harmonic movement","Polished synth pad bed with clean tonal depth"],
-            harmony: ["built on a clean pop-electronic chord progression with a clear chorus lift","a bright major-key cycle with a strong resolving hook","a modern chord progression giving a clear verse-chorus shape"],
-            bass: ["Warm analogue bass with a steady driving pulse","Deep sub bass with a smooth modern low-end groove","Rounded synth bass locking a tight groove"],
-            rhythm: ["Clean programmed electronic beat with a steady modern groove and crisp percussion","Modern downtempo kit with a soft kick tight hats and light percussion","Controlled electronic groove with programmed drums and subtle percussion"],
-            strings: ["Soft synth strings supporting the harmony","Light choir pad adding a subtle sacred hint","Smooth string texture under the harmony"],
-            motif: ["A bright synth lead carrying a strong modern hook","A clean arpeggiated synth line stating the main hook","A polished synth motif delivering a clear melodic hook"],
-            color: ["an occasional flute-style synth phrase over the groove","a brief bell accent marking the phrase","an occasional short chant fragment for a subtle nod"],
-            movement: ["Wide stereo field with tempo-synced delay and evolving modulation","Filter and modulation movement using LFO chorus and phaser","Rhythmic autopan and tempo-synced delay creating modern space"]
-          },
-          acoustic: {
-            pads: ["Warm electric-piano chords with smooth voicings","Soft nylon-string chord comping with warm movement"],
-            harmony: ["built on a clean progression with a clear chorus lift","a bright chord cycle with a strong resolving hook"],
-            bass: ["Warm fingerstyle electric bass with a smooth groove","Rounded upright bass with a steady modern pulse"],
-            rhythm: ["Soft live kit with a modern downtempo groove and light percussion","Organic groove with brushed snare tight hats and warm percussion"],
-            strings: ["Soft live strings supporting the harmony","Light choir wash adding a subtle sacred hint"],
-            motif: ["A warm Rhodes lead carrying a modern melodic hook","A clean plucked-guitar motif stating the main hook"],
-            color: ["an occasional wooden flute phrase over the groove","a brief bell accent marking the phrase"],
-            movement: ["Warm reverb with players easing through the groove","Soft tape-delay drifting phrases through the mix"]
-          }
-        },
-        interplay: {
-          conversation: ["the synth hook leading with clean chords answering around it","the melodic hook and a brief flute phrase trading space over the beat"],
-          foundation: ["bass and a modern programmed groove locked in a tight pocket"],
-          arc: ["a clean intro building into a strong hook-driven chorus","the groove driving forward then opening for a bright bridge"]
-        },
-        bannedAdd: [], bannedRemove: []
-      },
-
-      breakbeat: {
-        label: "Breakbeat drive",
-        genre: "Enigma Style, atmospheric breakbeat electronica",
-        band: "118-126", bpm: 122, beatless: false, colorChance: 0.45,
-        phase: "driving breakbeat, 118-126 BPM, medium-high energy", energy: "medium-high energy",
-        palettes: {
-          electronic: {
-            pads: ["Warm analogue synth pads sitting behind the breaks","Deep atmospheric pad wash under the groove","Dark evolving synth pads with a wide harmonic bed"],
-            harmony: ["built on a driving minor-key progression with a clear hook","a dark minor chord cycle pushing the groove forward","a modal progression giving the breaks a clear melodic shape"],
-            bass: ["Deep sub bass with a driving rhythmic pulse locking the breaks","Warm analogue bass with punchy movement under the groove","Rounded synth bass driving the low end with momentum"],
-            rhythm: ["Driving chopped hip-hop breakbeat with punchy kick crisp snare and tight hats","Energetic breakbeat groove with syncopated hip-hop drums and layered percussion","Uptempo broken-beat with hard snare hits and rolling hats"],
-            strings: ["Choir wash and chant texture drifting over the breaks","Warm string bed under the driving groove","Layered choir texture adding atmosphere over the breaks"],
-            motif: ["A synth lead cutting through with a driving melodic hook","A bold synth motif stating the theme over the breaks","A clear lead line delivering a strong hook over the groove"],
-            color: ["an occasional shakuhachi phrase weaving over the breaks","a brief chant fragment surfacing in the groove","an occasional bell accent punctuating the breaks"],
-            movement: ["Wide stereo field with tempo-synced delay and evolving modulation","Rhythmic autopan and delay driving movement across the breaks","Filter sweeps opening over the breakbeat drive"]
-          },
-          acoustic: {
-            pads: ["Warm harmonium chords behind the breaks","Soft-strummed nylon-string chords with rhythmic movement"],
-            harmony: ["built on a driving minor progression with a clear hook","a dark chord cycle pushing the groove"],
-            bass: ["Warm fingerstyle electric bass driving the breaks","Deep upright bass with a driving pulse"],
-            rhythm: ["Live chopped hip-hop breakbeat with punchy live drums and layered hand percussion","Energetic broken-beat kit with hard snare congas and rolling hats"],
-            strings: ["Live choir wash drifting over the breaks","Warm bowed strings under the driving groove"],
-            motif: ["A steel-string guitar riff cutting through with a driving hook","A bold melodic lead stating the theme over the breaks"],
-            color: ["an occasional pan flute phrase weaving over the breaks","a brief chant fragment in the groove"],
-            movement: ["Warm reverberant space with dynamic drive","Hand-played dynamics pushing the breaks"]
-          }
-        },
-        interplay: {
-          conversation: ["the lead hook cutting through while chant texture drifts over the breaks","the melodic hook and an occasional flute phrase riding the groove"],
-          foundation: ["deep bass and chopped breakbeat locked in a hard driving pocket"],
-          arc: ["the breaks driving hard then dropping to atmosphere and rebuilding","energy pushing forward through the breaks into a hook-driven peak"]
-        },
-        // Enigma's negative bans "hip hop beats"; this cluster deliberately uses a
-        // hip-hop-derived breakbeat, so lift that one token here.
-        bannedAdd: [], bannedRemove: ["hip hop beats"]
       }
-
     },
+
     synonymBank: {}, refTracks: []
   },
 
@@ -3272,11 +3457,11 @@ function renderLegacyControls(root, eng) {
           v => { l.phase = v; refreshOutput(); })));
       root.appendChild(field('Palette',
         segmented(seg3(), l.palette, v => { l.palette = v; l.clusterLocks = {}; l.chord = ''; renderAll(); })));
-      root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
       root.appendChild(chordField(
         legacyClusterRolePool(eng.id, (map[l.preset] || {}).cluster, 'harmony', l.palette),
         l.chord, v => { l.chord = v; refreshOutput(); }));
       clusterLockControl(root, eng.id, (map[l.preset] || {}).cluster, l);
+      root.appendChild(el('p', { class: 'note', text: 'Interaction / arrangement language is always on.' }));
       root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
       root.appendChild(buttons());
       return;
