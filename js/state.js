@@ -8,7 +8,10 @@ export function newSeed() { return (Math.random() * 2147483647) >>> 0; }
 
 export function initState() {
   // maxMode is global (persists across engine switches); res/leg are per-kind.
-  const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false, res: null, leg: null };
+  // ov = modifier overlays (Composer / Producer / Remixer). Global like maxMode:
+  // an overlay is a hand applied ON TOP of whichever engine is selected.
+  const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false,
+              ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null };
   syncEngineDefaults(S, 'Delerium');
   return S;
 }

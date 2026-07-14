@@ -29,9 +29,464 @@ function filterPalette(options, palette) {
 Object.assign(window.__ATMOS, { rng, filterPalette, ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT });
 })();
 
+/* core/compress.js */
+(function(){
+/* ============================================================================
+ * compress.js — PHRASING COMPRESSION
+ *
+ * The problem: engine prompts already run ~19 descriptor parts and land near the
+ * 1,000-char ceiling. A modifier overlay needs room. The old answer was to SHED
+ * parts, which destroys either the engine's identity or the overlay the user
+ * explicitly asked for.
+ *
+ * The answer here: compress PHRASING before removing CONTENT.
+ *
+ * SAFETY GUARANTEE (this is the whole design):
+ *   compaction may ONLY delete tokens that appear in the FILLER list below, and
+ *   may only rewrite the connective patterns in TIGHTEN. It can never delete a
+ *   word it does not recognise, so an INSTRUMENT NOUN CAN NEVER BE LOST. Suno
+ *   weights instrument nouns and genre words heavily and adverbs barely at all,
+ *   so this is close to musically free.
+ *
+ * Two levels:
+ *   1 — strip filler adverbs/intensifiers
+ *   2 — level 1 + tighten connectives and leading articles
+ * ==========================================================================*/
+
+// adverbs / intensifiers only. NOTHING here names an instrument, a genre, a
+// tempo, a chord, or an interaction.
+const FILLER = [
+  'slowly', 'gently', 'softly', 'quietly', 'gradually', 'steadily', 'subtly',
+  'deliberately', 'unhurried', 'loosely', 'lightly', 'hazily', 'faintly',
+  'endlessly', 'constantly', 'continually', 'genuinely', 'truly', 'really',
+  'very', 'quite', 'somewhat', 'slightly', 'deeply', 'richly', 'beautifully',
+  'carefully', 'neatly', 'cleanly', 'smoothly', 'evenly', 'freely',
+];
+
+// connective tightening — meaning-preserving rewrites, applied at level 2 only.
+const TIGHTEN = [
+  [/\bwith a\b/g, 'with'],
+  [/\bwith an\b/g, 'with'],
+  [/\bin a\b/g, 'in'],
+  [/\bunder a\b/g, 'under'],
+  [/\bover a\b/g, 'over'],
+  [/\bthat is\b/g, ''],
+  [/\bwhich is\b/g, ''],
+  [/\bthe whole\b/g, 'the'],
+  [/\bkind of\b/g, ''],
+  [/\bsort of\b/g, ''],
+];
+
+const FILLER_RE = new RegExp(`\\b(?:${FILLER.join('|')})\\b`, 'gi');
+
+function tidy(s) {
+  return s.replace(/\s{2,}/g, ' ').replace(/\s+,/g, ',').replace(/,\s*,/g, ',').trim();
+}
+
+/* Compact one descriptor part. level 0 = untouched. */
+function compactPart(text, level) {
+  if (!text || !level) return text;
+  let out = String(text);
+  out = out.replace(FILLER_RE, '');
+  if (level >= 2) {
+    for (const [re, to] of TIGHTEN) out = out.replace(re, to);
+    out = out.replace(/^(a|an|the)\s+/i, '');   // leading article on a clause only
+  }
+  return tidy(out);
+}
+
+/* Assert-able check used by the validation harness: compaction must never remove
+ * a word that is not filler. Returns the list of illegally-removed words ([] = ok). */
+function lostWords(before, after) {
+  const norm = s => String(s).toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/).filter(Boolean);
+  const allowed = new Set([...FILLER.map(f => f.toLowerCase()), 'a', 'an', 'the', 'is', 'that', 'which', 'whole', 'kind', 'sort', 'of']);
+  const afterCounts = new Map();
+  for (const w of norm(after)) afterCounts.set(w, (afterCounts.get(w) || 0) + 1);
+  const lost = [];
+  for (const w of norm(before)) {
+    const n = afterCounts.get(w) || 0;
+    if (n > 0) { afterCounts.set(w, n - 1); continue; }
+    if (!allowed.has(w)) lost.push(w);
+  }
+  return lost;
+}
+
+Object.assign(window.__ATMOS, { compactPart, lostWords });
+})();
+
+/* core/overlays.js */
+(function(){
+/* ============================================================================
+ * overlays.js — MODIFIER OVERLAYS (Composer / Producer / Remixer)
+ *
+ * An overlay is NOT a genre and NOT a prompt. It is a small set of SIGNATURE
+ * DELTAS — the 3-6 traits that make one composer/producer/remixer unmistakably
+ * themselves — written INTO the engine's existing arrangement slots.
+ *
+ * WHY SLOT-WRITES, NOT APPENDED CLAUSES:
+ *   an overlay replaces the text of a slot the engine already carries (harmony,
+ *   motif, counter, texture, movement, colour, arc). Slot COUNT stays flat, so
+ *   the prompt does not balloon and the result reads as ONE arrangement rather
+ *   than an engine prompt with a second prompt glued to the end.
+ *
+ * SLOT RIGHTS (hard):
+ *   composer -> harmony, motif, counter, texture, colour, arc
+ *   producer -> movement, colour, processing, arc   (+ 'treat', a drum-mix
+ *               treatment clause — never the drum FAMILY itself)
+ *   remixer  -> groove (a treatment on the engine's own drums), edit, movement, arc
+ *   NOBODY writes: genre anchor, tempo/BPM, drum family, bass family.
+ *   A USER-LOCKED slot always beats an overlay.
+ *
+ * TEXT RULES (same as every engine): no artist names (Suno strips them — the
+ * name is UI only), no mood/affect words, no non-musical content.
+ *
+ * TAGS + FORBIDS:
+ *   tags[]   - traits a character may reject (e.g. 'four-on-floor' cannot land
+ *              on a beatless character).
+ *   forbid[] - roles this overlay is never allowed to write. SAW carries
+ *              forbid:['rhythm'] per John (their drum signature is too 80s).
+ *   negative[] - bans merged into the negative field when the overlay is on.
+ * ==========================================================================*/
+
+/* ---- Composer (Orchestral) ---------------------------------------------- */
+const COMPOSER_ORCHESTRAL = {
+  arnold: {
+    label: 'David Arnold', family: 'orchestral',
+    harmony: 'wide functional harmonic movement landing on a full cadence',
+    motif: 'a small thematic motif expanded into a full orchestral statement',
+    counter: 'intricate woodwind counter-melodies threading under the theme',
+    texture: 'tremolo string swells with timpani accents',
+    color: 'a warm brass fanfare',
+    arc: 'building to a massed orchestral crescendo then resolving on the final chord',
+    tags: ['orchestral', 'crescendo'],
+  },
+  newman: {
+    label: 'Thomas Newman', family: 'orchestral',
+    harmony: 'modal Dorian chord movement resolving late and quietly onto the tonic',
+    motif: 'a sparse piano motif over a marimba ostinato',
+    counter: 'a lone oboe line answering in the gaps',
+    texture: 'prepared piano and hammered dulcimer shimmer',
+    color: 'vibraphone and celesta sparkle',
+    arc: 'the ostinato holding while colours enter and thin away',
+    tags: ['orchestral', 'ostinato', 'tuned-percussion'],
+  },
+  goransson: {
+    label: 'Ludwig Goransson', family: 'orchestral',
+    harmony: 'spare modal harmony over a sustained low drone resolving to the root',
+    motif: 'a single hand-played motif layered against itself',
+    texture: 'processed hybrid strings over an analog synth bed',
+    movement: 'deep low-end pulse with evolving saturation',
+    arc: 'one idea layered upward until it fills the field then settling',
+    tags: ['orchestral', 'hybrid'],
+  },
+  horner: {
+    label: 'James Horner', family: 'orchestral',
+    harmony: 'warm modal harmony resolving on a plagal cadence',
+    motif: 'a long-breathed soaring melody in the high strings',
+    counter: 'a solo wooden flute answering the theme',
+    texture: 'a wordless choir pad beneath the strings',
+    color: 'harp and celesta figures',
+    arc: 'a long lyrical build to a full-orchestra statement',
+    tags: ['orchestral', 'crescendo'],
+  },
+  goldsmith: {
+    label: 'Jerry Goldsmith', family: 'orchestral',
+    harmony: 'angular chromatic harmony resolving firmly to the tonic',
+    motif: 'a terse repeated brass motif',
+    counter: 'a low woodwind ostinato under the theme',
+    texture: 'metallic percussion and clustered strings',
+    arc: 'tension wound tight then released on the final cadence',
+    tags: ['orchestral', 'chromatic'],
+  },
+  nyman: {
+    label: 'Michael Nyman', family: 'orchestral',
+    harmony: 'driving repeated modal chord cells over a baroque ground bass',
+    motif: 'an insistent unison melodic line doubled across the ensemble',
+    counter: 'saxophone doubling the string line an octave above',
+    texture: 'a mechanical quaver string pulse',
+    arc: 'repetition thickening in layers before a clean stop',
+    tags: ['orchestral', 'minimalist', 'repetition'],
+  },
+  morricone: {
+    label: 'Ennio Morricone', family: 'orchestral',
+    harmony: 'simple modal harmony with a wide plagal resolution',
+    motif: 'a lone whistled ocarina melody carrying the tune',
+    counter: 'a wordless soprano answering the melody',
+    texture: 'sparse tremolo strings with twanging reverbed guitar',
+    color: 'a distant trumpet call',
+    arc: 'wide open space with single voices entering one at a time',
+    tags: ['orchestral', 'sparse'],
+  },
+  dudley: {
+    label: 'Anne Dudley', family: 'orchestral',
+    harmony: 'neo-classical string writing with rich suspended voicings',
+    motif: 'a lyrical string theme carried over the programmed groove',
+    texture: 'sampled orchestral stabs and choir hits',
+    arc: 'orchestra and sampled elements trading the foreground',
+    tags: ['orchestral', 'sampled'],
+  },
+  lloydwebber: {
+    label: 'Andrew Lloyd Webber', family: 'orchestral',
+    harmony: 'theatrical harmony with a key-lift modulation into the final chorus',
+    motif: 'a broad singable theme restated in rising keys',
+    counter: 'a string counter-melody running against the vocal line',
+    texture: 'pit-orchestra strings with brass',
+    arc: 'building to a full theatrical final-chorus statement',
+    tags: ['orchestral', 'theatrical', 'modulation'],
+  },
+  barry: {
+    label: 'John Barry', family: 'orchestral',
+    harmony: 'a slow tread of minor-to-major harmony resolving warmly',
+    motif: 'a simple melody stated plainly and left to breathe',
+    counter: 'French horn and oboe accents answering the melody',
+    texture: 'slow silky legato strings held as a sustained bed',
+    color: 'muted brass and low flute',
+    arc: 'restrained and unhurried with the dynamics held back',
+    tags: ['orchestral', 'restrained', 'legato-strings'],
+  },
+  conti: {
+    label: 'Bill Conti', family: 'orchestral',
+    harmony: 'rising major progressions resolving upward',
+    motif: 'a brass fanfare theme in the horns',
+    texture: 'a punchy horn section over sustained strings',
+    arc: 'a steady build to a full brass statement',
+    tags: ['orchestral', 'brass'],
+  },
+  williams: {
+    label: 'John Williams', family: 'orchestral',
+    harmony: 'functional harmony with bold modulation and a full cadence',
+    motif: 'a long-form thematic melody developed and restated',
+    counter: 'contrapuntal woodwind and horn lines against the theme',
+    texture: 'full-orchestra tutti with tremolo strings',
+    arc: 'the theme returning transformed at the climax',
+    tags: ['orchestral', 'thematic', 'crescendo'],
+  },
+  zimmer: {
+    label: 'Hans Zimmer', family: 'orchestral',
+    harmony: 'one harmonic centre held while the layers accumulate',
+    motif: 'a low brass ostinato motif',
+    counter: 'a sixteenth-note string ostinato driving underneath',
+    texture: 'massed low brass over a synth-orchestra hybrid bed',
+    arc: 'a layered build to a huge unison statement then a resolving chord',
+    tags: ['orchestral', 'ostinato', 'hybrid'],
+  },
+};
+
+/* ---- Composer (Electronic) ---------------------------------------------- */
+const COMPOSER_ELECTRONIC = {
+  moroder: {
+    label: 'Giorgio Moroder', family: 'electronic',
+    harmony: 'a simple minor vamp with filtered chord pumps',
+    motif: 'a sequenced arpeggiated synth-bass line driving the whole track',
+    counter: 'a filtered saw lead carrying the melody',
+    texture: 'shimmering analog pads',
+    color: 'handclap and tambourine accents on the backbeat',
+    arc: 'the sequence running unbroken while layers stack over it',
+    tags: ['electronic', 'sequenced', 'four-on-floor'],
+  },
+  fidel: {
+    label: 'Brad Fidel', family: 'electronic',
+    harmony: 'a static minor ostinato held long before a late resolution',
+    motif: 'a low analog arpeggio motif',
+    texture: 'icy digital pads over metallic bass pulses',
+    color: 'filtered noise swells and dissonant stabs',
+    arc: 'mechanical tension building without release until the close',
+    tags: ['electronic', 'ostinato', 'static-harmony'],
+  },
+  dicola: {
+    label: 'Vince DiCola', family: 'electronic',
+    harmony: 'driving major-key progressions with a hard modulation',
+    motif: 'a syncopated synth-brass melodic hook',
+    texture: 'stacked polysynth chords',
+    arc: 'a high-energy build into a full anthem statement',
+    tags: ['electronic', 'anthem'],
+  },
+  vangelis: {
+    label: 'Vangelis', family: 'electronic',
+    harmony: 'slow drifting harmonic movement resolving softly',
+    motif: 'a long sustained lead line shaped with expressive pitch bend',
+    texture: 'layered analog brass and choir pads',
+    movement: 'wide evolving chorus with long reverb tails',
+    arc: 'unfolding slowly across a vast field',
+    tags: ['electronic', 'analog', 'sustained'],
+  },
+  hammer: {
+    label: 'Jan Hammer', family: 'electronic',
+    harmony: 'rock-derived minor progressions',
+    motif: 'a bright synth lead played with guitar-style bends',
+    texture: 'glassy FM pads',
+    movement: 'gated ambience with stereo delay throws',
+    tags: ['electronic', 'synthwave'],
+  },
+  faltermeyer: {
+    label: 'Harold Faltermeyer', family: 'electronic',
+    harmony: 'a simple major-to-minor vamp',
+    motif: 'a bright analog polysynth lead hook',
+    texture: 'punchy stacked polysynth chords',
+    movement: 'clean chorus with short bright delays',
+    tags: ['electronic', 'synthwave'],
+  },
+};
+
+/* ---- Producer ------------------------------------------------------------ */
+const PRODUCER = {
+  price: {
+    label: 'Stuart Price',
+    movement: 'sidechain pumping with long filtered builds',
+    color: 'vocoder harmony doubles',
+    treat: 'a glossy automated mix with tight punchy drums',
+    arc: 'filtering down then opening into the hook',
+    tags: ['electronic', 'sidechain'],
+  },
+  flood: {
+    label: 'Flood',
+    movement: 'saturated analog compression with roomy ambience',
+    texture: 'synths and guitars blended into a shimmering wall',
+    color: 'grainy delays and filtered reverb tails',
+    treat: 'chorused bass and parallel-distorted vocals',
+    tags: ['saturation', 'wall-of-sound'],
+  },
+  terry: {
+    label: 'Todd Terry',
+    movement: 'filtered loop stabs with rough sample chops',
+    color: 'chopped vocal stabs',
+    treat: 'a raw punchy drum-machine mix',
+    arc: 'stripping to the loop then dropping the full groove back in',
+    tags: ['house', 'sample-chop'],
+  },
+  saw: {
+    label: 'Stock Aitken Waterman',
+    harmony: 'a simple diatonic progression built around the hook',
+    color: 'bright layered backing-vocal stacks',
+    treat: 'a clean bright polished mix',
+    arc: 'hook-first arrangement returning to the chorus quickly',
+    forbid: ['rhythm'],                       // John: no SAW drum signature — too 80s
+    negative: ['gated 80s drums', 'eighties drum machine'],
+    tags: ['pop', 'hook-first'],
+  },
+  mendelsohn: {
+    label: 'Julian Mendelsohn',
+    movement: 'crisp bright reverbs with tight controlled dynamics',
+    color: 'layered backing-vocal stacks',
+    treat: 'a punchy mix with a bright top end',
+    tags: ['pop', 'polish'],
+  },
+  hague: {
+    label: 'Stephen Hague',
+    movement: 'spacious digital sheen with controlled delays',
+    color: 'bell-like synth counter-lines',
+    treat: 'a clean precise mix with sequencer-locked parts',
+    arc: 'a disciplined arrangement with parts entering one at a time',
+    tags: ['synthpop', 'precision'],
+  },
+  horn: {
+    label: 'Trevor Horn',
+    texture: 'sampled orchestral stabs and sampled vocal beds played as an instrument',
+    movement: 'the arrangement clearing to a full stop then rebuilding',
+    color: 'sampled choir hits',
+    treat: 'a high-gloss digital mix built at large scale',
+    arc: 'a layered build broken by sudden full stops',
+    tags: ['sampled', 'orchestral-stabs', 'large-scale'],
+  },
+  quincy: {
+    label: 'Quincy Jones',
+    harmony: 'rich extended jazz voicings with modulations and turnarounds',
+    counter: 'a horn section answering the lead in call-and-response',
+    color: 'stacked gospel-tinged backing harmonies',
+    texture: 'a sweeping string bed gluing the arrangement together',
+    treat: 'a wide mix with a deep controlled low end',
+    tags: ['soul', 'horns', 'jazz-harmony'],
+  },
+};
+
+/* ---- Remixer ------------------------------------------------------------- */
+const REMIXER = {
+  liebrand: {
+    label: 'Ben Liebrand',
+    groove: 'edited tight into a club arrangement',
+    edit: 'spliced hook edits and re-triggered stabs',
+    movement: 'a long filtered breakdown and rebuild',
+    color: 'sampled orchestral hit accents',
+    tags: ['club', 'edit'],
+  },
+  pettibone: {
+    label: 'Shep Pettibone',
+    groove: 'stripped back to a dub-style extended groove',
+    edit: 'stuttered staccato vocal-fragment edits',
+    movement: 'eighth-note triplet delay throws over long breakdowns',
+    arc: 'breaking down to the bare groove then rebuilding to the hook',
+    tags: ['club', 'dub', 'edit'],
+  },
+};
+
+const OVERLAYS = {
+  composer: Object.assign({}, COMPOSER_ORCHESTRAL, COMPOSER_ELECTRONIC),
+  producer: PRODUCER,
+  remixer: REMIXER,
+};
+
+// roles an overlay TYPE is allowed to write. Nothing else is ever accepted.
+const SLOT_RIGHTS = {
+  composer: ['harmony', 'motif', 'counter', 'texture', 'color', 'arc'],
+  producer: ['harmony', 'counter', 'texture', 'movement', 'color', 'treat', 'arc'],
+  remixer:  ['groove', 'edit', 'movement', 'color', 'arc'],
+};
+
+function overlayList(kind) {
+  const g = OVERLAYS[kind] || {};
+  return Object.keys(g).map(id => ({ id, label: g[id].label, family: g[id].family || null }));
+}
+
+/* Resolve the chosen overlays into ONE role map the builders can apply.
+ *   sel  = { composer:'barry'|'', producer:'horn'|'', remixer:'' }
+ *   ctx  = { beatless:bool, banTags:[..] }   (from the engine character)
+ * Later overlays do not clobber earlier ones: first writer of a role wins,
+ * in order composer -> producer -> remixer, so the composer keeps the harmony
+ * and the producer/remixer keep the production/edit roles.
+ * Returns { roles:{...}, negative:[...], names:[...] }.
+ */
+function resolveOverlays(sel = {}, ctx = {}) {
+  const roles = {};
+  const negative = [];
+  const names = [];
+  const banTags = new Set(ctx.banTags || []);
+
+  for (const kind of ['composer', 'producer', 'remixer']) {
+    const id = sel[kind];
+    if (!id) continue;
+    const ov = (OVERLAYS[kind] || {})[id];
+    if (!ov) continue;
+    names.push(`${kind}:${id}`);
+
+    // character-level rejection of a whole overlay trait family
+    const tags = ov.tags || [];
+    if (tags.some(t => banTags.has(t))) continue;
+
+    const forbid = new Set(ov.forbid || []);
+    for (const role of SLOT_RIGHTS[kind]) {
+      if (!ov[role]) continue;
+      if (forbid.has(role)) continue;
+      // rhythm-writing roles never land on a beatless character
+      if (ctx.beatless && (role === 'groove' || role === 'treat')) continue;
+      if (forbid.has('rhythm') && (role === 'groove' || role === 'treat')) continue;
+      if (roles[role] == null) roles[role] = ov[role];
+    }
+    if (ov.negative) negative.push(...ov.negative);
+  }
+  return { roles, negative, names };
+}
+
+function hasOverlay(sel = {}) {
+  return !!(sel.composer || sel.producer || sel.remixer);
+}
+
+Object.assign(window.__ATMOS, { overlayList, resolveOverlays, hasOverlay, OVERLAYS, SLOT_RIGHTS });
+})();
+
 /* core/resolver.js */
 (function(){
 const {ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette} = window.__ATMOS;
+const {compactPart} = window.__ATMOS;
 
 // opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed }
 // locks drive all three control levels:
@@ -107,12 +562,13 @@ function renderStyle(engine, arr) {
     : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`);
   if (arr.tempoLock) clauses.push(arr.tempoLock);
 
-  // foundation: drums(+)bass + how they lock/float
+  // foundation: drums(+)bass + how they lock/float (+ remixer groove treatment)
+  const drumText = arr.drums ? (arr.groove ? `${arr.drums} ${arr.groove}` : arr.drums) : null;
   if (arr.bass) {
-    const low = arr.drums ? `${arr.drums} and ${arr.bass}` : arr.bass;
+    const low = drumText ? `${drumText} and ${arr.bass}` : arr.bass;
     clauses.push(ip.foundation ? `${low} ${ip.foundation}` : low);
-  } else if (arr.drums) {
-    clauses.push(ip.foundation ? `${arr.drums} ${ip.foundation}` : arr.drums);
+  } else if (drumText) {
+    clauses.push(ip.foundation ? `${drumText} ${ip.foundation}` : drumText);
   }
 
   // conversation: pads + lead + how they relate
@@ -125,14 +581,26 @@ function renderStyle(engine, arr) {
     clauses.push(arr.lead);
   }
 
+  // overlay: secondary melodic voice / composer's thematic hand (when the engine's
+  // signature lead is kept) and the composer's counter-melody
+  if (arr.ovMotif) clauses.push(arr.ovMotif);
+  if (arr.ovCounter) clauses.push(arr.ovCounter);
+
   // harmony (musicality slot — its own clause)
   if (arr.harmony) clauses.push(arr.harmony);
+
+  // overlay: secondary sustained layer
+  if (arr.ovTexture) clauses.push(arr.ovTexture);
 
   // voice + how it sits
   if (arr.voice) clauses.push(ip.voiceRel ? `${arr.voice} ${ip.voiceRel}` : arr.voice);
 
   // colour (only when it fired) + how it sits
   if (arr.color) clauses.push(ip.colorRel ? `${arr.color} ${ip.colorRel}` : arr.color);
+
+  // overlay: remixer edit treatment + producer mix treatment
+  if (arr.ovEdit) clauses.push(arr.ovEdit);
+  if (arr.ovTreat) clauses.push(arr.ovTreat);
 
   // production movement + the arc of the whole arrangement
   if (arr.movement) clauses.push(ip.arc ? `${arr.movement} and ${ip.arc}` : arr.movement);
@@ -148,9 +616,93 @@ function renderNegative(engine, arr) {
   return [...new Set(bans)].join(', ');
 }
 
+/* ---- MODIFIER OVERLAYS ---------------------------------------------------
+ * ov = { roles:{harmony,motif,counter,texture,color,movement,arc,groove,edit,treat},
+ *        negative:[...] } — already resolved by core/overlays.js.
+ * Overlays WRITE INTO existing slots (they do not append a second prompt), a
+ * USER-LOCKED slot always wins, and the engine's genre / tempo / drum family /
+ * bass family are never touched.
+ * engine.signatureLead (Deep Forest, Sacred Spirit): the lead pool carries the
+ * engine's ethnic signature instrument, so a composer's melodic trait is demoted
+ * to a second melodic voice instead of replacing it — the standing rule that the
+ * signature instrument must persist beats the overlay.
+ * ------------------------------------------------------------------------*/
+function applyOverlay(engine, arr, ov, locks = {}) {
+  if (!ov || !ov.roles) return arr;
+  const r = ov.roles;
+  const free = role => locks[role] == null || locks[role] === '';
+
+  if (r.harmony && free('harmony')) arr.harmony = r.harmony;
+  if (r.movement && free('movement')) arr.movement = r.movement;
+  if (r.color && free('color')) { arr.color = r.color; arr.colorFromOverlay = true; }
+  if (r.arc) arr.ip = Object.assign({}, arr.ip, { arc: r.arc });
+
+  if (r.motif && free('lead')) {
+    if (engine.signatureLead) arr.ovMotif = r.motif;   // keep the engine's signature lead
+    else arr.lead = r.motif;
+  } else if (r.motif) arr.ovMotif = r.motif;
+
+  if (r.counter) arr.ovCounter = r.counter;   // resolver has no counter slot -> its own clause
+  if (r.texture) arr.ovTexture = r.texture;   // resolver has no texture slot -> its own clause
+  if (r.groove && arr.drums) arr.groove = r.groove;   // treatment ON the engine's own drums
+  if (r.edit) arr.ovEdit = r.edit;
+  if (r.treat) arr.ovTreat = r.treat;
+
+  if (ov.negative && ov.negative.length)
+    arr.negative = [...(arr.negative || []), ...ov.negative];
+
+  return arr;
+}
+
+/* Compression: shrink PHRASING before shedding CONTENT (see core/compress.js).
+ * Bands are compacted in priority order — decorative layers first, core last —
+ * and only as far as the budget actually requires. */
+const CORE_KEYS = ['genre', 'tempoClause'];
+function compressStyle(engine, arr, limit, locks = {}) {
+  const roleOf = { pads: 'pads', harmony: 'harmony', bass: 'bass', voice: 'voice', lead: 'lead', movement: 'movement', color: 'color' };
+  const lockedKey = k => { const r = roleOf[k]; return r && locks[r] != null && locks[r] !== ''; };
+  let style = renderStyle(engine, arr);
+  if (style.length <= limit) return style;
+  const bands = [
+    ['color', 'ovTexture', 'ovCounter', 'ovEdit', 'ovTreat'],   // decorative / overlay extras
+    ['movement', 'ovMotif'],                                     // production + secondary melodic
+    ['pads', 'harmony', 'voice', 'lead', 'bass', 'drums', 'groove'], // core, last resort
+  ];
+  const work = Object.assign({}, arr, { ip: Object.assign({}, arr.ip) });
+  for (const level of [1, 2]) {
+    for (const band of bands) {
+      for (const k of band) if (work[k] && !lockedKey(k)) work[k] = compactPart(work[k], level);   // a locked slot is never reworded
+      if (level === 2) for (const k of Object.keys(work.ip || {}))
+        if (work.ip[k]) work.ip[k] = compactPart(work.ip[k], level);
+      style = renderStyle(engine, work);
+      if (style.length <= limit) return style;
+    }
+  }
+
+  // last resort (only reachable when several overlays are stacked on an already
+  // dense character): shed decoration, never an instrument, never the genre/tempo.
+  // Order: interplay tails -> the engine's own gap-filler colour -> overlay extras.
+  const shed = [
+    () => { if (work.ip) work.ip.colorRel = null; },
+    () => { if (!work.colorFromOverlay && !lockedKey('color')) work.color = null; },
+    () => { if (work.ip) work.ip.voiceRel = null; },
+    () => { work.ovEdit = null; },
+    () => { work.ovTexture = null; },
+    () => { work.ovTreat = null; },
+    () => { if (!lockedKey('color')) work.color = null; },
+  ];
+  for (const cut of shed) {
+    cut();
+    style = renderStyle(engine, work);
+    if (style.length <= limit) return style;
+  }
+  return style;
+}
+
 function build(engine, opts) {
   const arr = resolveArrangement(engine, opts);
-  const style = renderStyle(engine, arr);
+  applyOverlay(engine, arr, opts.overlay, opts.locks || {});
+  const style = compressStyle(engine, arr, CHAR_LIMIT, opts.locks || {});
   return { arrangement: arr, style, negative: renderNegative(engine, arr), length: style.length,
            overLimit: style.length > CHAR_LIMIT };
 }
@@ -1064,6 +1616,9 @@ const INTERPLAY = {
 };
 
 const DEEPFOREST = {
+  // ethnic-electronica: the lead pool carries the signature instrument, so a
+  // composer overlay's melodic trait is added as a second voice, never a swap.
+  signatureLead: true,
   id: 'Deep Forest',
   styleAnchor: 'Deep Forest Style',
   master: P,
@@ -1359,6 +1914,9 @@ const INTERPLAY = {
 };
 
 const SACREDSPIRIT = {
+  // ethnic-electronica: the lead pool carries the signature instrument, so a
+  // composer overlay's melodic trait is added as a second voice, never a swap.
+  signatureLead: true,
   id: 'Sacred Spirit',
   styleAnchor: 'Sacred Spirit Style',
   master: P,
@@ -1633,7 +2191,6 @@ Object.assign(window.__ATMOS, { MAX_MODE_STR, MASTERING, STYLE_ENGINES, VOCAL_MO
  * way and simply skip the parts that are empty.
  *
  * Each engine holds five things:
- *   bannedInstruments  - the shared "never let these appear" list for the engine
  *   moodBundles        - preset buttons; picking one pre-fills a coherent set of
  *                        musical choices, and may optionally tweak the keep-out
  *                        list for that mood only
@@ -1647,7 +2204,7 @@ Object.assign(window.__ATMOS, { MAX_MODE_STR, MASTERING, STYLE_ENGINES, VOCAL_MO
  *   refTracks          - real reference songs used as quality yardsticks
  *
  * KEEP-OUT LAYERING (the per-mood / per-cluster override mechanic):
- *   effective keep-out = (engine bannedInstruments + entry.bannedAdd)
+ *   effective keep-out = (entry.bannedAdd)
  *                        minus entry.bannedRemove
  *   Both bannedAdd and bannedRemove default to empty, so until an entry is
  *   deliberately tuned it behaves identically to the single shared list.
@@ -1674,11 +2231,6 @@ const EngineExtras = {
     interplayAlways: true,
 
     // Shared keep-out list for the whole Balearic genre.
-    bannedInstruments: [
-      "saxophone", "trumpet", "violin", "cello",
-      "electric guitar lead", "synth lead", "808",
-      "trap", "EDM drop", "dubstep", "rock", "metal", "rap", "hip hop"
-    ],
 
     moodBundles: {
       melancholic: {
@@ -2230,7 +2782,6 @@ const EngineExtras = {
       "Symphonic chillout (Seven Lives)":     { cluster: "symphonic",  palette: "blend" },
       "Beatless ambient interlude":           { cluster: "ambient",    palette: "electronic" }
     },
-    bannedInstruments: [],
     moodBundles: {},
     flavourClusters: {
 
@@ -2612,12 +3163,12 @@ const EngineExtras = {
     synonymBank: {}, refTracks: []
   },
 
-  Delerium:             { bannedInstruments: [], moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
-  Era:                  { bannedInstruments: [], moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
-  "Composer-Orchestral":{ bannedInstruments: [], moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
-  "Composer-Electronic":{ bannedInstruments: [], moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
-  Producer:             { bannedInstruments: [], moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
-  Remixer:              { bannedInstruments: [], moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] }
+  Delerium:             { moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
+  Era:                  { moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
+  "Composer-Orchestral":{ moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
+  "Composer-Electronic":{ moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
+  Producer:             { moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
+  Remixer:              { moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] }
 };
 
 /*
@@ -2648,7 +3199,7 @@ function resolveKeepOut(engineName, moodName) {
   const engine = EngineExtras[engineName];
   if (!engine) return [];
   const mood = (engine.moodBundles && engine.moodBundles[moodName]) || {};
-  return layerKeepOut(engine.bannedInstruments, mood.bannedAdd, mood.bannedRemove);
+  return layerKeepOut([], mood.bannedAdd, mood.bannedRemove);
 }
 
 /*
@@ -2659,7 +3210,7 @@ function resolveClusterKeepOut(engineName, clusterId) {
   const engine = EngineExtras[engineName];
   if (!engine) return [];
   const cluster = (engine.flavourClusters && engine.flavourClusters[clusterId]) || {};
-  return layerKeepOut(engine.bannedInstruments, cluster.bannedAdd, cluster.bannedRemove);
+  return layerKeepOut([], cluster.bannedAdd, cluster.bannedRemove);
 }
 
 /*
@@ -2752,6 +3303,7 @@ Object.assign(window.__ATMOS, { drawInterplay, EngineExtras });
  * ==========================================================================*/
 const {MASTERING, MAX_MODE_STR, STYLE_ENGINES} = window.__ATMOS;
 const {EngineExtras, drawInterplay} = window.__ATMOS;
+const {compactPart} = window.__ATMOS;
 
 /* join descriptor parts into one clean comma line, drop trailing periods, honour
  * the 1000-char budget, lead with the MAX-mode meta-tag block when enabled. */
@@ -2760,16 +3312,47 @@ const {EngineExtras, drawInterplay} = window.__ATMOS;
  * shed first). The extra instrument layers (perc/texture/counter/colour) and the
  * interplay arc are shed in that order only if the prompt would exceed 1000
  * chars, so arrangements are as full as the budget allows and never truncated. */
+/* COMPRESSION BEFORE SHEDDING (2026-07-14). A modifier overlay needs room inside
+ * the same 1,000 chars. Shedding a part to make that room would either strip the
+ * engine's identity or drop the overlay the user asked for, so phrasing is
+ * compacted first (core/compress.js — filler adverbs only, an instrument noun can
+ * never be lost), decorative bands before core, and content is only shed if the
+ * fully-compacted prompt is STILL over. Overlay parts (ov:true) are never shed. */
 function fitParts(parts, maxMode, locked) {
   const isLocked = p => p && p.role && locked && locked[p.role] != null && locked[p.role] !== "";
-  const drops = [...new Set(parts.filter(p => p && p.drop != null && !isLocked(p)).map(p => p.drop))]
-    .sort((a, b) => b - a);   // highest drop number is shed first
+  const flatten = ps => ps.map(p => (p && p.t !== undefined) ? p.t : p);
+  const measure = ps => joinDescriptors(flatten(ps), maxMode);
+
+  let raw = measure(parts);
+  if (raw.length <= 1000) return raw;
+
+  // 1) compact phrasing: optional layers (drop != null) first, then everything.
+  for (const level of [1, 2]) {
+    for (const scope of ["optional", "all"]) {
+      parts = parts.map(p => {
+        if (!p) return p;
+        const isObj = p && p.t !== undefined;
+        const optional = isObj && p.drop != null;
+        if (scope === "optional" && !optional) return p;
+        if (isLocked(p)) return p;                    // a locked slot is never reworded
+        if (isObj) return Object.assign({}, p, { t: compactPart(p.t, level) });
+        return compactPart(p, level);
+      });
+      raw = measure(parts);
+      if (raw.length <= 1000) return raw;
+    }
+  }
+
+  // 2) last resort: shed optional layers, highest drop number first (never overlays,
+  //    never locked roles).
+  const drops = [...new Set(parts.filter(p => p && p.drop != null && !p.ov && !isLocked(p)).map(p => p.drop))]
+    .sort((a, b) => b - a);
   let live = parts.slice();
   for (let i = 0; ; i++) {
-    const flat = live.map(p => (p && p.t !== undefined) ? p.t : p);
-    const raw = joinDescriptors(flat, maxMode);          // untruncated length is what we budget against
-    if (raw.length <= 1000 || i >= drops.length) return raw.length <= 1000 ? raw : assembleDescriptors(flat, maxMode);
-    live = live.filter(p => !(p && p.drop === drops[i] && !isLocked(p)));
+    raw = measure(live);
+    if (raw.length <= 1000 || i >= drops.length)
+      return raw.length <= 1000 ? raw : assembleDescriptors(flatten(live), maxMode);
+    live = live.filter(p => !(p && p.drop === drops[i] && !p.ov && !isLocked(p)));
   }
 }
 
@@ -2879,30 +3462,40 @@ function buildClusterPrompt(clusterId, state) {
   else if (s.bpmOverride) tempo = s.bpmOverride + " BPM, " + (c.energy || "medium energy");
   else if (presetDriven && s.phase) tempo = s.phase;                 // Preset sets character, Phase sets tempo
   else tempo = c.phase;
+  // ---- MODIFIER OVERLAY: writes INTO existing slots; a user lock always wins ----
+  const ov = (s.ov && s.ov.roles) || {};
+  const lockedRole = n => locks[n] != null && locks[n] !== "";
+  const ovv = (name, val) => (ov[name] && !lockedRole(name)) ? ov[name] : val;
+
   const wantInterplay = engine.interplayAlways || s.arrangement;
   const ipPhrases = (wantInterplay && c.interplay) ? drawInterplay(engineName, clusterId, roll) : [];
   const ipCore = ipPhrases.slice(0, 2).join(", ") || null;   // conversation + foundation
-  const ipArc = ipPhrases[2] || null;                        // arc (first to be shed if tight)
+  const ipArc = ov.arc || ipPhrases[2] || null;              // arc (overlay may rewrite it)
   const colorLocked = locks.color != null && locks.color !== "";
   const colorPick = slot("color");
   const colorChance = (typeof c.colorChance === "number") ? c.colorChance : 0.5;
-  const color = colorPick && (colorLocked || roll() < colorChance) ? colorPick : null;
+  let color = colorPick && (colorLocked || roll() < colorChance) ? colorPick : null;
+  if (ov.color && !lockedRole("color")) color = ov.color;   // an overlay colour always fires
+  const rhythmSlot = c.beatless ? null : slot("rhythm");
+  const rhythm = (rhythmSlot && ov.groove) ? `${rhythmSlot} ${ov.groove}` : rhythmSlot;  // remixer treats the engine's own drums
   const parts = [
     c.genre || STYLE_ENGINES[engineName].genre,  // genre anchor (per-cluster, else engine default)
     tempo,                                // BPM range + energy (or override number)
-    slot("pads"),
-    slot("harmony"),                      // harmonic + song-structure direction
-    slot("bass"),
-    c.beatless ? null : slot("rhythm"),
+    { t: slot("pads"), role: "pads" },
+    { t: ovv("harmony", slot("harmony")), role: "harmony" },   // harmonic + song-structure direction
+    { t: slot("bass"), role: "bass" },
+    { t: rhythm, role: "rhythm" },
     c.beatless ? null : { t: slot("perc"), drop: 2, role: "perc" },      // extra percussion layer
-    slot("strings"),                      // string / choir / chant bed
-    { t: slot("texture"), drop: 3, role: "texture" },   // secondary sustained layer
-    slot("motif"),                        // always-on melodic hook (instrumental)
-    { t: slot("counter"), drop: 1, role: "counter" },   // counter-melody / second voice
+    { t: slot("strings"), role: "strings" },                   // string / choir / chant bed
+    { t: ovv("texture", slot("texture")), drop: 3, role: "texture" },    // secondary sustained layer
+    { t: ovv("motif", slot("motif")), role: "motif" },         // always-on melodic hook (instrumental)
+    { t: ovv("counter", slot("counter")), drop: 1, role: "counter" },    // counter-melody / second voice
     color ? { t: color, drop: 4, role: "color" } : null,  // occasional colour, fills gaps
     ipCore,                               // interaction / arrangement language (mandatory)
-    ipArc ? { t: ipArc, drop: 5 } : null, // arc — shed first when the budget is tight
-    slot("movement"),                     // production movement
+    ipArc ? { t: ipArc, drop: 5, ov: !!ov.arc } : null,   // arc — shed first when the budget is tight
+    ov.edit || null,                      // remixer edit treatment
+    { t: ovv("movement", slot("movement")), role: "movement" },   // production movement
+    ov.treat || null,                     // producer mix treatment
     buildVocalPhrase(state),
     MASTERING
   ];
@@ -2919,6 +3512,7 @@ function buildClusterNegative(clusterId, state) {
     ...ALWAYS_BAN,
     ...(c.beatless ? BEATLESS_BAN : []),
     ...(c.bannedAdd || []),
+    ...((s.ov && s.ov.negative) || []),      // overlay bans (e.g. no SAW-era drums)
     s.negativePrompt
   ].filter(Boolean);
   const removeSet = new Set((c.bannedRemove || []).map(
@@ -2938,20 +3532,28 @@ function buildClusterNegative(clusterId, state) {
 function buildClassicStyle(state) {
   const e = STYLE_ENGINES[state.engine];
   const s = state.style;
+  const ov = (s.ov && s.ov.roles) || {};
+  const rhythm = (s.rhythm && ov.groove) ? `${s.rhythm} ${ov.groove}` : s.rhythm;
   const parts = [
-    e.genre,        // genre anchor, front-weighted
-    s.phase,        // tempo + energy/feel only
-    s.pad,          // slots = single source of truth for instrumentation
-    s.harmony,      // chord / song-structure direction (Chords control)
+    e.genre,                    // genre anchor, front-weighted
+    s.phase,                    // tempo + energy/feel only
+    s.pad,                      // slots = single source of truth for instrumentation
+    ov.harmony || s.harmony,    // chord / song-structure direction (Chords control)
     s.bass,
-    s.rhythm,
+    rhythm,
     s.percussion,
-    s.motif,
-    s.movement,
+    ov.motif || s.motif,
+    ov.counter || null,         // overlay-only roles (the classic path has no such slots)
+    ov.texture || null,
+    ov.color || null,
+    ov.arc || null,
+    ov.edit || null,
+    ov.movement || s.movement,
+    ov.treat || null,
     buildVocalPhrase(state),
     MASTERING
   ];
-  return assembleDescriptors(parts, s.maxMode);
+  return fitParts(parts, s.maxMode, null);
 }
 
 function clusterActive(state) {
@@ -2983,7 +3585,8 @@ function buildNegativePrompt(state) {
   if (pc) return buildClusterNegative(pc, state);
   if (clusterActive(state)) return buildClusterNegative(state.style.cluster, state);
   const e = STYLE_ENGINES[state.engine];
-  return [e.sourceNegative || e.negatives, state.style.negativePrompt].filter(Boolean).join(", ");
+  const ovNeg = ((state.style.ov && state.style.ov.negative) || []).join(", ");
+  return [e.sourceNegative || e.negatives, ovNeg, state.style.negativePrompt].filter(Boolean).join(", ");
 }
 
 Object.assign(window.__ATMOS, { buildLyricsField, buildClusterPrompt, buildClusterNegative, buildStylePrompt, buildNegativePrompt });
@@ -3090,7 +3693,10 @@ function newSeed() { return (Math.random() * 2147483647) >>> 0; }
 
 function initState() {
   // maxMode is global (persists across engine switches); res/leg are per-kind.
-  const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false, res: null, leg: null };
+  // ov = modifier overlays (Composer / Producer / Remixer). Global like maxMode:
+  // an overlay is a hand applied ON TOP of whichever engine is selected.
+  const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false,
+              ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null };
   syncEngineDefaults(S, 'Delerium');
   return S;
 }
@@ -3156,6 +3762,8 @@ Object.assign(window.__ATMOS, { newSeed, initState, syncEngineDefaults });
 const {getEngine, legacyClassic} = window.__ATMOS;
 const {build} = window.__ATMOS;
 const {CHAR_LIMIT, rng} = window.__ATMOS;
+const {resolveOverlays} = window.__ATMOS;
+const {EngineExtras} = window.__ATMOS;
 const {MAX_MODE_STR} = window.__ATMOS;
 const {buildStylePrompt, buildNegativePrompt, buildLyricsField} = window.__ATMOS;
 
@@ -3165,14 +3773,24 @@ function applyMax(style, on) {
   return out.length <= CHAR_LIMIT ? out : out.slice(0, CHAR_LIMIT - 3).trimEnd() + '...';
 }
 
+// A beatless character cannot take a club/rhythm-derived overlay trait.
+const BEATLESS_BAN_TAGS = ['four-on-floor', 'club', 'house'];
+
+function overlayFor(S, beatless) {
+  const ctx = { beatless, banTags: beatless ? BEATLESS_BAN_TAGS : [] };
+  return resolveOverlays(S.ov || {}, ctx);
+}
+
 function generate(S) {
   const eng = getEngine(S.engineId);
 
   if (eng.kind === 'resolver') {
     const r = S.res;
     const locks = (r.level === 'random') ? {} : r.locks;
+    const ch = eng.module.characters[r.characterId] || {};
     const out = build(eng.module, {
       characterId: r.characterId, palette: r.palette, locks, seed: S.seed,
+      overlay: overlayFor(S, !!ch.beatless),
     });
     const style = applyMax(out.style, S.maxMode);
     return {
@@ -3214,9 +3832,21 @@ function resolveClassicSlots(engineId, l, seed) {
   return out;
 }
 
+// Is the legacy path about to render a beatless cluster? (drives overlay context)
+function legacyBeatless(S) {
+  const l = S.leg;
+  const ex = EngineExtras[S.engineId] || {};
+  const id = l.presetDriven
+    ? ((ex.presetMap && ex.presetMap[l.preset] && ex.presetMap[l.preset].cluster) || '')
+    : (l.buildMode === 'cluster' ? l.cluster : '');
+  const c = id && (ex.flavourClusters || {})[id];
+  return !!(c && c.beatless);
+}
+
 // Map the shell's legacy sub-state onto the nested shape the proven builder reads.
 function toLegacyState(S) {
   const l = S.leg;
+  const ov = overlayFor(S, legacyBeatless(S));
 
   // Classic slot path with the 3-level control: Enigma 'Manual mix' OR Balearic 'Classic mix'.
   const classicManual = (l.presetDriven && l.engineMode === 'manual') || (!l.presetDriven && l.buildMode === 'classic');
@@ -3231,7 +3861,7 @@ function toLegacyState(S) {
         pad: s.pad, harmony: s.harmony, bass: s.bass, rhythm: s.rhythm,
         percussion: s.percussion, motif: s.motif, movement: s.movement,
         vocalMode: l.vocalMode, vocalDescriptor: '', vocalPersona: '',
-        maxMode: S.maxMode, negativePrompt: '',
+        maxMode: S.maxMode, negativePrompt: '', ov,
       },
     };
   }
@@ -3254,7 +3884,7 @@ function toLegacyState(S) {
       pad: l.slots.pad, bass: l.slots.bass, rhythm: l.slots.rhythm,
       percussion: l.slots.percussion, motif: l.slots.motif, movement: l.slots.movement,
       vocalMode: l.vocalMode, vocalDescriptor: '', vocalPersona: '',
-      maxMode: S.maxMode, negativePrompt: '',
+      maxMode: S.maxMode, negativePrompt: '', ov,
     },
   };
 }
@@ -3267,6 +3897,7 @@ Object.assign(window.__ATMOS, { generate });
 const {ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool, legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,} = window.__ATMOS;
 const {syncEngineDefaults, newSeed} = window.__ATMOS;
 const {generate} = window.__ATMOS;
+const {overlayList} = window.__ATMOS;
 
 // ---- tiny DOM helpers ------------------------------------------------------
 function el(tag, attrs = {}, kids = []) {
@@ -3390,6 +4021,7 @@ function renderAll() {
   if (eng.kind === 'resolver') renderResolverControls(controls, eng);
   else if (eng.kind === 'legacy') renderLegacyControls(controls, eng);
   else renderStub(controls, eng);
+  if (eng.kind !== 'stub') overlayPanel(controls);
 
   refreshOutput();
 }
@@ -3538,6 +4170,22 @@ function renderStub(root, eng) {
     el('h3', { text: `${eng.label} \u2014 not built yet` }),
     el('p', { text: 'Registered in scope. Slots into the resolver kind (same as Delerium) once its palette + character pools are authored and validated.' }),
   ]));
+}
+
+// ---- modifier overlays (Composer / Producer / Remixer) ---------------------
+// Engine-agnostic: an overlay is a hand applied on top of whichever engine is
+// selected. It writes into the engine's existing slots (harmony / motif / counter
+// / texture / colour / movement / arc), never the genre anchor, tempo or drums.
+function overlayPanel(root) {
+  const box = el('div', { class: 'overlays' });
+  box.appendChild(el('h4', { text: 'Modifier overlays' }));
+  const kinds = [['composer', 'Composer'], ['producer', 'Producer'], ['remixer', 'Remixer']];
+  kinds.forEach(([kind, label]) => {
+    const opts = [{ value: '', label: 'none' }].concat(
+      overlayList(kind).map(o => ({ value: o.id, label: o.family ? `${o.label} (${o.family})` : o.label })));
+    box.appendChild(field(label, select(opts, S.ov[kind], v => { S.ov[kind] = v; refreshOutput(); })));
+  });
+  root.appendChild(box);
 }
 
 // ---- shared buttons + output ----------------------------------------------

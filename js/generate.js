@@ -6,6 +6,8 @@
 import { getEngine, legacyClassic } from './registry.js';
 import { build } from '../core/resolver.js';
 import { CHAR_LIMIT, rng } from '../core/constants.js';
+import { resolveOverlays } from '../core/overlays.js';
+import { EngineExtras } from '../legacy/engine-extras.js';
 import { MAX_MODE_STR } from '../legacy/data-style-engines.js';
 import { buildStylePrompt, buildNegativePrompt, buildLyricsField } from '../legacy/prompt-style-builder.js';
 
@@ -15,14 +17,24 @@ function applyMax(style, on) {
   return out.length <= CHAR_LIMIT ? out : out.slice(0, CHAR_LIMIT - 3).trimEnd() + '...';
 }
 
+// A beatless character cannot take a club/rhythm-derived overlay trait.
+const BEATLESS_BAN_TAGS = ['four-on-floor', 'club', 'house'];
+
+function overlayFor(S, beatless) {
+  const ctx = { beatless, banTags: beatless ? BEATLESS_BAN_TAGS : [] };
+  return resolveOverlays(S.ov || {}, ctx);
+}
+
 export function generate(S) {
   const eng = getEngine(S.engineId);
 
   if (eng.kind === 'resolver') {
     const r = S.res;
     const locks = (r.level === 'random') ? {} : r.locks;
+    const ch = eng.module.characters[r.characterId] || {};
     const out = build(eng.module, {
       characterId: r.characterId, palette: r.palette, locks, seed: S.seed,
+      overlay: overlayFor(S, !!ch.beatless),
     });
     const style = applyMax(out.style, S.maxMode);
     return {
@@ -64,9 +76,21 @@ function resolveClassicSlots(engineId, l, seed) {
   return out;
 }
 
+// Is the legacy path about to render a beatless cluster? (drives overlay context)
+function legacyBeatless(S) {
+  const l = S.leg;
+  const ex = EngineExtras[S.engineId] || {};
+  const id = l.presetDriven
+    ? ((ex.presetMap && ex.presetMap[l.preset] && ex.presetMap[l.preset].cluster) || '')
+    : (l.buildMode === 'cluster' ? l.cluster : '');
+  const c = id && (ex.flavourClusters || {})[id];
+  return !!(c && c.beatless);
+}
+
 // Map the shell's legacy sub-state onto the nested shape the proven builder reads.
 function toLegacyState(S) {
   const l = S.leg;
+  const ov = overlayFor(S, legacyBeatless(S));
 
   // Classic slot path with the 3-level control: Enigma 'Manual mix' OR Balearic 'Classic mix'.
   const classicManual = (l.presetDriven && l.engineMode === 'manual') || (!l.presetDriven && l.buildMode === 'classic');
@@ -81,7 +105,7 @@ function toLegacyState(S) {
         pad: s.pad, harmony: s.harmony, bass: s.bass, rhythm: s.rhythm,
         percussion: s.percussion, motif: s.motif, movement: s.movement,
         vocalMode: l.vocalMode, vocalDescriptor: '', vocalPersona: '',
-        maxMode: S.maxMode, negativePrompt: '',
+        maxMode: S.maxMode, negativePrompt: '', ov,
       },
     };
   }
@@ -104,7 +128,7 @@ function toLegacyState(S) {
       pad: l.slots.pad, bass: l.slots.bass, rhythm: l.slots.rhythm,
       percussion: l.slots.percussion, motif: l.slots.motif, movement: l.slots.movement,
       vocalMode: l.vocalMode, vocalDescriptor: '', vocalPersona: '',
-      maxMode: S.maxMode, negativePrompt: '',
+      maxMode: S.maxMode, negativePrompt: '', ov,
     },
   };
 }

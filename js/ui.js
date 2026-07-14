@@ -4,6 +4,7 @@ import {
 } from './registry.js';
 import { syncEngineDefaults, newSeed } from './state.js';
 import { generate } from './generate.js';
+import { overlayList } from '../core/overlays.js';
 
 // ---- tiny DOM helpers ------------------------------------------------------
 function el(tag, attrs = {}, kids = []) {
@@ -127,6 +128,7 @@ function renderAll() {
   if (eng.kind === 'resolver') renderResolverControls(controls, eng);
   else if (eng.kind === 'legacy') renderLegacyControls(controls, eng);
   else renderStub(controls, eng);
+  if (eng.kind !== 'stub') overlayPanel(controls);
 
   refreshOutput();
 }
@@ -275,6 +277,22 @@ function renderStub(root, eng) {
     el('h3', { text: `${eng.label} \u2014 not built yet` }),
     el('p', { text: 'Registered in scope. Slots into the resolver kind (same as Delerium) once its palette + character pools are authored and validated.' }),
   ]));
+}
+
+// ---- modifier overlays (Composer / Producer / Remixer) ---------------------
+// Engine-agnostic: an overlay is a hand applied on top of whichever engine is
+// selected. It writes into the engine's existing slots (harmony / motif / counter
+// / texture / colour / movement / arc), never the genre anchor, tempo or drums.
+function overlayPanel(root) {
+  const box = el('div', { class: 'overlays' });
+  box.appendChild(el('h4', { text: 'Modifier overlays' }));
+  const kinds = [['composer', 'Composer'], ['producer', 'Producer'], ['remixer', 'Remixer']];
+  kinds.forEach(([kind, label]) => {
+    const opts = [{ value: '', label: 'none' }].concat(
+      overlayList(kind).map(o => ({ value: o.id, label: o.family ? `${o.label} (${o.family})` : o.label })));
+    box.appendChild(field(label, select(opts, S.ov[kind], v => { S.ov[kind] = v; refreshOutput(); })));
+  });
+  root.appendChild(box);
 }
 
 // ---- shared buttons + output ----------------------------------------------

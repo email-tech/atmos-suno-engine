@@ -274,6 +274,9 @@ const INTERPLAY = {
 };
 
 export const SACREDSPIRIT = {
+  // ethnic-electronica: the lead pool carries the signature instrument, so a
+  // composer overlay's melodic trait is added as a second voice, never a swap.
+  signatureLead: true,
   id: 'Sacred Spirit',
   styleAnchor: 'Sacred Spirit Style',
   master: P,

@@ -11,6 +11,8 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 // dependency order: producers before consumers
 const files = [
   'core/constants.js',
+  'core/compress.js',
+  'core/overlays.js',
   'core/resolver.js',
   'engines/delerium.js',
   'engines/era.js',

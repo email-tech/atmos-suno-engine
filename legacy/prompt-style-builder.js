@@ -18,6 +18,7 @@
  * ==========================================================================*/
 import { MASTERING, MAX_MODE_STR, STYLE_ENGINES } from "./data-style-engines.js";
 import { EngineExtras, drawInterplay } from "./engine-extras.js";
+import { compactPart } from "../core/compress.js";
 
 /* join descriptor parts into one clean comma line, drop trailing periods, honour
  * the 1000-char budget, lead with the MAX-mode meta-tag block when enabled. */
@@ -26,16 +27,47 @@ import { EngineExtras, drawInterplay } from "./engine-extras.js";
  * shed first). The extra instrument layers (perc/texture/counter/colour) and the
  * interplay arc are shed in that order only if the prompt would exceed 1000
  * chars, so arrangements are as full as the budget allows and never truncated. */
+/* COMPRESSION BEFORE SHEDDING (2026-07-14). A modifier overlay needs room inside
+ * the same 1,000 chars. Shedding a part to make that room would either strip the
+ * engine's identity or drop the overlay the user asked for, so phrasing is
+ * compacted first (core/compress.js — filler adverbs only, an instrument noun can
+ * never be lost), decorative bands before core, and content is only shed if the
+ * fully-compacted prompt is STILL over. Overlay parts (ov:true) are never shed. */
 function fitParts(parts, maxMode, locked) {
   const isLocked = p => p && p.role && locked && locked[p.role] != null && locked[p.role] !== "";
-  const drops = [...new Set(parts.filter(p => p && p.drop != null && !isLocked(p)).map(p => p.drop))]
-    .sort((a, b) => b - a);   // highest drop number is shed first
+  const flatten = ps => ps.map(p => (p && p.t !== undefined) ? p.t : p);
+  const measure = ps => joinDescriptors(flatten(ps), maxMode);
+
+  let raw = measure(parts);
+  if (raw.length <= 1000) return raw;
+
+  // 1) compact phrasing: optional layers (drop != null) first, then everything.
+  for (const level of [1, 2]) {
+    for (const scope of ["optional", "all"]) {
+      parts = parts.map(p => {
+        if (!p) return p;
+        const isObj = p && p.t !== undefined;
+        const optional = isObj && p.drop != null;
+        if (scope === "optional" && !optional) return p;
+        if (isLocked(p)) return p;                    // a locked slot is never reworded
+        if (isObj) return Object.assign({}, p, { t: compactPart(p.t, level) });
+        return compactPart(p, level);
+      });
+      raw = measure(parts);
+      if (raw.length <= 1000) return raw;
+    }
+  }
+
+  // 2) last resort: shed optional layers, highest drop number first (never overlays,
+  //    never locked roles).
+  const drops = [...new Set(parts.filter(p => p && p.drop != null && !p.ov && !isLocked(p)).map(p => p.drop))]
+    .sort((a, b) => b - a);
   let live = parts.slice();
   for (let i = 0; ; i++) {
-    const flat = live.map(p => (p && p.t !== undefined) ? p.t : p);
-    const raw = joinDescriptors(flat, maxMode);          // untruncated length is what we budget against
-    if (raw.length <= 1000 || i >= drops.length) return raw.length <= 1000 ? raw : assembleDescriptors(flat, maxMode);
-    live = live.filter(p => !(p && p.drop === drops[i] && !isLocked(p)));
+    raw = measure(live);
+    if (raw.length <= 1000 || i >= drops.length)
+      return raw.length <= 1000 ? raw : assembleDescriptors(flatten(live), maxMode);
+    live = live.filter(p => !(p && p.drop === drops[i] && !p.ov && !isLocked(p)));
   }
 }
 
@@ -145,30 +177,40 @@ export function buildClusterPrompt(clusterId, state) {
   else if (s.bpmOverride) tempo = s.bpmOverride + " BPM, " + (c.energy || "medium energy");
   else if (presetDriven && s.phase) tempo = s.phase;                 // Preset sets character, Phase sets tempo
   else tempo = c.phase;
+  // ---- MODIFIER OVERLAY: writes INTO existing slots; a user lock always wins ----
+  const ov = (s.ov && s.ov.roles) || {};
+  const lockedRole = n => locks[n] != null && locks[n] !== "";
+  const ovv = (name, val) => (ov[name] && !lockedRole(name)) ? ov[name] : val;
+
   const wantInterplay = engine.interplayAlways || s.arrangement;
   const ipPhrases = (wantInterplay && c.interplay) ? drawInterplay(engineName, clusterId, roll) : [];
   const ipCore = ipPhrases.slice(0, 2).join(", ") || null;   // conversation + foundation
-  const ipArc = ipPhrases[2] || null;                        // arc (first to be shed if tight)
+  const ipArc = ov.arc || ipPhrases[2] || null;              // arc (overlay may rewrite it)
   const colorLocked = locks.color != null && locks.color !== "";
   const colorPick = slot("color");
   const colorChance = (typeof c.colorChance === "number") ? c.colorChance : 0.5;
-  const color = colorPick && (colorLocked || roll() < colorChance) ? colorPick : null;
+  let color = colorPick && (colorLocked || roll() < colorChance) ? colorPick : null;
+  if (ov.color && !lockedRole("color")) color = ov.color;   // an overlay colour always fires
+  const rhythmSlot = c.beatless ? null : slot("rhythm");
+  const rhythm = (rhythmSlot && ov.groove) ? `${rhythmSlot} ${ov.groove}` : rhythmSlot;  // remixer treats the engine's own drums
   const parts = [
     c.genre || STYLE_ENGINES[engineName].genre,  // genre anchor (per-cluster, else engine default)
     tempo,                                // BPM range + energy (or override number)
-    slot("pads"),
-    slot("harmony"),                      // harmonic + song-structure direction
-    slot("bass"),
-    c.beatless ? null : slot("rhythm"),
+    { t: slot("pads"), role: "pads" },
+    { t: ovv("harmony", slot("harmony")), role: "harmony" },   // harmonic + song-structure direction
+    { t: slot("bass"), role: "bass" },
+    { t: rhythm, role: "rhythm" },
     c.beatless ? null : { t: slot("perc"), drop: 2, role: "perc" },      // extra percussion layer
-    slot("strings"),                      // string / choir / chant bed
-    { t: slot("texture"), drop: 3, role: "texture" },   // secondary sustained layer
-    slot("motif"),                        // always-on melodic hook (instrumental)
-    { t: slot("counter"), drop: 1, role: "counter" },   // counter-melody / second voice
+    { t: slot("strings"), role: "strings" },                   // string / choir / chant bed
+    { t: ovv("texture", slot("texture")), drop: 3, role: "texture" },    // secondary sustained layer
+    { t: ovv("motif", slot("motif")), role: "motif" },         // always-on melodic hook (instrumental)
+    { t: ovv("counter", slot("counter")), drop: 1, role: "counter" },    // counter-melody / second voice
     color ? { t: color, drop: 4, role: "color" } : null,  // occasional colour, fills gaps
     ipCore,                               // interaction / arrangement language (mandatory)
-    ipArc ? { t: ipArc, drop: 5 } : null, // arc — shed first when the budget is tight
-    slot("movement"),                     // production movement
+    ipArc ? { t: ipArc, drop: 5, ov: !!ov.arc } : null,   // arc — shed first when the budget is tight
+    ov.edit || null,                      // remixer edit treatment
+    { t: ovv("movement", slot("movement")), role: "movement" },   // production movement
+    ov.treat || null,                     // producer mix treatment
     buildVocalPhrase(state),
     MASTERING
   ];
@@ -185,6 +227,7 @@ export function buildClusterNegative(clusterId, state) {
     ...ALWAYS_BAN,
     ...(c.beatless ? BEATLESS_BAN : []),
     ...(c.bannedAdd || []),
+    ...((s.ov && s.ov.negative) || []),      // overlay bans (e.g. no SAW-era drums)
     s.negativePrompt
   ].filter(Boolean);
   const removeSet = new Set((c.bannedRemove || []).map(
@@ -204,20 +247,28 @@ export function buildClusterNegative(clusterId, state) {
 function buildClassicStyle(state) {
   const e = STYLE_ENGINES[state.engine];
   const s = state.style;
+  const ov = (s.ov && s.ov.roles) || {};
+  const rhythm = (s.rhythm && ov.groove) ? `${s.rhythm} ${ov.groove}` : s.rhythm;
   const parts = [
-    e.genre,        // genre anchor, front-weighted
-    s.phase,        // tempo + energy/feel only
-    s.pad,          // slots = single source of truth for instrumentation
-    s.harmony,      // chord / song-structure direction (Chords control)
+    e.genre,                    // genre anchor, front-weighted
+    s.phase,                    // tempo + energy/feel only
+    s.pad,                      // slots = single source of truth for instrumentation
+    ov.harmony || s.harmony,    // chord / song-structure direction (Chords control)
     s.bass,
-    s.rhythm,
+    rhythm,
     s.percussion,
-    s.motif,
-    s.movement,
+    ov.motif || s.motif,
+    ov.counter || null,         // overlay-only roles (the classic path has no such slots)
+    ov.texture || null,
+    ov.color || null,
+    ov.arc || null,
+    ov.edit || null,
+    ov.movement || s.movement,
+    ov.treat || null,
     buildVocalPhrase(state),
     MASTERING
   ];
-  return assembleDescriptors(parts, s.maxMode);
+  return fitParts(parts, s.maxMode, null);
 }
 
 function clusterActive(state) {
@@ -249,5 +300,6 @@ export function buildNegativePrompt(state) {
   if (pc) return buildClusterNegative(pc, state);
   if (clusterActive(state)) return buildClusterNegative(state.style.cluster, state);
   const e = STYLE_ENGINES[state.engine];
-  return [e.sourceNegative || e.negatives, state.style.negativePrompt].filter(Boolean).join(", ");
+  const ovNeg = ((state.style.ov && state.style.ov.negative) || []).join(", ");
+  return [e.sourceNegative || e.negatives, ovNeg, state.style.negativePrompt].filter(Boolean).join(", ");
 }

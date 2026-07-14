@@ -318,6 +318,9 @@ const INTERPLAY = {
 };
 
 export const DEEPFOREST = {
+  // ethnic-electronica: the lead pool carries the signature instrument, so a
+  // composer overlay's melodic trait is added as a second voice, never a swap.
+  signatureLead: true,
   id: 'Deep Forest',
   styleAnchor: 'Deep Forest Style',
   master: P,

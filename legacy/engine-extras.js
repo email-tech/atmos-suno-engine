@@ -10,7 +10,6 @@
  * way and simply skip the parts that are empty.
  *
  * Each engine holds five things:
- *   bannedInstruments  - the shared "never let these appear" list for the engine
  *   moodBundles        - preset buttons; picking one pre-fills a coherent set of
  *                        musical choices, and may optionally tweak the keep-out
  *                        list for that mood only
@@ -24,7 +23,7 @@
  *   refTracks          - real reference songs used as quality yardsticks
  *
  * KEEP-OUT LAYERING (the per-mood / per-cluster override mechanic):
- *   effective keep-out = (engine bannedInstruments + entry.bannedAdd)
+ *   effective keep-out = (entry.bannedAdd)
  *                        minus entry.bannedRemove
  *   Both bannedAdd and bannedRemove default to empty, so until an entry is
  *   deliberately tuned it behaves identically to the single shared list.
@@ -51,11 +50,6 @@ export const EngineExtras = {
     interplayAlways: true,
 
     // Shared keep-out list for the whole Balearic genre.
-    bannedInstruments: [
-      "saxophone", "trumpet", "violin", "cello",
-      "electric guitar lead", "synth lead", "808",
-      "trap", "EDM drop", "dubstep", "rock", "metal", "rap", "hip hop"
-    ],
 
     moodBundles: {
       melancholic: {
@@ -607,7 +601,6 @@ export const EngineExtras = {
       "Symphonic chillout (Seven Lives)":     { cluster: "symphonic",  palette: "blend" },
       "Beatless ambient interlude":           { cluster: "ambient",    palette: "electronic" }
     },
-    bannedInstruments: [],
     moodBundles: {},
     flavourClusters: {
 
@@ -989,12 +982,12 @@ export const EngineExtras = {
     synonymBank: {}, refTracks: []
   },
 
-  Delerium:             { bannedInstruments: [], moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
-  Era:                  { bannedInstruments: [], moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
-  "Composer-Orchestral":{ bannedInstruments: [], moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
-  "Composer-Electronic":{ bannedInstruments: [], moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
-  Producer:             { bannedInstruments: [], moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
-  Remixer:              { bannedInstruments: [], moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] }
+  Delerium:             { moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
+  Era:                  { moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
+  "Composer-Orchestral":{ moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
+  "Composer-Electronic":{ moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
+  Producer:             { moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] },
+  Remixer:              { moodBundles: {}, flavourClusters: {}, synonymBank: {}, refTracks: [] }
 };
 
 /*
@@ -1025,7 +1018,7 @@ function resolveKeepOut(engineName, moodName) {
   const engine = EngineExtras[engineName];
   if (!engine) return [];
   const mood = (engine.moodBundles && engine.moodBundles[moodName]) || {};
-  return layerKeepOut(engine.bannedInstruments, mood.bannedAdd, mood.bannedRemove);
+  return layerKeepOut([], mood.bannedAdd, mood.bannedRemove);
 }
 
 /*
@@ -1036,7 +1029,7 @@ function resolveClusterKeepOut(engineName, clusterId) {
   const engine = EngineExtras[engineName];
   if (!engine) return [];
   const cluster = (engine.flavourClusters && engine.flavourClusters[clusterId]) || {};
-  return layerKeepOut(engine.bannedInstruments, cluster.bannedAdd, cluster.bannedRemove);
+  return layerKeepOut([], cluster.bannedAdd, cluster.bannedRemove);
 }
 
 /*

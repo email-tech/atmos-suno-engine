@@ -1,4 +1,5 @@
 import { ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette } from './constants.js';
+import { compactPart } from './compress.js';
 
 // opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed }
 // locks drive all three control levels:
@@ -74,12 +75,13 @@ export function renderStyle(engine, arr) {
     : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`);
   if (arr.tempoLock) clauses.push(arr.tempoLock);
 
-  // foundation: drums(+)bass + how they lock/float
+  // foundation: drums(+)bass + how they lock/float (+ remixer groove treatment)
+  const drumText = arr.drums ? (arr.groove ? `${arr.drums} ${arr.groove}` : arr.drums) : null;
   if (arr.bass) {
-    const low = arr.drums ? `${arr.drums} and ${arr.bass}` : arr.bass;
+    const low = drumText ? `${drumText} and ${arr.bass}` : arr.bass;
     clauses.push(ip.foundation ? `${low} ${ip.foundation}` : low);
-  } else if (arr.drums) {
-    clauses.push(ip.foundation ? `${arr.drums} ${ip.foundation}` : arr.drums);
+  } else if (drumText) {
+    clauses.push(ip.foundation ? `${drumText} ${ip.foundation}` : drumText);
   }
 
   // conversation: pads + lead + how they relate
@@ -92,14 +94,26 @@ export function renderStyle(engine, arr) {
     clauses.push(arr.lead);
   }
 
+  // overlay: secondary melodic voice / composer's thematic hand (when the engine's
+  // signature lead is kept) and the composer's counter-melody
+  if (arr.ovMotif) clauses.push(arr.ovMotif);
+  if (arr.ovCounter) clauses.push(arr.ovCounter);
+
   // harmony (musicality slot — its own clause)
   if (arr.harmony) clauses.push(arr.harmony);
+
+  // overlay: secondary sustained layer
+  if (arr.ovTexture) clauses.push(arr.ovTexture);
 
   // voice + how it sits
   if (arr.voice) clauses.push(ip.voiceRel ? `${arr.voice} ${ip.voiceRel}` : arr.voice);
 
   // colour (only when it fired) + how it sits
   if (arr.color) clauses.push(ip.colorRel ? `${arr.color} ${ip.colorRel}` : arr.color);
+
+  // overlay: remixer edit treatment + producer mix treatment
+  if (arr.ovEdit) clauses.push(arr.ovEdit);
+  if (arr.ovTreat) clauses.push(arr.ovTreat);
 
   // production movement + the arc of the whole arrangement
   if (arr.movement) clauses.push(ip.arc ? `${arr.movement} and ${ip.arc}` : arr.movement);
@@ -115,9 +129,93 @@ export function renderNegative(engine, arr) {
   return [...new Set(bans)].join(', ');
 }
 
+/* ---- MODIFIER OVERLAYS ---------------------------------------------------
+ * ov = { roles:{harmony,motif,counter,texture,color,movement,arc,groove,edit,treat},
+ *        negative:[...] } — already resolved by core/overlays.js.
+ * Overlays WRITE INTO existing slots (they do not append a second prompt), a
+ * USER-LOCKED slot always wins, and the engine's genre / tempo / drum family /
+ * bass family are never touched.
+ * engine.signatureLead (Deep Forest, Sacred Spirit): the lead pool carries the
+ * engine's ethnic signature instrument, so a composer's melodic trait is demoted
+ * to a second melodic voice instead of replacing it — the standing rule that the
+ * signature instrument must persist beats the overlay.
+ * ------------------------------------------------------------------------*/
+function applyOverlay(engine, arr, ov, locks = {}) {
+  if (!ov || !ov.roles) return arr;
+  const r = ov.roles;
+  const free = role => locks[role] == null || locks[role] === '';
+
+  if (r.harmony && free('harmony')) arr.harmony = r.harmony;
+  if (r.movement && free('movement')) arr.movement = r.movement;
+  if (r.color && free('color')) { arr.color = r.color; arr.colorFromOverlay = true; }
+  if (r.arc) arr.ip = Object.assign({}, arr.ip, { arc: r.arc });
+
+  if (r.motif && free('lead')) {
+    if (engine.signatureLead) arr.ovMotif = r.motif;   // keep the engine's signature lead
+    else arr.lead = r.motif;
+  } else if (r.motif) arr.ovMotif = r.motif;
+
+  if (r.counter) arr.ovCounter = r.counter;   // resolver has no counter slot -> its own clause
+  if (r.texture) arr.ovTexture = r.texture;   // resolver has no texture slot -> its own clause
+  if (r.groove && arr.drums) arr.groove = r.groove;   // treatment ON the engine's own drums
+  if (r.edit) arr.ovEdit = r.edit;
+  if (r.treat) arr.ovTreat = r.treat;
+
+  if (ov.negative && ov.negative.length)
+    arr.negative = [...(arr.negative || []), ...ov.negative];
+
+  return arr;
+}
+
+/* Compression: shrink PHRASING before shedding CONTENT (see core/compress.js).
+ * Bands are compacted in priority order — decorative layers first, core last —
+ * and only as far as the budget actually requires. */
+const CORE_KEYS = ['genre', 'tempoClause'];
+function compressStyle(engine, arr, limit, locks = {}) {
+  const roleOf = { pads: 'pads', harmony: 'harmony', bass: 'bass', voice: 'voice', lead: 'lead', movement: 'movement', color: 'color' };
+  const lockedKey = k => { const r = roleOf[k]; return r && locks[r] != null && locks[r] !== ''; };
+  let style = renderStyle(engine, arr);
+  if (style.length <= limit) return style;
+  const bands = [
+    ['color', 'ovTexture', 'ovCounter', 'ovEdit', 'ovTreat'],   // decorative / overlay extras
+    ['movement', 'ovMotif'],                                     // production + secondary melodic
+    ['pads', 'harmony', 'voice', 'lead', 'bass', 'drums', 'groove'], // core, last resort
+  ];
+  const work = Object.assign({}, arr, { ip: Object.assign({}, arr.ip) });
+  for (const level of [1, 2]) {
+    for (const band of bands) {
+      for (const k of band) if (work[k] && !lockedKey(k)) work[k] = compactPart(work[k], level);   // a locked slot is never reworded
+      if (level === 2) for (const k of Object.keys(work.ip || {}))
+        if (work.ip[k]) work.ip[k] = compactPart(work.ip[k], level);
+      style = renderStyle(engine, work);
+      if (style.length <= limit) return style;
+    }
+  }
+
+  // last resort (only reachable when several overlays are stacked on an already
+  // dense character): shed decoration, never an instrument, never the genre/tempo.
+  // Order: interplay tails -> the engine's own gap-filler colour -> overlay extras.
+  const shed = [
+    () => { if (work.ip) work.ip.colorRel = null; },
+    () => { if (!work.colorFromOverlay && !lockedKey('color')) work.color = null; },
+    () => { if (work.ip) work.ip.voiceRel = null; },
+    () => { work.ovEdit = null; },
+    () => { work.ovTexture = null; },
+    () => { work.ovTreat = null; },
+    () => { if (!lockedKey('color')) work.color = null; },
+  ];
+  for (const cut of shed) {
+    cut();
+    style = renderStyle(engine, work);
+    if (style.length <= limit) return style;
+  }
+  return style;
+}
+
 export function build(engine, opts) {
   const arr = resolveArrangement(engine, opts);
-  const style = renderStyle(engine, arr);
+  applyOverlay(engine, arr, opts.overlay, opts.locks || {});
+  const style = compressStyle(engine, arr, CHAR_LIMIT, opts.locks || {});
   return { arrangement: arr, style, negative: renderNegative(engine, arr), length: style.length,
            overLimit: style.length > CHAR_LIMIT };
 }
