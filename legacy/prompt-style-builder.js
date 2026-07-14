@@ -21,7 +21,25 @@ import { EngineExtras, drawInterplay } from "./engine-extras.js";
 
 /* join descriptor parts into one clean comma line, drop trailing periods, honour
  * the 1000-char budget, lead with the MAX-mode meta-tag block when enabled. */
-function assembleDescriptors(parts, maxMode) {
+/* Budget-aware assembly. Parts may be plain strings (core, never dropped) or
+ * {t, drop} objects (optional layers, with a drop priority — highest number is
+ * shed first). The extra instrument layers (perc/texture/counter/colour) and the
+ * interplay arc are shed in that order only if the prompt would exceed 1000
+ * chars, so arrangements are as full as the budget allows and never truncated. */
+function fitParts(parts, maxMode, locked) {
+  const isLocked = p => p && p.role && locked && locked[p.role] != null && locked[p.role] !== "";
+  const drops = [...new Set(parts.filter(p => p && p.drop != null && !isLocked(p)).map(p => p.drop))]
+    .sort((a, b) => b - a);   // highest drop number is shed first
+  let live = parts.slice();
+  for (let i = 0; ; i++) {
+    const flat = live.map(p => (p && p.t !== undefined) ? p.t : p);
+    const raw = joinDescriptors(flat, maxMode);          // untruncated length is what we budget against
+    if (raw.length <= 1000 || i >= drops.length) return raw.length <= 1000 ? raw : assembleDescriptors(flat, maxMode);
+    live = live.filter(p => !(p && p.drop === drops[i] && !isLocked(p)));
+  }
+}
+
+function joinDescriptors(parts, maxMode) {
   const descriptors = parts
     .filter(Boolean)
     .map(p => String(p).replace(/\s*\.\s*$/, ""))
@@ -30,7 +48,11 @@ function assembleDescriptors(parts, maxMode) {
     .replace(/\s*,\s*/g, ", ")
     .replace(/,\s*,/g, ", ")
     .trim();
-  const out = maxMode ? (MAX_MODE_STR + "\n" + descriptors) : descriptors;
+  return maxMode ? (MAX_MODE_STR + "\n" + descriptors) : descriptors;
+}
+
+function assembleDescriptors(parts, maxMode) {
+  const out = joinDescriptors(parts, maxMode);
   return out.length <= 1000 ? out : out.slice(0, 997).trimEnd() + "...";
 }
 
@@ -124,8 +146,9 @@ export function buildClusterPrompt(clusterId, state) {
   else if (presetDriven && s.phase) tempo = s.phase;                 // Preset sets character, Phase sets tempo
   else tempo = c.phase;
   const wantInterplay = engine.interplayAlways || s.arrangement;
-  const arrangement = (wantInterplay && c.interplay)
-    ? drawInterplay(engineName, clusterId, roll).join(", ") : null;
+  const ipPhrases = (wantInterplay && c.interplay) ? drawInterplay(engineName, clusterId, roll) : [];
+  const ipCore = ipPhrases.slice(0, 2).join(", ") || null;   // conversation + foundation
+  const ipArc = ipPhrases[2] || null;                        // arc (first to be shed if tight)
   const colorLocked = locks.color != null && locks.color !== "";
   const colorPick = slot("color");
   const colorChance = (typeof c.colorChance === "number") ? c.colorChance : 0.5;
@@ -137,15 +160,19 @@ export function buildClusterPrompt(clusterId, state) {
     slot("harmony"),                      // harmonic + song-structure direction
     slot("bass"),
     c.beatless ? null : slot("rhythm"),
+    c.beatless ? null : { t: slot("perc"), drop: 2, role: "perc" },      // extra percussion layer
     slot("strings"),                      // string / choir / chant bed
+    { t: slot("texture"), drop: 3, role: "texture" },   // secondary sustained layer
     slot("motif"),                        // always-on melodic hook (instrumental)
-    color,                                // occasional colour, fills gaps
-    arrangement,                          // interaction / arrangement language
+    { t: slot("counter"), drop: 1, role: "counter" },   // counter-melody / second voice
+    color ? { t: color, drop: 4, role: "color" } : null,  // occasional colour, fills gaps
+    ipCore,                               // interaction / arrangement language (mandatory)
+    ipArc ? { t: ipArc, drop: 5 } : null, // arc — shed first when the budget is tight
     slot("movement"),                     // production movement
     buildVocalPhrase(state),
     MASTERING
   ];
-  return assembleDescriptors(parts, s.maxMode);
+  return fitParts(parts, s.maxMode, locks);
 }
 
 export function buildClusterNegative(clusterId, state) {
@@ -181,6 +208,7 @@ function buildClassicStyle(state) {
     e.genre,        // genre anchor, front-weighted
     s.phase,        // tempo + energy/feel only
     s.pad,          // slots = single source of truth for instrumentation
+    s.harmony,      // chord / song-structure direction (Chords control)
     s.bass,
     s.rhythm,
     s.percussion,

@@ -52,7 +52,7 @@ export function legacyClassic(id)   {
     presets: e.presets || [],
     phases: e.phases || [],
     slots: {
-      pad: e.pads || [], bass: e.bass || [], rhythm: e.rhythm || [],
+      pad: e.pads || [], harmony: e.harmony || [], bass: e.bass || [], rhythm: e.rhythm || [],
       percussion: e.percussion || [], motif: e.motifs || [], movement: e.movement || [],
     },
   };
@@ -61,7 +61,7 @@ export function legacyClassic(id)   {
 // Cluster-kind role pools (Balearic flavour clusters + Enigma preset clusters).
 // Mirrors the builder's palette rule: acoustic falls back to electronic when a
 // palette doesn't define a role; blend can pull either on the character slots.
-export const CLUSTER_ROLES = ['pads', 'harmony', 'bass', 'rhythm', 'strings', 'motif', 'color', 'movement'];
+export const CLUSTER_ROLES = ['pads', 'harmony', 'bass', 'rhythm', 'perc', 'strings', 'texture', 'motif', 'counter', 'color', 'movement'];
 
 export function legacyCluster(engineId, clusterId) {
   return ((EngineExtras[engineId] || {}).flavourClusters || {})[clusterId] || null;

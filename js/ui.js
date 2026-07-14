@@ -63,13 +63,20 @@ function lockControl(root, opts) {
   root.appendChild(box);
 }
 function clusterRoleLabel(role) {
-  return { pads: 'Pads', harmony: 'Harmony', bass: 'Bass', rhythm: 'Rhythm', strings: 'Strings / choir',
-           motif: 'Motif', color: 'Colour', movement: 'Movement' }[role] || role;
+  return { pads: 'Pads', harmony: 'Chords', bass: 'Bass', rhythm: 'Drums', perc: 'Percussion layer',
+           strings: 'Strings / choir', texture: 'Texture layer', motif: 'Motif',
+           counter: 'Counter-melody', color: 'Colour', movement: 'Movement' }[role] || role;
+}
+// Chords is surfaced as its own top-level control (it drives the song's harmonic
+// and structural shape), so it is excluded from the instrument lock box.
+function chordField(pool, value, onpick) {
+  const options = [{ value: '', label: '\uD83C\uDFB2 random chords' }, ...pool];
+  return field('Chords', select(options, value, onpick));
 }
 // Roles this cluster actually populates for the active palette (beatless clusters
 // have no rhythm pool; a cluster with no colour pool shows no Colour row).
 function clusterRolesFor(engineId, clusterId, palette) {
-  return CLUSTER_ROLES.filter(r => legacyClusterRolePool(engineId, clusterId, r, palette).length);
+  return CLUSTER_ROLES.filter(r => r !== 'harmony' && legacyClusterRolePool(engineId, clusterId, r, palette).length);
 }
 function seedClusterManual(engineId, clusterId, palette, l) {
   clusterRolesFor(engineId, clusterId, palette).forEach(role => {
@@ -92,7 +99,7 @@ function clusterLockControl(root, engineId, clusterId, l) {
   });
 }
 function classicSlotLabel(role) {
-  return { pad: 'Pad', bass: 'Bass', rhythm: 'Rhythm', percussion: 'Percussion', motif: 'Motif', movement: 'Movement' }[role] || role;
+  return { pad: 'Pad', bass: 'Bass', rhythm: 'Rhythm', percussion: 'Strings', motif: 'Motif', movement: 'Movement' }[role] || role;
 }
 const CLASSIC_ROLES = ['pad', 'bass', 'rhythm', 'percussion', 'motif', 'movement'];
 
@@ -181,13 +188,16 @@ function renderLegacyControls(root, eng) {
       const map = (window.__ATMOS.EngineExtras[eng.id] || {}).presetMap;
       root.appendChild(field('Engine preset',
         select(Object.keys(map).map(k => ({ value: k, label: k })), l.preset,
-          v => { l.preset = v; l.clusterLocks = {}; renderAll(); })));
+          v => { l.preset = v; l.clusterLocks = {}; l.chord = ''; renderAll(); })));
       root.appendChild(field('Phase (tempo / energy)',
         select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase,
           v => { l.phase = v; refreshOutput(); })));
       root.appendChild(field('Palette',
-        segmented(seg3(), l.palette, v => { l.palette = v; l.clusterLocks = {}; renderAll(); })));
+        segmented(seg3(), l.palette, v => { l.palette = v; l.clusterLocks = {}; l.chord = ''; renderAll(); })));
       root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
+      root.appendChild(chordField(
+        legacyClusterRolePool(eng.id, (map[l.preset] || {}).cluster, 'harmony', l.palette),
+        l.chord, v => { l.chord = v; refreshOutput(); }));
       clusterLockControl(root, eng.id, (map[l.preset] || {}).cluster, l);
       root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
       root.appendChild(buttons());
@@ -197,6 +207,9 @@ function renderLegacyControls(root, eng) {
     // manual mix — proven classic slot path with the same 3-level control as Delerium
     root.appendChild(field('Phase (tempo / energy)',
       select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase, v => { l.phase = v; refreshOutput(); })));
+    root.appendChild(chordField(
+      (legacyClassic(eng.id).slots.harmony || []).map(x => ({ value: x, label: x })),
+      l.classicChord, v => { l.classicChord = v; refreshOutput(); }));
     lockControl(root, {
       roles: CLASSIC_ROLES,
       labelFor: classicSlotLabel,
@@ -218,14 +231,20 @@ function renderLegacyControls(root, eng) {
   if (l.buildMode === 'cluster') {
     root.appendChild(field('Cluster',
       select(legacyClusters(eng.id).map(k => ({ value: k, label: clusterLabel(eng.id, k) })), l.cluster,
-        v => { l.cluster = v; l.clusterLocks = {}; renderAll(); })));
+        v => { l.cluster = v; l.clusterLocks = {}; l.chord = ''; renderAll(); })));
     root.appendChild(field('Palette', segmented(seg3(), l.palette,
-      v => { l.palette = v; l.clusterLocks = {}; renderAll(); })));
+      v => { l.palette = v; l.clusterLocks = {}; l.chord = ''; renderAll(); })));
     root.appendChild(field('BPM override', el('input', { class: 'txt', type: 'text', value: l.bpmOverride, placeholder: 'optional', oninput: e => { l.bpmOverride = e.target.value; refreshOutput(); } })));
+    root.appendChild(chordField(
+      legacyClusterRolePool(eng.id, l.cluster, 'harmony', l.palette),
+      l.chord, v => { l.chord = v; refreshOutput(); }));
     clusterLockControl(root, eng.id, l.cluster, l);
     root.appendChild(el('p', { class: 'note', text: 'Interaction / arrangement language is always on for Balearic clusters.' }));
   } else {
     root.appendChild(field('Phase', select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase, v => { l.phase = v; refreshOutput(); })));
+    root.appendChild(chordField(
+      (legacyClassic(eng.id).slots.harmony || []).map(x => ({ value: x, label: x })),
+      l.classicChord, v => { l.classicChord = v; refreshOutput(); }));
     lockControl(root, {
       roles: CLASSIC_ROLES,
       labelFor: classicSlotLabel,

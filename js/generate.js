@@ -53,13 +53,14 @@ function resolveClassicSlots(engineId, l, seed) {
   const roll = rng(seed);
   const rand = a => (a && a.length) ? a[Math.floor(roll() * a.length)] : '';
   const out = {};
-  ['pad', 'bass', 'rhythm', 'percussion', 'motif', 'movement'].forEach(role => {
+  ['pad', 'harmony', 'bass', 'rhythm', 'percussion', 'motif', 'movement'].forEach(role => {
     if (l.slotLevel === 'random') out[role] = rand(arrs[role]);
     else {
       const locked = l.slotLocks[role];
       out[role] = (locked != null && locked !== '') ? locked : rand(arrs[role]);
     }
   });
+  if (l.classicChord) out.harmony = l.classicChord;   // dedicated Chords control wins at every level
   return out;
 }
 
@@ -77,7 +78,8 @@ function toLegacyState(S) {
         buildMode: 'classic', cluster: '', preset: '',   // unmapped preset -> classic path
         palette: l.palette, arrangement: false, bpmOverride: '',
         phase: l.phase,
-        pad: s.pad, bass: s.bass, rhythm: s.rhythm, percussion: s.percussion, motif: s.motif, movement: s.movement,
+        pad: s.pad, harmony: s.harmony, bass: s.bass, rhythm: s.rhythm,
+        percussion: s.percussion, motif: s.motif, movement: s.movement,
         vocalMode: l.vocalMode, vocalDescriptor: '', vocalPersona: '',
         maxMode: S.maxMode, negativePrompt: '',
       },
@@ -92,7 +94,10 @@ function toLegacyState(S) {
       palette: l.palette,
       arrangement: l.arrangement,
       rngSeed: S.seed,                                     // cluster path is deterministic per seed
-      slotLocks: (l.clusterLevel === 'random') ? {} : l.clusterLocks,
+      // Chords is its own top-level control and applies at every control level.
+      slotLocks: Object.assign({},
+        (l.clusterLevel === 'random') ? {} : l.clusterLocks,
+        l.chord ? { harmony: l.chord } : {}),
       bpmOverride: l.bpmOverride,
       preset: l.preset,
       phase: l.phase,

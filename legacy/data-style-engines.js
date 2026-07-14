@@ -23,6 +23,14 @@ export const STYLE_ENGINES = {
       "Textured polysynth layers with analogue warmth and gentle modulation movement.",
       "Layered analogue pads combined with Pulse Pad Textures and soft harmonic synth layers."
     ],
+    harmony: [
+      "Built on warm minor-seventh chord voicings moving through an eight-bar cycle with a soft turnaround.",
+      "A modal Dorian chord cycle looping steadily without a pop chorus lift.",
+      "Open sus2 and add9 voicings drifting between two chords with an unhurried resolve.",
+      "Major-seventh and ninth voicings moving through a relaxed Mixolydian vamp.",
+      "A one-chord hypnotic centre with the harmony shifting only by inversion.",
+      "A minor-to-relative-major progression unfolding across long eight-bar phrases."
+    ],
     bass: [
       "Fretless bass groove with smooth melodic movement.",
       "FM bass with soft attack and subtle rhythmic pulse.",
@@ -80,6 +88,12 @@ export const STYLE_ENGINES = {
       "Warm analogue pads layered with ambient textures and soft orchestral string beds for expanded depth.",
       "Warm analogue pads layered with clean ambient textures and smooth evolving harmonic support.",
       "Morphed ethereal choir pads blended with ambient textures and slow evolving harmonic layers."
+    ],
+    harmony: [
+      "Built on a clear minor-key progression moving from verse into a lifting chorus.",
+      "A modal minor chord cycle giving the track a defined verse-chorus shape.",
+      "Moving through a warm minor progression with a resolving turnaround each cycle.",
+      "A minor chord cycle with a lifting pre-chorus and a strong hook resolution."
     ],
     bass: [
       "Deep sub bass or slow analogue bass with minimal movement supporting a hypnotic low-end foundation.",

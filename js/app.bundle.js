@@ -1403,6 +1403,14 @@ const STYLE_ENGINES = {
       "Textured polysynth layers with analogue warmth and gentle modulation movement.",
       "Layered analogue pads combined with Pulse Pad Textures and soft harmonic synth layers."
     ],
+    harmony: [
+      "Built on warm minor-seventh chord voicings moving through an eight-bar cycle with a soft turnaround.",
+      "A modal Dorian chord cycle looping steadily without a pop chorus lift.",
+      "Open sus2 and add9 voicings drifting between two chords with an unhurried resolve.",
+      "Major-seventh and ninth voicings moving through a relaxed Mixolydian vamp.",
+      "A one-chord hypnotic centre with the harmony shifting only by inversion.",
+      "A minor-to-relative-major progression unfolding across long eight-bar phrases."
+    ],
     bass: [
       "Fretless bass groove with smooth melodic movement.",
       "FM bass with soft attack and subtle rhythmic pulse.",
@@ -1460,6 +1468,12 @@ const STYLE_ENGINES = {
       "Warm analogue pads layered with ambient textures and soft orchestral string beds for expanded depth.",
       "Warm analogue pads layered with clean ambient textures and smooth evolving harmonic support.",
       "Morphed ethereal choir pads blended with ambient textures and slow evolving harmonic layers."
+    ],
+    harmony: [
+      "Built on a clear minor-key progression moving from verse into a lifting chorus.",
+      "A modal minor chord cycle giving the track a defined verse-chorus shape.",
+      "Moving through a warm minor progression with a resolving turnaround each cycle.",
+      "A minor chord cycle with a lifting pre-chorus and a strong hook resolution."
     ],
     bass: [
       "Deep sub bass or slow analogue bass with minimal movement supporting a hypnotic low-end foundation.",
@@ -1758,8 +1772,11 @@ const EngineExtras = {
             harmony: ["moving through warm minor-seventh voicings in a loose two-chord vamp across an eight-bar cycle","built on extended minor-ninth chord voicings with a soft turnaround resolving each cycle","a modal Dorian chord cycle looping steadily without a pop chorus lift"],
             bass: ["Electric bass guitar with warm rounded tone and flowing groove","Fretless bass groove with smooth melodic movement","Deep sub bass providing weight and low-end warmth"],
             rhythm: ["Natural brushed drums with organic percussion including congas, shakers and hand percussion","Live acoustic drums with a soft natural feel, subtle groove and light ghost notes, layered with organic percussion","Minimal downtempo groove with soft kick, brushed snare and light percussion textures"],
+            perc: ["a tabla pattern ticking beneath the kit","light tambourine and cabasa accents threading the groove"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
+            texture: ["a warm Hammond organ bed sustaining beneath the chords","a soft mellotron choir layer drifting under the harmony"],
             motif: ["Rhodes electric piano motifs with warm chord movement and melodic phrasing","Arpeggiated synth leads weaving through the mix with evolving rhythmic motion","Clean nylon guitar motifs with soft rhythmic strumming drifting in and out of the mix"],
+            counter: ["a plucked bouzouki counter-figure weaving against the motif","a soft clavinet counter-line answering the lead"],
             color: ["an occasional melodica phrase answering in a gap","a brief hang drum figure surfacing between phrases","a short harp flourish drifting through the space"],
             movement: ["Rhythmic autopan and modulation creating groove-based movement across percussion and melodic elements","Wide stereo panning movement across pads and motifs using left-right automation and slow modulation","Delay-driven movement using tempo-synced echoes and cascading repeats creating evolving rhythmic space"]
           },
@@ -1790,8 +1807,11 @@ const EngineExtras = {
             harmony: ["built on suspended add9 voicings opening into a major-seventh resolution across long phrases","a slow minor-to-relative-major progression unfolding over eight-bar cycles","wide open sus2 chord voicings holding the harmony before a delayed resolve"],
             bass: ["Fretless bass groove with smooth melodic movement","FM bass with soft attack and subtle rhythmic pulse","Deep sub bass providing weight and low-end warmth"],
             rhythm: ["Minimal downtempo drum groove with soft kick, brushed snare and light percussion textures","Lounge/house drum kit with soft kick, clean snare and tight hi-hats, supported by light percussion"],
+            perc: ["light shaker and triangle accents threading the groove","a soft frame-drum pulse beneath the kit"],
             strings: ["Slow string bed sitting deep in the mix","Soft layered strings blended underneath the pads for depth","Sweeping string textures rising and falling beneath the pads"],
+            texture: ["a low pipe-organ layer sustaining beneath the harmony","a soft cor-anglais layer drifting under the chords"],
             motif: ["Rhodes electric piano motifs with warm chord movement and melodic phrasing","Arpeggiated synth leads weaving through the mix with evolving rhythmic motion","Soft piano motifs with gentle melodic phrasing drifting through the mix"],
+            counter: ["a cello counter-melody answering the lead beneath the strings","a clarinet counter-line weaving against the motif"],
             color: ["an occasional glockenspiel accent shimmering above the chords","a brief flute line rising through a gap in the arrangement","a short tubular bell tone ringing beneath the harmony"],
             movement: ["Wide stereo panning movement across pads and motifs using left-right automation and slow modulation","Filter and modulation movement using LFO, chorus and phaser creating evolving tonal shifts across pads and textures"]
           },
@@ -1822,8 +1842,11 @@ const EngineExtras = {
             harmony: ["a hypnotic two-chord analogue vamp cycling with no chorus lift","held minor-ninth voicings drifting with slow chromatic inner movement","a one-chord modal centre with the harmony shifting only by inversion"],
             bass: ["FM bass with soft attack and subtle rhythmic pulse","Deep sub bass providing weight and low-end warmth","Plucky bass with warm analog character","Hybrid bass combining sub bass depth with mid-range melodic tone"],
             rhythm: ["Minimal downtempo drum groove with soft kick, electronic snare and light percussion textures","Simple steady programmed beat with soft kick and tight light percussion"],
+            perc: ["light rimshot and shaker accents ticking under the beat","a soft tambourine pulse threading the groove"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
+            texture: ["a slow string-machine layer sustaining beneath the chords","a soft harmonium bed breathing under the pads"],
             motif: ["Arpeggiated synth leads weaving through the mix with evolving rhythmic motion","Soft synth lead motifs with gentle melodic phrasing and analog character","Rhodes electric piano motifs with warm chord movement and melodic phrasing"],
+            counter: ["a soft clavinet counter-figure ticking against the motif","a marimba counter-line weaving beneath the lead"],
             color: ["an occasional detuned chime accent surfacing between cycles","a brief plucked synth figure answering in the space","a short vintage organ chord swelling under the pads"],
             movement: ["Filter and modulation movement using LFO, chorus and phaser creating evolving tonal shifts across pads and textures","Phaser and chorus modulation creating slow evolving movement across synth layers"]
           },
@@ -1831,7 +1854,7 @@ const EngineExtras = {
             pads: ["Watery Rhodes-through-chorus chords with lush shimmering movement", "Soft mellotron-style pad chords with warm vintage tape character", "Vintage electric-piano voicings with gentle tremolo and warm sustain"],
             bass: ["Gliding fretless electric bass with smooth warm melodic movement", "Warm upright bass with soft rounded tone anchoring the harmony"],
             rhythm: ["Simple soft live kit with a brushed backbeat and light steady percussion", "Minimal live groove with soft brushwork and gentle hand percussion"],
-            strings: ["Soft mellotron string layer with warm hazy analog character", "Distant bowed-string shimmer adding subtle movement beneath the pads"],
+            strings: ["Soft tape-saturated string layer with warm hazy analog character", "Distant bowed-string shimmer adding subtle movement beneath the pads"],
             motif: ["Soft vibraphone melody with smooth mallet phrasing and hypnotic repetition", "Restrained Wurlitzer accents with warm vintage tone drifting through the mix", "Delicate glockenspiel bell melody with bright clear tone and sparse phrasing", "Gentle music-box-style melody with fragile plucked tone and slow movement"],
             color: ["an occasional detuned chime accent surfacing between cycles","a brief plucked autoharp figure answering in the space","a short vintage organ chord swelling under the pads"],
             movement: ["Slow evolving dynamics with the arrangement breathing in and out", "Tape-delay shimmer drifting melodic fragments through the mix"]
@@ -1854,8 +1877,11 @@ const EngineExtras = {
             harmony: ["a single modal chord centre held under the groove with dub-style harmonic stasis","a two-chord minor vamp cycling with heavy space between the changes","a Dorian one-chord vamp with the harmony implied by the bassline"],
             bass: ["Deep sub bass providing weight and low-end warmth","Hybrid bass combining sub bass depth with mid-range melodic tone","Dub bass with deep rounded tone and spacious movement"],
             rhythm: ["Minimal downtempo drum groove with soft kick, cross-stick snare and light percussion textures","Dub-influenced downtempo groove with soft kick, rim clicks and tabla-style hand percussion"],
+            perc: ["udu and shaker accents drifting through the space","a woodblock pulse ticking between the beats"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
+            texture: ["a sustained cello drone sitting beneath the groove","a slow flanged string layer drifting under the mix"],
             motif: ["Sparse Rhodes electric piano motifs drifting in and out of the mix","Soft synth lead motifs echoing through the mix with spacious phrasing","Clean guitar motifs with dub delay drifting through the mix"],
+            counter: ["a vibraphone counter-line answering the lead through the delay","a marimba counter-figure ticking against the motif"],
             color: ["an occasional dub organ stab spinning off into the delay","an occasional clavinet skank chopping into the echo","a short hand-bell accent ringing away into the space"],
             movement: ["Delay-driven movement using tempo-synced echoes and cascading repeats creating evolving rhythmic space","Dub-style delay throws and spring reverb movement creating deep spacious motion"]
           },
@@ -1886,8 +1912,11 @@ const EngineExtras = {
             harmony: ["a dark minor chord cycle repeating without resolution","held minor-seventh voicings shifting slowly through chromatic inner movement","a one-chord hypnotic centre with the harmony moving only by inversion"],
             bass: ["Deep sub bass providing weight and low-end warmth","FM bass with soft attack and subtle rhythmic pulse"],
             rhythm: ["Minimal downtempo groove with soft four-on-the-floor kick, brushed snare and light percussion","Deep hypnotic groove with soft kick, light hats and sparse percussion textures"],
+            perc: ["sparse rim and shaker accents ticking in the space","a low tom pulse beneath the kick"],
             strings: ["Subtle string textures supporting the harmonic space","Slow string bed sitting deep in the mix"],
+            texture: ["a low pipe-organ drone sustaining under the pulse","a dark analogue sequence pulsing beneath the chords"],
             motif: ["Sparse synth stabs drifting through the mix with deep reverb","Soft Rhodes electric piano motifs with sparse phrasing and deep space","Sparse arpeggiated synth lead weaving slowly through the mix"],
+            counter: ["a muted trumpet counter-line answering across the space","a clarinet counter-figure weaving beneath the lead"],
             color: ["an isolated celeste note surfacing then dissolving into the reverb","an occasional low bell tone ringing out into the space","a brief harp figure drifting faintly beneath the pulse"],
             movement: ["Filter and modulation movement using LFO and phaser creating slow evolving tonal shifts","Wide stereo panning movement across pads using left-right automation and slow modulation"]
           },
@@ -1918,8 +1947,11 @@ const EngineExtras = {
             harmony: ["warm major-seventh and add9 voicings moving through an unhurried eight-bar cycle","a Mixolydian chord vamp cycling gently with a soft turnaround","open sus2 voicings drifting between two chords with no chorus lift"],
             bass: ["Plucky bass with warm analog character","Electric bass guitar with warm rounded tone and flowing groove","Fretless bass groove with smooth melodic movement"],
             rhythm: ["Lounge/house drum kit with soft kick, clean snare and tight hi-hats, supported by congas, shakers and light percussion","Minimal downtempo groove with soft kick, clean snare and light percussion textures"],
+            perc: ["a cajon and tambourine pulse threading the groove","light claves and shaker accents ticking through the beat"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
+            texture: ["a warm Hammond organ bed sustaining beneath the chords","a soft harmonium layer breathing under the harmony"],
             motif: ["Clean nylon guitar motifs with soft rhythmic strumming drifting in and out of the mix","Rhodes electric piano motifs with warm chord movement and melodic phrasing","Soft acoustic guitar phrases with gentle rhythmic movement and natural flow"],
+            counter: ["a bouzouki counter-line answering the lead","a clarinet counter-figure weaving against the motif"],
             color: ["an occasional accordion phrase drifting through a gap","a brief kalimba figure surfacing over the groove","a short vibraphone accent shimmering above the chords"],
             movement: ["Wide stereo panning movement across pads and motifs using left-right automation and slow modulation","Rhythmic autopan and modulation creating groove-based movement across percussion and melodic elements"]
           },
@@ -1953,7 +1985,9 @@ const EngineExtras = {
             bass: ["Deep sub drone providing weight and low-end warmth","Sustained low synth drone underpinning the pads"],
             rhythm: [],
             strings: ["Slow string bed sitting deep in the mix","Soft layered strings blended underneath the pads for depth"],
+            texture: ["a slow mellotron string layer drifting beneath the drone","a distant vibraphone shimmer sustaining in the field"],
             motif: ["Sparse soft synth tones drifting through the mix with deep reverb","Gentle bell-like synth tones with slow sparse phrasing"],
+            counter: ["a viola counter-line rising slowly beneath the tones","a soft clarinet counter-figure drifting through the space"],
             color: ["an occasional distant harp figure drifting through the field","a brief soft flute tone surfacing in the space","a short kalimba tone rippling faintly through the atmosphere"],
             movement: ["Filter and modulation movement using LFO, chorus and phaser creating slow evolving tonal shifts across pads and textures","Wide stereo panning movement across pad layers using left-right automation and slow modulation"]
           },
@@ -1985,8 +2019,11 @@ const EngineExtras = {
             harmony: ["a hazy minor-seventh loop cycling behind the beat with no chorus lift","a two-chord vamp with flattened blues-inflected voicings","a Dorian chord loop drifting slightly detuned beneath the groove"],
             bass: ["Deep sub bass providing weight and low-end warmth","Hybrid bass combining sub bass depth with mid-range melodic tone"],
             rhythm: ["Lounge/downtempo drum kit with heavy swung kick, fat snare on the backbeat and tight hi-hats","Trip-hop drum groove with lazy swung kick, deep snare and light percussion textures"],
+            perc: ["a tambourine and shaker pulse dragging behind the beat","light rim and woodblock accents ticking under the groove"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
+            texture: ["a dusty mellotron string layer smeared under the beat","a low harmonium bed sustaining beneath the groove"],
             motif: ["Rhodes electric piano motifs with hazy detuned chord movement","Vibraphone phrases with smooth sustained notes and gentle movement","Sparse synth lead motifs drifting through the mix with analog saturation"],
+            counter: ["a clarinet counter-line drifting against the lead","a sitar counter-figure weaving hazily behind the beat"],
             color: ["an occasional dusty organ stab surfacing behind the beat","a brief harmonica phrase smeared through the delay","a short flute line drifting hazily above the groove"],
             movement: ["Filter and modulation movement using LFO, chorus and phaser creating evolving tonal shifts across pads and textures","Delay-driven movement using tempo-synced echoes creating evolving rhythmic space"]
           },
@@ -2018,8 +2055,11 @@ const EngineExtras = {
             harmony: ["bright major-seventh and ninth chord stabs cycling an eight-bar progression with a lifting turnaround","a minor-to-major progression looping through verse and peak sections","classic house chord voicings moving through a four-chord cycle with a clear lift"],
             bass: ["Heavy electric slap bass with funky rhythmic groove","Deep house bassline with warm rounded analog tone","Punchy slap-bass groove driving the track forward"],
             rhythm: ["Four-on-the-floor house drum machine groove with crisp hi-hats and clap on the backbeat","Classic house beat with punchy kick, snappy claps and open hi-hats","TR-909 house groove with tight kick, crisp hats and shakers"],
+            perc: ["bongos and cowbell accents driving under the kick","timbale and shaker accents lifting the groove"],
             strings: ["Bright disco string stabs supporting the groove","Subtle string textures lifting the harmonic space"],
+            texture: ["a warm string-machine layer sustaining under the stabs","a soft Juno-style layer lifting beneath the chords"],
             motif: ["Prominent house piano riff with bright rhythmic chord stabs","Uplifting piano chord progression riff driving the track","Acoustic guitar phrases with rhythmic Balearic strumming","Sunlit synth-stab riff weaving through the groove"],
+            counter: ["a funky clavinet counter-riff answering the lead","a plucked synth counter-line dancing against the riff"],
             color: ["an occasional organ stab punching through the groove","a brief steel-pan accent lifting a bar","a short vocal-chop stab lifting the turnaround"],
             movement: ["House-style filter sweeps opening and closing across the pads","Rhythmic gating and filter movement driving the groove","Wide stereo automation across the chord stabs and riffs"]
           },
@@ -2051,8 +2091,11 @@ const EngineExtras = {
             harmony: ["minor-seventh and ninth voicings chugging through a four-chord disco cycle","a two-chord cosmic vamp with a syncopated harmonic push","extended thirteenth voicings cycling with a disco turnaround"],
             bass: ["Thick driving disco bassline with funky octave movement","Chugging analog bass with steady rhythmic pulse","Deep funky synth bass locking the groove"],
             rhythm: ["Steady disco drum groove with four-on-the-floor kick, crisp hats and tambourine","Slo-mo disco beat with punchy kick, claps and shakers","Chugging disco kit with tight hats and live-feel percussion"],
+            perc: ["cowbell and shaker accents chugging under the kick","bongos and woodblock ticking through the groove"],
             strings: ["Sweeping cosmic disco strings rising over the groove","Lush disco string stabs punctuating the rhythm"],
+            texture: ["a soft Juno-style layer sustaining under the chug","a mellotron string bed humming beneath the groove"],
             motif: ["Modern synth arpeggios cycling through the mix","Funky rhythm guitar with tight percussive chords","Cosmic synth lead with retro-futuristic phrasing","Bright clavinet funk riff driving the groove"],
+            counter: ["a bright marimba counter-line dancing against the riff","a plucked synth counter-figure answering the lead"],
             color: ["an occasional vocoder-style synth phrase weaving through the chug","a brief brass-section stab punching the turnaround","a short organ riff lifting the groove"],
             movement: ["Cosmic filter sweeps and phaser movement across synths and strings","Rhythmic autopan and modulation driving the chug","Wide stereo automation across arpeggios and pads"]
           },
@@ -2084,8 +2127,11 @@ const EngineExtras = {
             harmony: ["a minor-ninth chord progression cycling through an eight-bar build","a suspended add9 chord cycle rising toward a peak and resolving back","an extended minor-seventh progression looping with a lifting turnaround"],
             bass: ["Deep rolling house bassline with warm sub weight","Warm sub bass with smooth rolling groove","Deep house bass with rounded analog tone"],
             rhythm: ["Deep house drum groove with heavy four-on-the-floor kick, crisp hats and organic percussion","Four-on-the-floor deep house beat with shakers, congas and tight hats","Driving deep house kit with punchy kick and layered percussion"],
+            perc: ["a bongo and rimshot pattern rolling under the kick","tambourine and woodblock accents lifting the groove"],
             strings: ["Warm atmospheric string textures beneath the chords","Subtle emotional strings lifting the harmonic space"],
+            texture: ["a warm string-machine layer sustaining beneath the chords","a soft choir-pad layer drifting under the groove"],
             motif: ["Emotive plucked synth melody weaving through the mix","Melodic synth lead with warm emotional phrasing","Soulful vocal-chop textures drifting through the mix","Bright plucked synth arpeggio rising over the groove"],
+            counter: ["a plucked nylon-guitar counter-line answering the lead","a vibraphone counter-figure weaving beneath the melody"],
             color: ["an occasional organ chord swelling under the groove","a brief bell-tone accent surfacing over the drive","a short harp figure rippling through a gap"],
             movement: ["Warm filter movement and evolving modulation across the deep house groove","Deep atmospheric swells rising and falling over the drive","Wide stereo automation across pads and plucked melodies"]
           },
@@ -2257,7 +2303,7 @@ const EngineExtras = {
             bass: ["Deep bowed upright bass driving the low end","Dark cello-led bass with heavy rhythmic weight"],
             rhythm: ["Live driving kit with firm snare and layered hand percussion","Mid-tempo organic groove with strong snare and percussion"],
             strings: ["Full live choir wash in a sacred cinematic texture","Massed bowed strings and choir carrying dramatic weight"],
-            motif: ["A soaring string lead carrying the melodic chorus hook","A bold cello-and-choir melodic theme"],
+            motif: ["A soaring string lead carrying the melodic chorus hook","A bold string-and-choir melodic theme"],
             color: ["an occasional electric-guitar accent answering the hook","an occasional gritty distorted-guitar accent answering the hook","a brief shakuhachi phrase cutting through","a short chant fragment between phrases"],
             movement: ["Vast reverberant space with dramatic dynamic swells","Big natural reverb with the ensemble rising to a peak"]
           }
@@ -2292,7 +2338,7 @@ const EngineExtras = {
             harmony: ["built on a slow clear minor progression resolving each cycle","a warm suspended chord cycle moving gently"],
             bass: ["Low cello drone anchoring the harmony","Deep bowed drone giving a soft weightless foundation"],
             strings: ["Soft live choir wash with a chant texture","Bowed-string wash blended with a distant chant layer"],
-            motif: ["A warm piano lead carrying a slow melodic theme","A soft cello lead stating the main melodic theme"],
+            motif: ["A warm piano lead carrying a slow melodic theme","A soft viola lead stating the main melodic theme"],
             color: ["an occasional shakuhachi phrase drifting through","a brief hand-bell accent with soft decay","a short chant fragment between phrases"],
             movement: ["Vast natural reverb with tones drifting and dissolving","Slow dynamic swell rising and receding"]
           }
@@ -2524,7 +2570,25 @@ const {EngineExtras, drawInterplay} = window.__ATMOS;
 
 /* join descriptor parts into one clean comma line, drop trailing periods, honour
  * the 1000-char budget, lead with the MAX-mode meta-tag block when enabled. */
-function assembleDescriptors(parts, maxMode) {
+/* Budget-aware assembly. Parts may be plain strings (core, never dropped) or
+ * {t, drop} objects (optional layers, with a drop priority — highest number is
+ * shed first). The extra instrument layers (perc/texture/counter/colour) and the
+ * interplay arc are shed in that order only if the prompt would exceed 1000
+ * chars, so arrangements are as full as the budget allows and never truncated. */
+function fitParts(parts, maxMode, locked) {
+  const isLocked = p => p && p.role && locked && locked[p.role] != null && locked[p.role] !== "";
+  const drops = [...new Set(parts.filter(p => p && p.drop != null && !isLocked(p)).map(p => p.drop))]
+    .sort((a, b) => b - a);   // highest drop number is shed first
+  let live = parts.slice();
+  for (let i = 0; ; i++) {
+    const flat = live.map(p => (p && p.t !== undefined) ? p.t : p);
+    const raw = joinDescriptors(flat, maxMode);          // untruncated length is what we budget against
+    if (raw.length <= 1000 || i >= drops.length) return raw.length <= 1000 ? raw : assembleDescriptors(flat, maxMode);
+    live = live.filter(p => !(p && p.drop === drops[i] && !isLocked(p)));
+  }
+}
+
+function joinDescriptors(parts, maxMode) {
   const descriptors = parts
     .filter(Boolean)
     .map(p => String(p).replace(/\s*\.\s*$/, ""))
@@ -2533,7 +2597,11 @@ function assembleDescriptors(parts, maxMode) {
     .replace(/\s*,\s*/g, ", ")
     .replace(/,\s*,/g, ", ")
     .trim();
-  const out = maxMode ? (MAX_MODE_STR + "\n" + descriptors) : descriptors;
+  return maxMode ? (MAX_MODE_STR + "\n" + descriptors) : descriptors;
+}
+
+function assembleDescriptors(parts, maxMode) {
+  const out = joinDescriptors(parts, maxMode);
   return out.length <= 1000 ? out : out.slice(0, 997).trimEnd() + "...";
 }
 
@@ -2627,8 +2695,9 @@ function buildClusterPrompt(clusterId, state) {
   else if (presetDriven && s.phase) tempo = s.phase;                 // Preset sets character, Phase sets tempo
   else tempo = c.phase;
   const wantInterplay = engine.interplayAlways || s.arrangement;
-  const arrangement = (wantInterplay && c.interplay)
-    ? drawInterplay(engineName, clusterId, roll).join(", ") : null;
+  const ipPhrases = (wantInterplay && c.interplay) ? drawInterplay(engineName, clusterId, roll) : [];
+  const ipCore = ipPhrases.slice(0, 2).join(", ") || null;   // conversation + foundation
+  const ipArc = ipPhrases[2] || null;                        // arc (first to be shed if tight)
   const colorLocked = locks.color != null && locks.color !== "";
   const colorPick = slot("color");
   const colorChance = (typeof c.colorChance === "number") ? c.colorChance : 0.5;
@@ -2640,15 +2709,19 @@ function buildClusterPrompt(clusterId, state) {
     slot("harmony"),                      // harmonic + song-structure direction
     slot("bass"),
     c.beatless ? null : slot("rhythm"),
+    c.beatless ? null : { t: slot("perc"), drop: 2, role: "perc" },      // extra percussion layer
     slot("strings"),                      // string / choir / chant bed
+    { t: slot("texture"), drop: 3, role: "texture" },   // secondary sustained layer
     slot("motif"),                        // always-on melodic hook (instrumental)
-    color,                                // occasional colour, fills gaps
-    arrangement,                          // interaction / arrangement language
+    { t: slot("counter"), drop: 1, role: "counter" },   // counter-melody / second voice
+    color ? { t: color, drop: 4, role: "color" } : null,  // occasional colour, fills gaps
+    ipCore,                               // interaction / arrangement language (mandatory)
+    ipArc ? { t: ipArc, drop: 5 } : null, // arc — shed first when the budget is tight
     slot("movement"),                     // production movement
     buildVocalPhrase(state),
     MASTERING
   ];
-  return assembleDescriptors(parts, s.maxMode);
+  return fitParts(parts, s.maxMode, locks);
 }
 
 function buildClusterNegative(clusterId, state) {
@@ -2684,6 +2757,7 @@ function buildClassicStyle(state) {
     e.genre,        // genre anchor, front-weighted
     s.phase,        // tempo + energy/feel only
     s.pad,          // slots = single source of truth for instrumentation
+    s.harmony,      // chord / song-structure direction (Chords control)
     s.bass,
     s.rhythm,
     s.percussion,
@@ -2786,7 +2860,7 @@ function legacyClassic(id)   {
     presets: e.presets || [],
     phases: e.phases || [],
     slots: {
-      pad: e.pads || [], bass: e.bass || [], rhythm: e.rhythm || [],
+      pad: e.pads || [], harmony: e.harmony || [], bass: e.bass || [], rhythm: e.rhythm || [],
       percussion: e.percussion || [], motif: e.motifs || [], movement: e.movement || [],
     },
   };
@@ -2795,7 +2869,7 @@ function legacyClassic(id)   {
 // Cluster-kind role pools (Balearic flavour clusters + Enigma preset clusters).
 // Mirrors the builder's palette rule: acoustic falls back to electronic when a
 // palette doesn't define a role; blend can pull either on the character slots.
-const CLUSTER_ROLES = ['pads', 'harmony', 'bass', 'rhythm', 'strings', 'motif', 'color', 'movement'];
+const CLUSTER_ROLES = ['pads', 'harmony', 'bass', 'rhythm', 'perc', 'strings', 'texture', 'motif', 'counter', 'color', 'movement'];
 
 function legacyCluster(engineId, clusterId) {
   return ((EngineExtras[engineId] || {}).flavourClusters || {})[clusterId] || null;
@@ -2865,6 +2939,8 @@ function syncEngineDefaults(S, engineId) {
       palette: 'electronic',
       arrangement: false,
       bpmOverride: '',
+      chord: '',                 // dedicated Chords control (cluster/preset path)
+      classicChord: '',          // dedicated Chords control (classic slot path)
       slots: {
         pad: classic.slots.pad[0] || '', bass: classic.slots.bass[0] || '',
         rhythm: classic.slots.rhythm[0] || '', percussion: classic.slots.percussion[0] || '',
@@ -2942,13 +3018,14 @@ function resolveClassicSlots(engineId, l, seed) {
   const roll = rng(seed);
   const rand = a => (a && a.length) ? a[Math.floor(roll() * a.length)] : '';
   const out = {};
-  ['pad', 'bass', 'rhythm', 'percussion', 'motif', 'movement'].forEach(role => {
+  ['pad', 'harmony', 'bass', 'rhythm', 'percussion', 'motif', 'movement'].forEach(role => {
     if (l.slotLevel === 'random') out[role] = rand(arrs[role]);
     else {
       const locked = l.slotLocks[role];
       out[role] = (locked != null && locked !== '') ? locked : rand(arrs[role]);
     }
   });
+  if (l.classicChord) out.harmony = l.classicChord;   // dedicated Chords control wins at every level
   return out;
 }
 
@@ -2966,7 +3043,8 @@ function toLegacyState(S) {
         buildMode: 'classic', cluster: '', preset: '',   // unmapped preset -> classic path
         palette: l.palette, arrangement: false, bpmOverride: '',
         phase: l.phase,
-        pad: s.pad, bass: s.bass, rhythm: s.rhythm, percussion: s.percussion, motif: s.motif, movement: s.movement,
+        pad: s.pad, harmony: s.harmony, bass: s.bass, rhythm: s.rhythm,
+        percussion: s.percussion, motif: s.motif, movement: s.movement,
         vocalMode: l.vocalMode, vocalDescriptor: '', vocalPersona: '',
         maxMode: S.maxMode, negativePrompt: '',
       },
@@ -2981,7 +3059,10 @@ function toLegacyState(S) {
       palette: l.palette,
       arrangement: l.arrangement,
       rngSeed: S.seed,                                     // cluster path is deterministic per seed
-      slotLocks: (l.clusterLevel === 'random') ? {} : l.clusterLocks,
+      // Chords is its own top-level control and applies at every control level.
+      slotLocks: Object.assign({},
+        (l.clusterLevel === 'random') ? {} : l.clusterLocks,
+        l.chord ? { harmony: l.chord } : {}),
       bpmOverride: l.bpmOverride,
       preset: l.preset,
       phase: l.phase,
@@ -3060,13 +3141,20 @@ function lockControl(root, opts) {
   root.appendChild(box);
 }
 function clusterRoleLabel(role) {
-  return { pads: 'Pads', harmony: 'Harmony', bass: 'Bass', rhythm: 'Rhythm', strings: 'Strings / choir',
-           motif: 'Motif', color: 'Colour', movement: 'Movement' }[role] || role;
+  return { pads: 'Pads', harmony: 'Chords', bass: 'Bass', rhythm: 'Drums', perc: 'Percussion layer',
+           strings: 'Strings / choir', texture: 'Texture layer', motif: 'Motif',
+           counter: 'Counter-melody', color: 'Colour', movement: 'Movement' }[role] || role;
+}
+// Chords is surfaced as its own top-level control (it drives the song's harmonic
+// and structural shape), so it is excluded from the instrument lock box.
+function chordField(pool, value, onpick) {
+  const options = [{ value: '', label: '\uD83C\uDFB2 random chords' }, ...pool];
+  return field('Chords', select(options, value, onpick));
 }
 // Roles this cluster actually populates for the active palette (beatless clusters
 // have no rhythm pool; a cluster with no colour pool shows no Colour row).
 function clusterRolesFor(engineId, clusterId, palette) {
-  return CLUSTER_ROLES.filter(r => legacyClusterRolePool(engineId, clusterId, r, palette).length);
+  return CLUSTER_ROLES.filter(r => r !== 'harmony' && legacyClusterRolePool(engineId, clusterId, r, palette).length);
 }
 function seedClusterManual(engineId, clusterId, palette, l) {
   clusterRolesFor(engineId, clusterId, palette).forEach(role => {
@@ -3089,7 +3177,7 @@ function clusterLockControl(root, engineId, clusterId, l) {
   });
 }
 function classicSlotLabel(role) {
-  return { pad: 'Pad', bass: 'Bass', rhythm: 'Rhythm', percussion: 'Percussion', motif: 'Motif', movement: 'Movement' }[role] || role;
+  return { pad: 'Pad', bass: 'Bass', rhythm: 'Rhythm', percussion: 'Strings', motif: 'Motif', movement: 'Movement' }[role] || role;
 }
 const CLASSIC_ROLES = ['pad', 'bass', 'rhythm', 'percussion', 'motif', 'movement'];
 
@@ -3178,13 +3266,16 @@ function renderLegacyControls(root, eng) {
       const map = (window.__ATMOS.EngineExtras[eng.id] || {}).presetMap;
       root.appendChild(field('Engine preset',
         select(Object.keys(map).map(k => ({ value: k, label: k })), l.preset,
-          v => { l.preset = v; l.clusterLocks = {}; renderAll(); })));
+          v => { l.preset = v; l.clusterLocks = {}; l.chord = ''; renderAll(); })));
       root.appendChild(field('Phase (tempo / energy)',
         select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase,
           v => { l.phase = v; refreshOutput(); })));
       root.appendChild(field('Palette',
-        segmented(seg3(), l.palette, v => { l.palette = v; l.clusterLocks = {}; renderAll(); })));
+        segmented(seg3(), l.palette, v => { l.palette = v; l.clusterLocks = {}; l.chord = ''; renderAll(); })));
       root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
+      root.appendChild(chordField(
+        legacyClusterRolePool(eng.id, (map[l.preset] || {}).cluster, 'harmony', l.palette),
+        l.chord, v => { l.chord = v; refreshOutput(); }));
       clusterLockControl(root, eng.id, (map[l.preset] || {}).cluster, l);
       root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
       root.appendChild(buttons());
@@ -3194,6 +3285,9 @@ function renderLegacyControls(root, eng) {
     // manual mix — proven classic slot path with the same 3-level control as Delerium
     root.appendChild(field('Phase (tempo / energy)',
       select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase, v => { l.phase = v; refreshOutput(); })));
+    root.appendChild(chordField(
+      (legacyClassic(eng.id).slots.harmony || []).map(x => ({ value: x, label: x })),
+      l.classicChord, v => { l.classicChord = v; refreshOutput(); }));
     lockControl(root, {
       roles: CLASSIC_ROLES,
       labelFor: classicSlotLabel,
@@ -3215,14 +3309,20 @@ function renderLegacyControls(root, eng) {
   if (l.buildMode === 'cluster') {
     root.appendChild(field('Cluster',
       select(legacyClusters(eng.id).map(k => ({ value: k, label: clusterLabel(eng.id, k) })), l.cluster,
-        v => { l.cluster = v; l.clusterLocks = {}; renderAll(); })));
+        v => { l.cluster = v; l.clusterLocks = {}; l.chord = ''; renderAll(); })));
     root.appendChild(field('Palette', segmented(seg3(), l.palette,
-      v => { l.palette = v; l.clusterLocks = {}; renderAll(); })));
+      v => { l.palette = v; l.clusterLocks = {}; l.chord = ''; renderAll(); })));
     root.appendChild(field('BPM override', el('input', { class: 'txt', type: 'text', value: l.bpmOverride, placeholder: 'optional', oninput: e => { l.bpmOverride = e.target.value; refreshOutput(); } })));
+    root.appendChild(chordField(
+      legacyClusterRolePool(eng.id, l.cluster, 'harmony', l.palette),
+      l.chord, v => { l.chord = v; refreshOutput(); }));
     clusterLockControl(root, eng.id, l.cluster, l);
     root.appendChild(el('p', { class: 'note', text: 'Interaction / arrangement language is always on for Balearic clusters.' }));
   } else {
     root.appendChild(field('Phase', select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase, v => { l.phase = v; refreshOutput(); })));
+    root.appendChild(chordField(
+      (legacyClassic(eng.id).slots.harmony || []).map(x => ({ value: x, label: x })),
+      l.classicChord, v => { l.classicChord = v; refreshOutput(); }));
     lockControl(root, {
       roles: CLASSIC_ROLES,
       labelFor: classicSlotLabel,

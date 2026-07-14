@@ -9,7 +9,9 @@ const PALETTES = ['electronic', 'acoustic', 'blend'];
 const BEATLESS_WORDS = ['drum kit', 'kick drum', 'four-on-the-floor', 'snare', 'hi-hat', 'congas', 'bongos', 'shaker'];
 
 // instrument tokens we never want named twice in one prompt
-const INSTR = ['rhodes', 'wurlitzer', 'nylon guitar', 'acoustic guitar', 'electric guitar', 'marimba', 'vibraphone',
+const INSTR = ['tabla', 'bouzouki', 'clavinet', 'hammond organ', 'mellotron', 'cello', 'viola', 'harmonium',
+  'string-machine', 'juno-style', 'marimba', 'sitar', 'cowbell', 'tambourine', 'cajon', 'timbale', 'woodblock',
+  'rhodes', 'wurlitzer', 'nylon guitar', 'acoustic guitar', 'electric guitar', 'marimba', 'vibraphone',
   'kalimba', 'harp', 'flute', 'pan flute', 'clarinet', 'oboe', 'celeste', 'glockenspiel', 'melodica', 'trumpet',
   'accordion', 'mandolin', 'harmonica', 'clavinet', 'organ', 'piano', 'upright bass', 'sub bass', 'fretless bass',
   'bouzouki', 'kora', 'santoor', 'hang drum', 'toy-piano', 'autoharp', 'steel-pan', 'tubular bell', 'music-box',
@@ -48,6 +50,14 @@ function check(engine, clusterId, palette, style, negative, seed) {
   // harmony present?
   const H = (c.palettes.electronic.harmony || []).concat(c.palettes.acoustic.harmony || []);
   if (H.some(h => style.includes(h))) st.harmony++;
+  ['perc', 'texture', 'counter'].forEach(r => {
+    const P = (c.palettes.electronic[r] || []).concat(c.palettes.acoustic[r] || []);
+    if (!P.length) return;
+    st[r] = st[r] || 0;
+    if (P.some(x => style.includes(x))) st[r]++;
+  });
+  // instrument-layer count: how many named-instrument slots survived the budget
+  st.layers = (st.layers || 0) + style.split(',').length;
   const C = (c.palettes.electronic.color || []).concat(c.palettes.acoustic.color || []);
   if (C.some(x => style.includes(x))) st.color++;
   const IP = Object.values(c.interplay || {}).flat();
@@ -84,7 +94,7 @@ for (const engine of ['Balearic', 'Enigma']) {
 
   for (const e of entries) {
     for (const palette of PALETTES) {
-      for (let i = 0; i < 200; i++) {
+      for (let i = 0; i < 350; i++) {
         const seed = (Math.random() * 2 ** 31) >>> 0;
         const l = { ...e, palette, phase: phases[i % phases.length] || '' };
         const state = mkState(engine, l, seed);
@@ -122,7 +132,8 @@ for (const k of rows) {
   const hPct = Math.round(100 * s.harmony / s.n), cPct = Math.round(100 * s.color / s.n), iPct = Math.round(100 * s.interplay / s.n);
   if (hPct < 100) missingHarm++;
   if (k.startsWith('Balearic') && iPct < 100) missingIP++;
-  console.log(`${k.padEnd(42)} n=${s.n} uniq=${String(s.uniq.size).padStart(3)} len ${s.min}-${s.max}  harmony ${hPct}%  colour ${cPct}%  interplay ${iPct}%`);
+  const pc = r => s[r] == null ? '  -' : String(Math.round(100 * s[r] / s.n)).padStart(3) + '%';
+  console.log(`${k.padEnd(40)} len ${String(s.min).padStart(3)}-${String(s.max).padStart(4)} uniq=${String(s.uniq.size).padStart(3)}  chords ${String(hPct).padStart(3)}%  perc ${pc('perc')}  texture ${pc('texture')}  counter ${pc('counter')}  colour ${String(cPct).padStart(3)}%  interplay ${String(iPct).padStart(3)}%  parts~${(s.layers / s.n).toFixed(1)}`);
 }
 console.log(`\ndraws: ${draws}  over-limit: ${over}  lock failures: ${lockFails}`);
 console.log(`clusters without 100% harmony: ${missingHarm}   Balearic clusters without 100% interplay: ${missingIP}`);

@@ -42,6 +42,8 @@ export function syncEngineDefaults(S, engineId) {
       palette: 'electronic',
       arrangement: false,
       bpmOverride: '',
+      chord: '',                 // dedicated Chords control (cluster/preset path)
+      classicChord: '',          // dedicated Chords control (classic slot path)
       slots: {
         pad: classic.slots.pad[0] || '', bass: classic.slots.bass[0] || '',
         rhythm: classic.slots.rhythm[0] || '', percussion: classic.slots.percussion[0] || '',
