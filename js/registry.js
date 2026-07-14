@@ -57,3 +57,27 @@ export function legacyClassic(id)   {
     },
   };
 }
+
+// Cluster-kind role pools (Balearic flavour clusters + Enigma preset clusters).
+// Mirrors the builder's palette rule: acoustic falls back to electronic when a
+// palette doesn't define a role; blend can pull either on the character slots.
+export const CLUSTER_ROLES = ['pads', 'harmony', 'bass', 'rhythm', 'strings', 'motif', 'color', 'movement'];
+
+export function legacyCluster(engineId, clusterId) {
+  return ((EngineExtras[engineId] || {}).flavourClusters || {})[clusterId] || null;
+}
+
+export function legacyClusterRolePool(engineId, clusterId, role, palette) {
+  const c = legacyCluster(engineId, clusterId);
+  if (!c) return [];
+  const E = (c.palettes && c.palettes.electronic) || {};
+  const A = (c.palettes && c.palettes.acoustic) || {};
+  const e = E[role] || [], a = A[role] || [];
+  let pool;
+  if (palette === 'acoustic') pool = a.length ? a : e;
+  else if (palette === 'blend') {
+    const character = (role === 'bass' || role === 'strings' || role === 'motif');
+    pool = character ? [...new Set([...e, ...a])] : e;
+  } else pool = e;
+  return pool.map(x => ({ value: x, label: x }));
+}

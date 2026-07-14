@@ -1,6 +1,6 @@
 import {
   ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool,
-  legacyClusters, legacyClassic,
+  legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,
 } from './registry.js';
 import { syncEngineDefaults, newSeed } from './state.js';
 import { generate } from './generate.js';
@@ -29,8 +29,21 @@ function select(options, value, onchange) {
   return s;
 }
 function segmented(options, value, onpick) {
-  return el('div', { class: 'seg' }, options.map(o =>
-    el('button', { class: o.value === value ? 'active' : '', text: o.label, onclick: () => onpick(o.value) })));
+  // The active class is updated here on click. Handlers that only call
+  // refreshOutput() (they repaint the output panel, not the controls) previously
+  // left the highlight stuck on the old option even though the prompt changed.
+  const wrap = el('div', { class: 'seg' });
+  const btns = options.map(o => el('button', {
+    class: o.value === value ? 'active' : '',
+    text: o.label,
+    onclick: (e) => {
+      btns.forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      onpick(o.value);
+    },
+  }));
+  btns.forEach(b => wrap.appendChild(b));
+  return wrap;
 }
 
 // Shared 3-level control (Randomize all / Lock some / Full manual) over any role set.
@@ -48,6 +61,35 @@ function lockControl(root, opts) {
       select(options, cur, v => { if (v === '') delete opts.locks[role]; else opts.locks[role] = v; refreshOutput(); })));
   });
   root.appendChild(box);
+}
+function clusterRoleLabel(role) {
+  return { pads: 'Pads', harmony: 'Harmony', bass: 'Bass', rhythm: 'Rhythm', strings: 'Strings / choir',
+           motif: 'Motif', color: 'Colour', movement: 'Movement' }[role] || role;
+}
+// Roles this cluster actually populates for the active palette (beatless clusters
+// have no rhythm pool; a cluster with no colour pool shows no Colour row).
+function clusterRolesFor(engineId, clusterId, palette) {
+  return CLUSTER_ROLES.filter(r => legacyClusterRolePool(engineId, clusterId, r, palette).length);
+}
+function seedClusterManual(engineId, clusterId, palette, l) {
+  clusterRolesFor(engineId, clusterId, palette).forEach(role => {
+    const pool = legacyClusterRolePool(engineId, clusterId, role, palette);
+    if (pool.length) l.clusterLocks[role] = pool[0].value;
+  });
+}
+function clusterLockControl(root, engineId, clusterId, l) {
+  lockControl(root, {
+    roles: clusterRolesFor(engineId, clusterId, l.palette),
+    labelFor: clusterRoleLabel,
+    optionsFor: role => legacyClusterRolePool(engineId, clusterId, role, l.palette),
+    level: l.clusterLevel,
+    onLevel: v => {
+      l.clusterLevel = v; l.clusterLocks = {};
+      if (v === 'manual') seedClusterManual(engineId, clusterId, l.palette, l);
+      renderAll();
+    },
+    locks: l.clusterLocks,
+  });
 }
 function classicSlotLabel(role) {
   return { pad: 'Pad', bass: 'Bass', rhythm: 'Rhythm', percussion: 'Percussion', motif: 'Motif', movement: 'Movement' }[role] || role;
@@ -139,13 +181,14 @@ function renderLegacyControls(root, eng) {
       const map = (window.__ATMOS.EngineExtras[eng.id] || {}).presetMap;
       root.appendChild(field('Engine preset',
         select(Object.keys(map).map(k => ({ value: k, label: k })), l.preset,
-          v => { l.preset = v; refreshOutput(); })));
+          v => { l.preset = v; l.clusterLocks = {}; renderAll(); })));
       root.appendChild(field('Phase (tempo / energy)',
         select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase,
           v => { l.phase = v; refreshOutput(); })));
       root.appendChild(field('Palette',
-        segmented(seg3(), l.palette, v => { l.palette = v; refreshOutput(); })));
+        segmented(seg3(), l.palette, v => { l.palette = v; l.clusterLocks = {}; renderAll(); })));
       root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
+      clusterLockControl(root, eng.id, (map[l.preset] || {}).cluster, l);
       root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
       root.appendChild(buttons());
       return;
@@ -174,10 +217,13 @@ function renderLegacyControls(root, eng) {
 
   if (l.buildMode === 'cluster') {
     root.appendChild(field('Cluster',
-      select(legacyClusters(eng.id).map(k => ({ value: k, label: k })), l.cluster, v => { l.cluster = v; refreshOutput(); })));
-    root.appendChild(field('Palette', segmented(seg3(), l.palette, v => { l.palette = v; refreshOutput(); })));
-    root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
+      select(legacyClusters(eng.id).map(k => ({ value: k, label: clusterLabel(eng.id, k) })), l.cluster,
+        v => { l.cluster = v; l.clusterLocks = {}; renderAll(); })));
+    root.appendChild(field('Palette', segmented(seg3(), l.palette,
+      v => { l.palette = v; l.clusterLocks = {}; renderAll(); })));
     root.appendChild(field('BPM override', el('input', { class: 'txt', type: 'text', value: l.bpmOverride, placeholder: 'optional', oninput: e => { l.bpmOverride = e.target.value; refreshOutput(); } })));
+    clusterLockControl(root, eng.id, l.cluster, l);
+    root.appendChild(el('p', { class: 'note', text: 'Interaction / arrangement language is always on for Balearic clusters.' }));
   } else {
     root.appendChild(field('Phase', select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase, v => { l.phase = v; refreshOutput(); })));
     lockControl(root, {
@@ -193,6 +239,10 @@ function renderLegacyControls(root, eng) {
   root.appendChild(buttons());
 }
 
+function clusterLabel(engineId, clusterId) {
+  const c = legacyCluster(engineId, clusterId);
+  return c && c.label ? c.label : clusterId;
+}
 function seg3() { return [['electronic', 'Electronic'], ['acoustic', 'Acoustic'], ['blend', 'Blend']].map(([value, label]) => ({ value, label })); }
 function vocalSeg() { return [['Instrumental', 'Instrumental'], ['Descriptor', 'Descriptor'], ['Persona', 'Persona']].map(([value, label]) => ({ value, label })); }
 function toggle(label, checked, onchange) {

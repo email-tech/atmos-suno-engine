@@ -1652,6 +1652,10 @@ const EngineExtras = {
 
   Balearic: {
 
+    // Interaction/arrangement language is mandatory in the style string for this
+    // engine (standing project rule) — it is no longer an optional toggle.
+    interplayAlways: true,
+
     // Shared keep-out list for the whole Balearic genre.
     bannedInstruments: [
       "saxophone", "trumpet", "violin", "cello",
@@ -1746,15 +1750,17 @@ const EngineExtras = {
     flavourClusters: {
       organic: {
         label: "Organic warm downtempo",
-        band: "84-96", bpm: 90, beatless: false,
+        band: "84-96", bpm: 90, beatless: false, colorChance: 0.5,
         phase: "mid chill, 84-96 BPM, low-medium energy", energy: "low-medium energy",
         palettes: {
           electronic: {
             pads: ["Warm analogue synth pads layered with soft harmonic synth layers","Lush analogue pads blended with rich evolving tonal layers","Textured polysynth layers with analogue warmth and gentle modulation movement"],
+            harmony: ["moving through warm minor-seventh voicings in a loose two-chord vamp across an eight-bar cycle","built on extended minor-ninth chord voicings with a soft turnaround resolving each cycle","a modal Dorian chord cycle looping steadily without a pop chorus lift"],
             bass: ["Electric bass guitar with warm rounded tone and flowing groove","Fretless bass groove with smooth melodic movement","Deep sub bass providing weight and low-end warmth"],
             rhythm: ["Natural brushed drums with organic percussion including congas, shakers and hand percussion","Live acoustic drums with a soft natural feel, subtle groove and light ghost notes, layered with organic percussion","Minimal downtempo groove with soft kick, brushed snare and light percussion textures"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
             motif: ["Rhodes electric piano motifs with warm chord movement and melodic phrasing","Arpeggiated synth leads weaving through the mix with evolving rhythmic motion","Clean nylon guitar motifs with soft rhythmic strumming drifting in and out of the mix"],
+            color: ["an occasional melodica phrase answering in a gap","a brief hang drum figure surfacing between phrases","a short harp flourish drifting through the space"],
             movement: ["Rhythmic autopan and modulation creating groove-based movement across percussion and melodic elements","Wide stereo panning movement across pads and motifs using left-right automation and slow modulation","Delay-driven movement using tempo-synced echoes and cascading repeats creating evolving rhythmic space"]
           },
           acoustic: {
@@ -1763,6 +1769,7 @@ const EngineExtras = {
             rhythm: ["Loose live hand-percussion broken-beat with brushed snare backbeat, congas and shakers breathing between hits", "Natural brushed drums with soft ghost-note snare, congas and hand percussion for an organic live feel", "Soft live kit with brushed snare, light rimwork and warm hand percussion textures"],
             strings: ["Soft-bowed layered strings swelling gently underneath the harmony for warmth and depth", "Distant soft brass pad adding warm mellow colour beneath the mix", "Mellow muted-guitar comping weaving lightly through the texture"],
             motif: ["Restrained soft flute lines with airy breathy phrasing drifting through the mix", "Understated mallet melody with warm rounded tone and gentle sustained notes", "Muted vibraphone motif with soft mallet phrasing and smooth melodic movement", "Gentle kalimba melody with delicate plucked tone and hypnotic repetition", "Breathy soft clarinet line with warm woody tone and relaxed phrasing"],
+            color: ["an occasional melodica phrase answering in a gap","a brief hang drum figure surfacing between phrases","a short harp flourish drifting through the space"],
             movement: ["Gentle ensemble dynamics rising and falling naturally as the arrangement breathes", "Soft tape-delay movement drifting melodic phrases through the mix", "Warm reverb space with the players easing in and out of the groove"]
           }
         },
@@ -1775,15 +1782,17 @@ const EngineExtras = {
       },
       cinematic: {
         label: "Lush cinematic chillout",
-        band: "90-105", bpm: 96, beatless: false,
+        band: "90-105", bpm: 96, beatless: false, colorChance: 0.5,
         phase: "mid chill, 90-105 BPM, medium energy", energy: "medium energy",
         palettes: {
           electronic: {
             pads: ["Lush analogue pads blended with rich synth textures and evolving tonal layers","Layered analogue pads combined with Pulse Pad Textures and soft harmonic synth layers","Cinematic synth pad swells with wide evolving harmonic layers"],
+            harmony: ["built on suspended add9 voicings opening into a major-seventh resolution across long phrases","a slow minor-to-relative-major progression unfolding over eight-bar cycles","wide open sus2 chord voicings holding the harmony before a delayed resolve"],
             bass: ["Fretless bass groove with smooth melodic movement","FM bass with soft attack and subtle rhythmic pulse","Deep sub bass providing weight and low-end warmth"],
             rhythm: ["Minimal downtempo drum groove with soft kick, brushed snare and light percussion textures","Lounge/house drum kit with soft kick, clean snare and tight hi-hats, supported by light percussion"],
             strings: ["Slow string bed sitting deep in the mix","Soft layered strings blended underneath the pads for depth","Sweeping string textures rising and falling beneath the pads"],
             motif: ["Rhodes electric piano motifs with warm chord movement and melodic phrasing","Arpeggiated synth leads weaving through the mix with evolving rhythmic motion","Soft piano motifs with gentle melodic phrasing drifting through the mix"],
+            color: ["an occasional glockenspiel accent shimmering above the chords","a brief flute line rising through a gap in the arrangement","a short tubular bell tone ringing beneath the harmony"],
             movement: ["Wide stereo panning movement across pads and motifs using left-right automation and slow modulation","Filter and modulation movement using LFO, chorus and phaser creating evolving tonal shifts across pads and textures"]
           },
           acoustic: {
@@ -1792,6 +1801,7 @@ const EngineExtras = {
             rhythm: ["Soft hybrid kit with a gentle brushed-snare shuffle and light orchestral percussion", "Brushed drums with delicate cymbal swells and soft timpani-style accents"],
             strings: ["Soft-focus sweeping strings rising in long cinematic phrases across the field", "Distant soft choir pad adding wordless warmth beneath the harmony", "Shimmering orchestral texture with gentle tremolo movement"],
             motif: ["Distant soft muted-horn swell with warm restrained phrasing", "Soft vibraphone melody with smooth sustained notes and cinematic space", "Delicate celeste melody with bell-like clarity drifting over the strings", "Restrained soft oboe line with warm expressive phrasing"],
+            color: ["an occasional glockenspiel accent shimmering above the chords","a brief flute line rising through a gap in the arrangement","a short tubular bell tone ringing beneath the harmony"],
             movement: ["A slow cinematic dynamic swell rising to a lush peak then receding", "Orchestral crescendo movement building tension then releasing into open space", "Warm reverb space with sweeping string dynamics"]
           }
         },
@@ -1804,15 +1814,17 @@ const EngineExtras = {
       },
       analog: {
         label: "Dreamy analog electronic",
-        band: "85-100", bpm: 92, beatless: false,
+        band: "85-100", bpm: 92, beatless: false, colorChance: 0.5,
         phase: "low-mid chill, 85-100 BPM, low-medium energy", energy: "low-medium energy",
         palettes: {
           electronic: {
             pads: ["Textured polysynth layers with analogue warmth and gentle modulation movement","Warm analogue synth pads layered with Pulse Pad Textures and soft synth layers","Vintage analogue synth pads with slow evolving filter movement"],
+            harmony: ["a hypnotic two-chord analogue vamp cycling with no chorus lift","held minor-ninth voicings drifting with slow chromatic inner movement","a one-chord modal centre with the harmony shifting only by inversion"],
             bass: ["FM bass with soft attack and subtle rhythmic pulse","Deep sub bass providing weight and low-end warmth","Plucky bass with warm analog character","Hybrid bass combining sub bass depth with mid-range melodic tone"],
             rhythm: ["Minimal downtempo drum groove with soft kick, electronic snare and light percussion textures","Simple steady programmed beat with soft kick and tight light percussion"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
             motif: ["Arpeggiated synth leads weaving through the mix with evolving rhythmic motion","Soft synth lead motifs with gentle melodic phrasing and analog character","Rhodes electric piano motifs with warm chord movement and melodic phrasing"],
+            color: ["an occasional detuned chime accent surfacing between cycles","a brief plucked synth figure answering in the space","a short vintage organ chord swelling under the pads"],
             movement: ["Filter and modulation movement using LFO, chorus and phaser creating evolving tonal shifts across pads and textures","Phaser and chorus modulation creating slow evolving movement across synth layers"]
           },
           acoustic: {
@@ -1821,6 +1833,7 @@ const EngineExtras = {
             rhythm: ["Simple soft live kit with a brushed backbeat and light steady percussion", "Minimal live groove with soft brushwork and gentle hand percussion"],
             strings: ["Soft mellotron string layer with warm hazy analog character", "Distant bowed-string shimmer adding subtle movement beneath the pads"],
             motif: ["Soft vibraphone melody with smooth mallet phrasing and hypnotic repetition", "Restrained Wurlitzer accents with warm vintage tone drifting through the mix", "Delicate glockenspiel bell melody with bright clear tone and sparse phrasing", "Gentle music-box-style melody with fragile plucked tone and slow movement"],
+            color: ["an occasional detuned chime accent surfacing between cycles","a brief plucked autoharp figure answering in the space","a short vintage organ chord swelling under the pads"],
             movement: ["Slow evolving dynamics with the arrangement breathing in and out", "Tape-delay shimmer drifting melodic fragments through the mix"]
           }
         },
@@ -1833,15 +1846,17 @@ const EngineExtras = {
       },
       dub: {
         label: "Dub-space downtempo",
-        band: "90-105", bpm: 100, beatless: false,
+        band: "90-105", bpm: 100, beatless: false, colorChance: 0.5,
         phase: "mid chill, 90-105 BPM, medium energy", energy: "medium energy",
         palettes: {
           electronic: {
             pads: ["Deep ambient pad layers with soft Pulse Pad Textures and evolving atmosphere","Warm analogue synth pads with dub-style space and depth"],
+            harmony: ["a single modal chord centre held under the groove with dub-style harmonic stasis","a two-chord minor vamp cycling with heavy space between the changes","a Dorian one-chord vamp with the harmony implied by the bassline"],
             bass: ["Deep sub bass providing weight and low-end warmth","Hybrid bass combining sub bass depth with mid-range melodic tone","Dub bass with deep rounded tone and spacious movement"],
             rhythm: ["Minimal downtempo drum groove with soft kick, cross-stick snare and light percussion textures","Dub-influenced downtempo groove with soft kick, rim clicks and tabla-style hand percussion"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
             motif: ["Sparse Rhodes electric piano motifs drifting in and out of the mix","Soft synth lead motifs echoing through the mix with spacious phrasing","Clean guitar motifs with dub delay drifting through the mix"],
+            color: ["an occasional dub organ stab spinning off into the delay","an occasional clavinet skank chopping into the echo","a short hand-bell accent ringing away into the space"],
             movement: ["Delay-driven movement using tempo-synced echoes and cascading repeats creating evolving rhythmic space","Dub-style delay throws and spring reverb movement creating deep spacious motion"]
           },
           acoustic: {
@@ -1850,6 +1865,7 @@ const EngineExtras = {
             rhythm: ["Dub-tinged live groove with cross-stick snare, tabla hand percussion and heavy space", "Sparse hand-drum groove with rimshot accents and wide dub-style gaps"],
             strings: ["Warm bowed-string reverb tail drifting into the dub space", "Distant soft brass pad adding mellow colour beneath the drone"],
             motif: ["Distant soft muted trumpet with warm restrained phrasing echoing into the space", "Restrained bouzouki melodic line with bright plucked tone drifting in and out", "Breathy soft melodica melody with warm reedy tone and dub delay", "Gentle kora melodic line with delicate rippling plucked phrasing", "Sparse santoor melodic accents shimmering through the reverb"],
+            color: ["an occasional dub organ stab spinning off into the delay","an occasional clavinet skank chopping into the echo","a short hand-bell accent ringing away into the space"],
             movement: ["Dub delay throws and spring reverb spinning melodic fragments into deep space", "Echoing tape-delay movement smearing phrases across the mix"]
           }
         },
@@ -1862,15 +1878,17 @@ const EngineExtras = {
       },
       nocturnal: {
         label: "Deep nocturnal Balearic",
-        band: "96-108", bpm: 104, beatless: false,
+        band: "96-108", bpm: 104, beatless: false, colorChance: 0.5,
         phase: "mid-high chill, 96-108 BPM, medium energy", energy: "medium energy",
         palettes: {
           electronic: {
             pads: ["Deep ambient pad layers with soft Pulse Pad Textures and evolving atmosphere","Dark analogue synth pads with slow evolving filter movement"],
+            harmony: ["a dark minor chord cycle repeating without resolution","held minor-seventh voicings shifting slowly through chromatic inner movement","a one-chord hypnotic centre with the harmony moving only by inversion"],
             bass: ["Deep sub bass providing weight and low-end warmth","FM bass with soft attack and subtle rhythmic pulse"],
             rhythm: ["Minimal downtempo groove with soft four-on-the-floor kick, brushed snare and light percussion","Deep hypnotic groove with soft kick, light hats and sparse percussion textures"],
             strings: ["Subtle string textures supporting the harmonic space","Slow string bed sitting deep in the mix"],
             motif: ["Sparse synth stabs drifting through the mix with deep reverb","Soft Rhodes electric piano motifs with sparse phrasing and deep space","Sparse arpeggiated synth lead weaving slowly through the mix"],
+            color: ["an isolated celeste note surfacing then dissolving into the reverb","an occasional low bell tone ringing out into the space","a brief harp figure drifting faintly beneath the pulse"],
             movement: ["Filter and modulation movement using LFO and phaser creating slow evolving tonal shifts","Wide stereo panning movement across pads using left-right automation and slow modulation"]
           },
           acoustic: {
@@ -1879,6 +1897,7 @@ const EngineExtras = {
             rhythm: ["Sparse soft brushed groove with wide space and restrained ghost-note snare", "Minimal live kit with soft brushwork and long silences between hits"],
             strings: ["Cold bowed-string wash drifting slowly beneath the harmony", "Sparse low bowed drone holding a dark sustained tone"],
             motif: ["Isolated slow muted-vibraphone note ringing out into the reverb", "Faint distant muted-horn tone surfacing then dissolving into space", "Distant faint music-box melody with fragile sparse phrasing"],
+            color: ["an isolated celeste note surfacing then dissolving into the reverb","an occasional low bell tone ringing out into the space","a brief harp figure drifting faintly beneath the pulse"],
             movement: ["Deep restrained dynamics with long dark space between phrases", "Slow reverb swells drifting single notes into the dark"]
           }
         },
@@ -1891,15 +1910,17 @@ const EngineExtras = {
       },
       sunlit: {
         label: "Sunlit Mediterranean",
-        band: "96-108", bpm: 102, beatless: false,
+        band: "96-108", bpm: 102, beatless: false, colorChance: 0.5,
         phase: "mid chill, 96-108 BPM, medium energy", energy: "medium energy",
         palettes: {
           electronic: {
             pads: ["Warm analogue synth pads layered with soft harmonic synth layers","Lush analogue pads blended with rich synth textures and evolving tonal layers"],
+            harmony: ["warm major-seventh and add9 voicings moving through an unhurried eight-bar cycle","a Mixolydian chord vamp cycling gently with a soft turnaround","open sus2 voicings drifting between two chords with no chorus lift"],
             bass: ["Plucky bass with warm analog character","Electric bass guitar with warm rounded tone and flowing groove","Fretless bass groove with smooth melodic movement"],
             rhythm: ["Lounge/house drum kit with soft kick, clean snare and tight hi-hats, supported by congas, shakers and light percussion","Minimal downtempo groove with soft kick, clean snare and light percussion textures"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
             motif: ["Clean nylon guitar motifs with soft rhythmic strumming drifting in and out of the mix","Rhodes electric piano motifs with warm chord movement and melodic phrasing","Soft acoustic guitar phrases with gentle rhythmic movement and natural flow"],
+            color: ["an occasional accordion phrase drifting through a gap","a brief kalimba figure surfacing over the groove","a short vibraphone accent shimmering above the chords"],
             movement: ["Wide stereo panning movement across pads and motifs using left-right automation and slow modulation","Rhythmic autopan and modulation creating groove-based movement across percussion and melodic elements"]
           },
           acoustic: {
@@ -1907,7 +1928,8 @@ const EngineExtras = {
             bass: ["Gentle warm upright bass rolling softly beneath the groove", "Rounded soft fretless bass with smooth melodic movement"],
             rhythm: ["Light bongos and shaker with a soft snare backbeat and gentle forward motion", "Warm live kit with congas, light percussion and a relaxed daytime feel"],
             strings: ["Sun-warmed soft strings adding gentle warmth beneath the harmony", "Light-touch string shimmer floating over the groove"],
-            motif: ["Gentle airy pan-flute melody with soft breathy phrasing drifting through the mix", "Light warm marimba melody with rounded wooden tone and easy movement", "Softly fingerpicked nylon-guitar motif with warm delicate phrasing", "Soft restrained Rhodes melody with warm mellow tone and unhurried phrasing"],
+            motif: ["Gentle airy pan-flute melody with soft breathy phrasing drifting through the mix", "Light warm marimba melody with rounded wooden tone and easy movement", "Softly fingerpicked nylon-guitar motif with warm delicate phrasing", "Soft restrained Wurlitzer melody with warm mellow tone and unhurried phrasing"],
+            color: ["an occasional accordion phrase drifting through a gap","a brief kalimba figure surfacing over the groove","a short vibraphone accent shimmering above the chords"],
             movement: ["Warm afternoon dynamics rising and falling gently as the groove breathes", "Soft tape-delay drifting melodic phrases warmly through the mix"]
           }
         },
@@ -1922,15 +1944,17 @@ const EngineExtras = {
       ambient: {
         label: "Ambient / beatless atmospheric",
         genre: "Balearic ambient",
-        band: "beatless", bpm: null, beatless: true,
+        band: "beatless", bpm: null, beatless: true, colorChance: 0.5,
         phase: "beatless, no drums, slow evolving atmosphere", energy: "low energy",
         palettes: {
           electronic: {
             pads: ["Deep ambient pad layers with soft Pulse Pad Textures and evolving atmosphere","Lush evolving analogue pads with slow morphing harmonic layers","Textured polysynth layers with analogue warmth and slow modulation movement"],
+            harmony: ["harmonic stasis on a single sustained modal centre with change carried by timbre","slow-moving suspended voicings drifting with no cadence","a two-chord glacial harmonic cycle turning over long spans"],
             bass: ["Deep sub drone providing weight and low-end warmth","Sustained low synth drone underpinning the pads"],
             rhythm: [],
             strings: ["Slow string bed sitting deep in the mix","Soft layered strings blended underneath the pads for depth"],
             motif: ["Sparse soft synth tones drifting through the mix with deep reverb","Gentle bell-like synth tones with slow sparse phrasing"],
+            color: ["an occasional distant harp figure drifting through the field","a brief soft flute tone surfacing in the space","a short kalimba tone rippling faintly through the atmosphere"],
             movement: ["Filter and modulation movement using LFO, chorus and phaser creating slow evolving tonal shifts across pads and textures","Wide stereo panning movement across pad layers using left-right automation and slow modulation"]
           },
           acoustic: {
@@ -1939,6 +1963,7 @@ const EngineExtras = {
             rhythm: [],
             strings: ["Slow string bed sitting deep in the mix with soft evolving movement", "Soft layered bowed strings drifting slowly beneath the pads"],
             motif: ["Distant sparse piano tones ringing out with deep reverb and long decay", "Sparse slow bell tones surfacing gently through the atmosphere", "Isolated soft glass-harmonica tone shimmering faintly in the space"],
+            color: ["an occasional distant harp figure drifting through the field","a brief soft flute tone surfacing in the space","a short kalimba tone rippling faintly through the atmosphere"],
             movement: ["Glacial dynamic swells breathing in and out over long spans", "Slow reverb morphing the layers so change is felt rather than heard"]
           }
         },
@@ -1952,15 +1977,17 @@ const EngineExtras = {
       },
       triphop: {
         label: "Moody trip-hop downbeat",
-        band: "82-92", bpm: 86, beatless: false,
+        band: "82-92", bpm: 86, beatless: false, colorChance: 0.5,
         phase: "low-mid chill, 82-92 BPM, low-medium energy", energy: "low-medium energy",
         palettes: {
           electronic: {
             pads: ["Detuned analogue synth pads with hazy evolving tonal layers","Textured polysynth layers with analogue warmth and gentle modulation movement"],
+            harmony: ["a hazy minor-seventh loop cycling behind the beat with no chorus lift","a two-chord vamp with flattened blues-inflected voicings","a Dorian chord loop drifting slightly detuned beneath the groove"],
             bass: ["Deep sub bass providing weight and low-end warmth","Hybrid bass combining sub bass depth with mid-range melodic tone"],
             rhythm: ["Lounge/downtempo drum kit with heavy swung kick, fat snare on the backbeat and tight hi-hats","Trip-hop drum groove with lazy swung kick, deep snare and light percussion textures"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
             motif: ["Rhodes electric piano motifs with hazy detuned chord movement","Vibraphone phrases with smooth sustained notes and gentle movement","Sparse synth lead motifs drifting through the mix with analog saturation"],
+            color: ["an occasional dusty organ stab surfacing behind the beat","a brief harmonica phrase smeared through the delay","a short flute line drifting hazily above the groove"],
             movement: ["Filter and modulation movement using LFO, chorus and phaser creating evolving tonal shifts across pads and textures","Delay-driven movement using tempo-synced echoes creating evolving rhythmic space"]
           },
           acoustic: {
@@ -1969,6 +1996,7 @@ const EngineExtras = {
             rhythm: ["Heavy lazy swung live kit with a fat snare backbeat and dusty broken-beat feel", "Dusty broken-beat groove with rimshot accents, brushed snare and heavy head-nod"],
             strings: ["Smoky bowed-string tail drifting darkly beneath the beat", "Distant muted-brass pad adding moody colour to the mix"],
             motif: ["Muted distant brass stabs surfacing hazily above the beat", "Slow detuned vibraphone motif with warm smeared phrasing", "Hazy muted-trumpet line drifting loosely behind the rhythm", "Restrained muted electric-guitar motif with dark reverbed tone"],
+            color: ["an occasional dusty organ stab surfacing behind the beat","a brief harmonica phrase smeared through the delay","a short flute line drifting hazily above the groove"],
             movement: ["Dark dusty dynamics with analog swells smearing into the reverb", "Tape-delay movement smearing melodic fragments across the beat"]
           }
         },
@@ -1982,23 +2010,26 @@ const EngineExtras = {
       balearic_house: {
         label: "Balearic house",
         genre: "Balearic house",
-        band: "118-124", bpm: 122, beatless: false,
+        band: "118-124", bpm: 122, beatless: false, colorChance: 0.5,
         phase: "club groove, 118-124 BPM, high energy", energy: "high energy",
         palettes: {
           electronic: {
             pads: ["Warm analogue house pads with bright uplifting chords","Lush Balearic synth pad stabs with rich harmonic movement","Classic house chord stabs with warm analog tone"],
+            harmony: ["bright major-seventh and ninth chord stabs cycling an eight-bar progression with a lifting turnaround","a minor-to-major progression looping through verse and peak sections","classic house chord voicings moving through a four-chord cycle with a clear lift"],
             bass: ["Heavy electric slap bass with funky rhythmic groove","Deep house bassline with warm rounded analog tone","Punchy slap-bass groove driving the track forward"],
             rhythm: ["Four-on-the-floor house drum machine groove with crisp hi-hats and clap on the backbeat","Classic house beat with punchy kick, snappy claps and open hi-hats","TR-909 house groove with tight kick, crisp hats and shakers"],
             strings: ["Bright disco string stabs supporting the groove","Subtle string textures lifting the harmonic space"],
             motif: ["Prominent house piano riff with bright rhythmic chord stabs","Uplifting piano chord progression riff driving the track","Acoustic guitar phrases with rhythmic Balearic strumming","Sunlit synth-stab riff weaving through the groove"],
-            movement: ["House-style filter sweeps opening and closing across the pads","Rhythmic gating and filter movement driving the groove","Wide stereo automation across stabs and piano riffs"]
+            color: ["an occasional organ stab punching through the groove","a brief steel-pan accent lifting a bar","a short vocal-chop stab lifting the turnaround"],
+            movement: ["House-style filter sweeps opening and closing across the pads","Rhythmic gating and filter movement driving the groove","Wide stereo automation across the chord stabs and riffs"]
           },
           acoustic: {
-            pads: ["Warm live piano chord voicings with bright rhythmic stabs driving the groove", "Sun-warmed nylon-guitar chord strumming with rhythmic Balearic movement", "Warm Rhodes chord stabs punctuating the four-on-the-floor groove"],
+            pads: ["Warm live Wurlitzer chord voicings with bright rhythmic stabs driving the groove", "Sun-warmed nylon-guitar chord strumming with rhythmic Balearic movement", "Warm Rhodes chord stabs punctuating the four-on-the-floor groove"],
             bass: ["Funky electric slap bass with live percussive articulation and driving groove", "Warm fingerstyle electric bass locking a funky rhythmic house groove"],
             rhythm: ["Live-feel house groove with congas, tambourine and hand percussion over a steady four-on-the-floor kick", "Organic house beat with live percussion, shakers and a punchy driving kick"],
-            strings: ["Warm live string-section stabs lifting the groove with bright energy", "Soft layered strings adding warmth beneath the piano stabs"],
+            strings: ["Warm live string-section stabs lifting the groove with bright energy", "Soft layered strings adding warmth beneath the chord stabs"],
             motif: ["Bright live piano riff with rhythmic chord stabs driving the track forward", "Rhythmic acoustic-guitar Balearic strumming weaving through the groove", "Warm marimba riff with rounded wooden tone dancing over the beat"],
+            color: ["an occasional organ stab punching through the groove","a brief steel-pan accent lifting a bar","a short vocal-chop stab lifting the turnaround"],
             movement: ["Live percussion breaks and rising dynamics building into the drop", "Hand-played fills and rolls lifting the groove into a full-energy peak"]
           }
         },
@@ -2012,15 +2043,17 @@ const EngineExtras = {
       nu_disco: {
         label: "Nu-disco / slo-mo disco",
         genre: "nu-disco, slo-mo disco",
-        band: "100-112", bpm: 108, beatless: false,
+        band: "100-112", bpm: 108, beatless: false, colorChance: 0.5,
         phase: "chugging disco groove, 100-112 BPM, medium-high energy", energy: "medium-high energy",
         palettes: {
           electronic: {
             pads: ["Cosmic analog synth pads with retro-futuristic warmth","Lush disco synth chords with evolving tonal layers","Warm string-machine pads with cosmic shimmer"],
+            harmony: ["minor-seventh and ninth voicings chugging through a four-chord disco cycle","a two-chord cosmic vamp with a syncopated harmonic push","extended thirteenth voicings cycling with a disco turnaround"],
             bass: ["Thick driving disco bassline with funky octave movement","Chugging analog bass with steady rhythmic pulse","Deep funky synth bass locking the groove"],
             rhythm: ["Steady disco drum groove with four-on-the-floor kick, crisp hats and tambourine","Slo-mo disco beat with punchy kick, claps and shakers","Chugging disco kit with tight hats and live-feel percussion"],
             strings: ["Sweeping cosmic disco strings rising over the groove","Lush disco string stabs punctuating the rhythm"],
             motif: ["Modern synth arpeggios cycling through the mix","Funky rhythm guitar with tight percussive chords","Cosmic synth lead with retro-futuristic phrasing","Bright clavinet funk riff driving the groove"],
+            color: ["an occasional vocoder-style synth phrase weaving through the chug","a brief brass-section stab punching the turnaround","a short organ riff lifting the groove"],
             movement: ["Cosmic filter sweeps and phaser movement across synths and strings","Rhythmic autopan and modulation driving the chug","Wide stereo automation across arpeggios and pads"]
           },
           acoustic: {
@@ -2029,6 +2062,7 @@ const EngineExtras = {
             rhythm: ["Live disco kit with four-on-the-floor kick, tambourine, congas and crisp hats", "Organic disco groove with live percussion, claps and steady driving hats"],
             strings: ["Lush live disco string section sweeping over the groove", "Warm string stabs punctuating the funky rhythm"],
             motif: ["Funky rhythm-guitar riff with tight percussive wah-inflected chords", "Bright clavinet funk riff with punchy rhythmic bite driving the groove", "Warm Rhodes lead with disco phrasing weaving through the mix"],
+            color: ["an occasional brass-section stab punching the turnaround","a brief organ riff lifting the groove","a short vibraphone accent dancing over the chug"],
             movement: ["Live percussion drive with dynamic build-ups lifting the groove", "Hand-played funk dynamics chugging steadily across the track"]
           }
         },
@@ -2042,15 +2076,17 @@ const EngineExtras = {
       melodic_deep_house: {
         label: "Melodic deep house",
         genre: "melodic deep house",
-        band: "120-124", bpm: 122, beatless: false,
+        band: "120-124", bpm: 122, beatless: false, colorChance: 0.5,
         phase: "deep house groove, 120-124 BPM, medium-high energy", energy: "medium-high energy",
         palettes: {
           electronic: {
             pads: ["Lush emotional synth chords with warm evolving movement","Deep warm analog pads with atmospheric depth","Rich evolving synth chord layers with soft harmonic swell"],
+            harmony: ["a minor-ninth chord progression cycling through an eight-bar build","a suspended add9 chord cycle rising toward a peak and resolving back","an extended minor-seventh progression looping with a lifting turnaround"],
             bass: ["Deep rolling house bassline with warm sub weight","Warm sub bass with smooth rolling groove","Deep house bass with rounded analog tone"],
             rhythm: ["Deep house drum groove with heavy four-on-the-floor kick, crisp hats and organic percussion","Four-on-the-floor deep house beat with shakers, congas and tight hats","Driving deep house kit with punchy kick and layered percussion"],
             strings: ["Warm atmospheric string textures beneath the chords","Subtle emotional strings lifting the harmonic space"],
             motif: ["Emotive plucked synth melody weaving through the mix","Melodic synth lead with warm emotional phrasing","Soulful vocal-chop textures drifting through the mix","Bright plucked synth arpeggio rising over the groove"],
+            color: ["an occasional organ chord swelling under the groove","a brief bell-tone accent surfacing over the drive","a short harp figure rippling through a gap"],
             movement: ["Warm filter movement and evolving modulation across the deep house groove","Deep atmospheric swells rising and falling over the drive","Wide stereo automation across pads and plucked melodies"]
           },
           acoustic: {
@@ -2058,7 +2094,8 @@ const EngineExtras = {
             bass: ["Warm fingerstyle electric bass with a deep rolling groove", "Deep upright bass with rounded warm tone underpinning the drive"],
             rhythm: ["Deep house groove with live congas, shakers and organic percussion over a heavy four-on-the-floor kick", "Organic four-on-the-floor with hand percussion, tight hats and warm live feel"],
             strings: ["Warm live string textures swelling beneath the chords", "Soft layered strings lifting the groove with emotional warmth"],
-            motif: ["Emotive Rhodes melody weaving warmly through the mix", "Warm marimba melodic line dancing over the deep groove", "Soulful vocal-chop textures drifting emotively through the mix"],
+            motif: ["Emotive Wurlitzer melody weaving warmly through the mix", "Warm marimba melodic line dancing over the deep groove", "Soulful vocal-chop textures drifting emotively through the mix"],
+            color: ["an occasional organ chord swelling under the groove","a brief bell-tone accent surfacing over the drive","a short harp figure rippling through a gap"],
             movement: ["Organic percussion build with rising dynamics lifting into deep immersion", "Warm dynamic swells lifting the groove toward an emotional peak"]
           }
         },
@@ -2441,7 +2478,8 @@ function drawClusterRoles(engineName, clusterId) {
  * no bass-driven foundation in the usual sense; it speaks of drones instead).
  * Returns [] safely for unknown engines/clusters or clusters with no interplay.
  */
-function drawInterplay(engineName, clusterId) {
+function drawInterplay(engineName, clusterId, rand) {
+  const roll = (typeof rand === "function") ? rand : Math.random;
   const engine = EngineExtras[engineName];
   if (!engine) return [];
   const cluster = (engine.flavourClusters && engine.flavourClusters[clusterId]) || {};
@@ -2451,7 +2489,7 @@ function drawInterplay(engineName, clusterId) {
   for (const dim of order) {
     const pool = ip[dim];
     if (Array.isArray(pool) && pool.length) {
-      out.push(pool[Math.floor(Math.random() * pool.length)]);
+      out.push(pool[Math.floor(roll() * pool.length)]);
     }
   }
   return out;
@@ -2524,30 +2562,55 @@ const BEATLESS_BAN = [
   "drums", "drum kit", "kick drum", "beat", "percussion", "hi-hats", "snare"
 ];
 
-/* ---- flavour-cluster path (Balearic-validated) --------------------------- */
+/* ---- flavour-cluster path (Balearic-validated) ---------------------------
+ * Deterministic per seed (state.style.rngSeed): the same seed always yields the
+ * same draw, which is what makes the 3-level control (Randomize all / Lock some /
+ * Full manual) meaningful on this path. state.style.slotLocks maps a cluster role
+ * (pads|harmony|bass|rhythm|strings|motif|color|movement) to a chosen option; an
+ * absent/empty lock is drawn from the pool as before.
+ * Interaction/arrangement language is FORCED ON for engines flagged
+ * interplayAlways (standing project rule); other engines keep the toggle.
+ * ------------------------------------------------------------------------*/
+function mulberry32(a) {
+  let t = (a >>> 0) || 1;
+  return function () {
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function buildClusterPrompt(clusterId, state) {
   const engineName = state.engine;
   const s = state.style;
   const engine = EngineExtras[engineName] || {};
   const c = (engine.flavourClusters || {})[clusterId];
   if (!c) return "";
+  const roll = (s.rngSeed != null) ? mulberry32(s.rngSeed) : Math.random;
+  const locks = s.slotLocks || {};
   const pick = pool => (Array.isArray(pool) && pool.length)
-    ? pool[Math.floor(Math.random() * pool.length)] : null;
+    ? pool[Math.floor(roll() * pool.length)] : null;
   const palette = s.palette || "electronic";
   const E = (c.palettes && c.palettes.electronic) || {};
   const A = (c.palettes && c.palettes.acoustic) || {};
   // Electronic (proven default). Acoustic pulls the characterful pools. Blend
   // keeps the electronic production backbone (pads, rhythm, movement) and lets
   // the character slots (bass, strings, motif) pull from either palette per-song.
-  function slot(name) {
+  function draw(name) {
     if (palette === "acoustic") return pick(A[name]) || pick(E[name]);
     if (palette === "blend") {
       const character = (name === "bass" || name === "strings" || name === "motif");
-      if (character && Array.isArray(A[name]) && A[name].length && Math.random() < 0.5)
+      if (character && Array.isArray(A[name]) && A[name].length && roll() < 0.5)
         return pick(A[name]);
       return pick(E[name]);
     }
     return pick(E[name]); // electronic
+  }
+  function slot(name) {
+    const locked = locks[name];
+    if (locked != null && locked !== "") { draw(name); return locked; }  // keep the draw sequence stable
+    return draw(name);
   }
   const presetDriven = !!(engine.presetMap);
   let tempo;
@@ -2563,11 +2626,13 @@ function buildClusterPrompt(clusterId, state) {
   else if (s.bpmOverride) tempo = s.bpmOverride + " BPM, " + (c.energy || "medium energy");
   else if (presetDriven && s.phase) tempo = s.phase;                 // Preset sets character, Phase sets tempo
   else tempo = c.phase;
-  const arrangement = (s.arrangement && c.interplay)
-    ? drawInterplay(engineName, clusterId).join(", ") : null;
+  const wantInterplay = engine.interplayAlways || s.arrangement;
+  const arrangement = (wantInterplay && c.interplay)
+    ? drawInterplay(engineName, clusterId, roll).join(", ") : null;
+  const colorLocked = locks.color != null && locks.color !== "";
   const colorPick = slot("color");
   const colorChance = (typeof c.colorChance === "number") ? c.colorChance : 0.5;
-  const color = (colorPick && Math.random() < colorChance) ? colorPick : null;
+  const color = colorPick && (colorLocked || roll() < colorChance) ? colorPick : null;
   const parts = [
     c.genre || STYLE_ENGINES[engineName].genre,  // genre anchor (per-cluster, else engine default)
     tempo,                                // BPM range + energy (or override number)
@@ -2578,7 +2643,7 @@ function buildClusterPrompt(clusterId, state) {
     slot("strings"),                      // string / choir / chant bed
     slot("motif"),                        // always-on melodic hook (instrumental)
     color,                                // occasional colour, fills gaps
-    arrangement,                          // optional interplay layer
+    arrangement,                          // interaction / arrangement language
     slot("movement"),                     // production movement
     buildVocalPhrase(state),
     MASTERING
@@ -2727,7 +2792,31 @@ function legacyClassic(id)   {
   };
 }
 
-Object.assign(window.__ATMOS, { getEngine, resolverCharacters, resolverRolePool, legacyPresetMap, legacyClusters, legacyClassic, ENGINES, RESOLVER_ROLES });
+// Cluster-kind role pools (Balearic flavour clusters + Enigma preset clusters).
+// Mirrors the builder's palette rule: acoustic falls back to electronic when a
+// palette doesn't define a role; blend can pull either on the character slots.
+const CLUSTER_ROLES = ['pads', 'harmony', 'bass', 'rhythm', 'strings', 'motif', 'color', 'movement'];
+
+function legacyCluster(engineId, clusterId) {
+  return ((EngineExtras[engineId] || {}).flavourClusters || {})[clusterId] || null;
+}
+
+function legacyClusterRolePool(engineId, clusterId, role, palette) {
+  const c = legacyCluster(engineId, clusterId);
+  if (!c) return [];
+  const E = (c.palettes && c.palettes.electronic) || {};
+  const A = (c.palettes && c.palettes.acoustic) || {};
+  const e = E[role] || [], a = A[role] || [];
+  let pool;
+  if (palette === 'acoustic') pool = a.length ? a : e;
+  else if (palette === 'blend') {
+    const character = (role === 'bass' || role === 'strings' || role === 'motif');
+    pool = character ? [...new Set([...e, ...a])] : e;
+  } else pool = e;
+  return pool.map(x => ({ value: x, label: x }));
+}
+
+Object.assign(window.__ATMOS, { getEngine, resolverCharacters, resolverRolePool, legacyPresetMap, legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, ENGINES, RESOLVER_ROLES, CLUSTER_ROLES });
 })();
 
 /* js/state.js */
@@ -2783,6 +2872,8 @@ function syncEngineDefaults(S, engineId) {
       },
       slotLevel: 'random',       // classic manual: 'random' | 'lockSome' | 'manual'
       slotLocks: {},             // role -> chosen value (classic slot roles)
+      clusterLevel: 'random',    // cluster/preset path: 'random' | 'lockSome' | 'manual'
+      clusterLocks: {},          // cluster role -> chosen value
       vocalMode: 'Instrumental',
     };
     S.res = null;
@@ -2889,6 +2980,8 @@ function toLegacyState(S) {
       cluster: l.cluster,
       palette: l.palette,
       arrangement: l.arrangement,
+      rngSeed: S.seed,                                     // cluster path is deterministic per seed
+      slotLocks: (l.clusterLevel === 'random') ? {} : l.clusterLocks,
       bpmOverride: l.bpmOverride,
       preset: l.preset,
       phase: l.phase,
@@ -2905,7 +2998,7 @@ Object.assign(window.__ATMOS, { generate });
 
 /* js/ui.js */
 (function(){
-const {ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool, legacyClusters, legacyClassic,} = window.__ATMOS;
+const {ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool, legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,} = window.__ATMOS;
 const {syncEngineDefaults, newSeed} = window.__ATMOS;
 const {generate} = window.__ATMOS;
 
@@ -2933,8 +3026,21 @@ function select(options, value, onchange) {
   return s;
 }
 function segmented(options, value, onpick) {
-  return el('div', { class: 'seg' }, options.map(o =>
-    el('button', { class: o.value === value ? 'active' : '', text: o.label, onclick: () => onpick(o.value) })));
+  // The active class is updated here on click. Handlers that only call
+  // refreshOutput() (they repaint the output panel, not the controls) previously
+  // left the highlight stuck on the old option even though the prompt changed.
+  const wrap = el('div', { class: 'seg' });
+  const btns = options.map(o => el('button', {
+    class: o.value === value ? 'active' : '',
+    text: o.label,
+    onclick: (e) => {
+      btns.forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      onpick(o.value);
+    },
+  }));
+  btns.forEach(b => wrap.appendChild(b));
+  return wrap;
 }
 
 // Shared 3-level control (Randomize all / Lock some / Full manual) over any role set.
@@ -2952,6 +3058,35 @@ function lockControl(root, opts) {
       select(options, cur, v => { if (v === '') delete opts.locks[role]; else opts.locks[role] = v; refreshOutput(); })));
   });
   root.appendChild(box);
+}
+function clusterRoleLabel(role) {
+  return { pads: 'Pads', harmony: 'Harmony', bass: 'Bass', rhythm: 'Rhythm', strings: 'Strings / choir',
+           motif: 'Motif', color: 'Colour', movement: 'Movement' }[role] || role;
+}
+// Roles this cluster actually populates for the active palette (beatless clusters
+// have no rhythm pool; a cluster with no colour pool shows no Colour row).
+function clusterRolesFor(engineId, clusterId, palette) {
+  return CLUSTER_ROLES.filter(r => legacyClusterRolePool(engineId, clusterId, r, palette).length);
+}
+function seedClusterManual(engineId, clusterId, palette, l) {
+  clusterRolesFor(engineId, clusterId, palette).forEach(role => {
+    const pool = legacyClusterRolePool(engineId, clusterId, role, palette);
+    if (pool.length) l.clusterLocks[role] = pool[0].value;
+  });
+}
+function clusterLockControl(root, engineId, clusterId, l) {
+  lockControl(root, {
+    roles: clusterRolesFor(engineId, clusterId, l.palette),
+    labelFor: clusterRoleLabel,
+    optionsFor: role => legacyClusterRolePool(engineId, clusterId, role, l.palette),
+    level: l.clusterLevel,
+    onLevel: v => {
+      l.clusterLevel = v; l.clusterLocks = {};
+      if (v === 'manual') seedClusterManual(engineId, clusterId, l.palette, l);
+      renderAll();
+    },
+    locks: l.clusterLocks,
+  });
 }
 function classicSlotLabel(role) {
   return { pad: 'Pad', bass: 'Bass', rhythm: 'Rhythm', percussion: 'Percussion', motif: 'Motif', movement: 'Movement' }[role] || role;
@@ -3043,13 +3178,14 @@ function renderLegacyControls(root, eng) {
       const map = (window.__ATMOS.EngineExtras[eng.id] || {}).presetMap;
       root.appendChild(field('Engine preset',
         select(Object.keys(map).map(k => ({ value: k, label: k })), l.preset,
-          v => { l.preset = v; refreshOutput(); })));
+          v => { l.preset = v; l.clusterLocks = {}; renderAll(); })));
       root.appendChild(field('Phase (tempo / energy)',
         select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase,
           v => { l.phase = v; refreshOutput(); })));
       root.appendChild(field('Palette',
-        segmented(seg3(), l.palette, v => { l.palette = v; refreshOutput(); })));
+        segmented(seg3(), l.palette, v => { l.palette = v; l.clusterLocks = {}; renderAll(); })));
       root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
+      clusterLockControl(root, eng.id, (map[l.preset] || {}).cluster, l);
       root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
       root.appendChild(buttons());
       return;
@@ -3078,10 +3214,13 @@ function renderLegacyControls(root, eng) {
 
   if (l.buildMode === 'cluster') {
     root.appendChild(field('Cluster',
-      select(legacyClusters(eng.id).map(k => ({ value: k, label: k })), l.cluster, v => { l.cluster = v; refreshOutput(); })));
-    root.appendChild(field('Palette', segmented(seg3(), l.palette, v => { l.palette = v; refreshOutput(); })));
-    root.appendChild(toggle('Arrangement language', l.arrangement, v => { l.arrangement = v; refreshOutput(); }));
+      select(legacyClusters(eng.id).map(k => ({ value: k, label: clusterLabel(eng.id, k) })), l.cluster,
+        v => { l.cluster = v; l.clusterLocks = {}; renderAll(); })));
+    root.appendChild(field('Palette', segmented(seg3(), l.palette,
+      v => { l.palette = v; l.clusterLocks = {}; renderAll(); })));
     root.appendChild(field('BPM override', el('input', { class: 'txt', type: 'text', value: l.bpmOverride, placeholder: 'optional', oninput: e => { l.bpmOverride = e.target.value; refreshOutput(); } })));
+    clusterLockControl(root, eng.id, l.cluster, l);
+    root.appendChild(el('p', { class: 'note', text: 'Interaction / arrangement language is always on for Balearic clusters.' }));
   } else {
     root.appendChild(field('Phase', select(legacyClassic(eng.id).phases.map(p => ({ value: p, label: p })), l.phase, v => { l.phase = v; refreshOutput(); })));
     lockControl(root, {
@@ -3097,6 +3236,10 @@ function renderLegacyControls(root, eng) {
   root.appendChild(buttons());
 }
 
+function clusterLabel(engineId, clusterId) {
+  const c = legacyCluster(engineId, clusterId);
+  return c && c.label ? c.label : clusterId;
+}
 function seg3() { return [['electronic', 'Electronic'], ['acoustic', 'Acoustic'], ['blend', 'Blend']].map(([value, label]) => ({ value, label })); }
 function vocalSeg() { return [['Instrumental', 'Instrumental'], ['Descriptor', 'Descriptor'], ['Persona', 'Persona']].map(([value, label]) => ({ value, label })); }
 function toggle(label, checked, onchange) {

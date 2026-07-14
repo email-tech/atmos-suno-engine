@@ -59,30 +59,55 @@ const BEATLESS_BAN = [
   "drums", "drum kit", "kick drum", "beat", "percussion", "hi-hats", "snare"
 ];
 
-/* ---- flavour-cluster path (Balearic-validated) --------------------------- */
+/* ---- flavour-cluster path (Balearic-validated) ---------------------------
+ * Deterministic per seed (state.style.rngSeed): the same seed always yields the
+ * same draw, which is what makes the 3-level control (Randomize all / Lock some /
+ * Full manual) meaningful on this path. state.style.slotLocks maps a cluster role
+ * (pads|harmony|bass|rhythm|strings|motif|color|movement) to a chosen option; an
+ * absent/empty lock is drawn from the pool as before.
+ * Interaction/arrangement language is FORCED ON for engines flagged
+ * interplayAlways (standing project rule); other engines keep the toggle.
+ * ------------------------------------------------------------------------*/
+function mulberry32(a) {
+  let t = (a >>> 0) || 1;
+  return function () {
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 export function buildClusterPrompt(clusterId, state) {
   const engineName = state.engine;
   const s = state.style;
   const engine = EngineExtras[engineName] || {};
   const c = (engine.flavourClusters || {})[clusterId];
   if (!c) return "";
+  const roll = (s.rngSeed != null) ? mulberry32(s.rngSeed) : Math.random;
+  const locks = s.slotLocks || {};
   const pick = pool => (Array.isArray(pool) && pool.length)
-    ? pool[Math.floor(Math.random() * pool.length)] : null;
+    ? pool[Math.floor(roll() * pool.length)] : null;
   const palette = s.palette || "electronic";
   const E = (c.palettes && c.palettes.electronic) || {};
   const A = (c.palettes && c.palettes.acoustic) || {};
   // Electronic (proven default). Acoustic pulls the characterful pools. Blend
   // keeps the electronic production backbone (pads, rhythm, movement) and lets
   // the character slots (bass, strings, motif) pull from either palette per-song.
-  function slot(name) {
+  function draw(name) {
     if (palette === "acoustic") return pick(A[name]) || pick(E[name]);
     if (palette === "blend") {
       const character = (name === "bass" || name === "strings" || name === "motif");
-      if (character && Array.isArray(A[name]) && A[name].length && Math.random() < 0.5)
+      if (character && Array.isArray(A[name]) && A[name].length && roll() < 0.5)
         return pick(A[name]);
       return pick(E[name]);
     }
     return pick(E[name]); // electronic
+  }
+  function slot(name) {
+    const locked = locks[name];
+    if (locked != null && locked !== "") { draw(name); return locked; }  // keep the draw sequence stable
+    return draw(name);
   }
   const presetDriven = !!(engine.presetMap);
   let tempo;
@@ -98,11 +123,13 @@ export function buildClusterPrompt(clusterId, state) {
   else if (s.bpmOverride) tempo = s.bpmOverride + " BPM, " + (c.energy || "medium energy");
   else if (presetDriven && s.phase) tempo = s.phase;                 // Preset sets character, Phase sets tempo
   else tempo = c.phase;
-  const arrangement = (s.arrangement && c.interplay)
-    ? drawInterplay(engineName, clusterId).join(", ") : null;
+  const wantInterplay = engine.interplayAlways || s.arrangement;
+  const arrangement = (wantInterplay && c.interplay)
+    ? drawInterplay(engineName, clusterId, roll).join(", ") : null;
+  const colorLocked = locks.color != null && locks.color !== "";
   const colorPick = slot("color");
   const colorChance = (typeof c.colorChance === "number") ? c.colorChance : 0.5;
-  const color = (colorPick && Math.random() < colorChance) ? colorPick : null;
+  const color = colorPick && (colorLocked || roll() < colorChance) ? colorPick : null;
   const parts = [
     c.genre || STYLE_ENGINES[engineName].genre,  // genre anchor (per-cluster, else engine default)
     tempo,                                // BPM range + energy (or override number)
@@ -113,7 +140,7 @@ export function buildClusterPrompt(clusterId, state) {
     slot("strings"),                      // string / choir / chant bed
     slot("motif"),                        // always-on melodic hook (instrumental)
     color,                                // occasional colour, fills gaps
-    arrangement,                          // optional interplay layer
+    arrangement,                          // interaction / arrangement language
     slot("movement"),                     // production movement
     buildVocalPhrase(state),
     MASTERING

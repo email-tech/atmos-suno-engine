@@ -49,6 +49,8 @@ export function syncEngineDefaults(S, engineId) {
       },
       slotLevel: 'random',       // classic manual: 'random' | 'lockSome' | 'manual'
       slotLocks: {},             // role -> chosen value (classic slot roles)
+      clusterLevel: 'random',    // cluster/preset path: 'random' | 'lockSome' | 'manual'
+      clusterLocks: {},          // cluster role -> chosen value
       vocalMode: 'Instrumental',
     };
     S.res = null;

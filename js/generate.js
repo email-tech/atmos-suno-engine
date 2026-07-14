@@ -91,6 +91,8 @@ function toLegacyState(S) {
       cluster: l.cluster,
       palette: l.palette,
       arrangement: l.arrangement,
+      rngSeed: S.seed,                                     // cluster path is deterministic per seed
+      slotLocks: (l.clusterLevel === 'random') ? {} : l.clusterLocks,
       bpmOverride: l.bpmOverride,
       preset: l.preset,
       phase: l.phase,
