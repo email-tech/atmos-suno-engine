@@ -76,6 +76,17 @@ export function renderStyle(engine, arr) {
     : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`);
   if (arr.tempoLock) clauses.push(arr.tempoLock);
 
+  // LEVER 1 — OVERLAY FRONT-LOADING. Suno front-weights descriptors and renders
+  // only a bounded number of them, so an overlay's defining traits must sit right
+  // after the genre+tempo anchor (not buried at the back where they get dropped).
+  // The signature carriers (thematic motif, counter-melody, harmonic language) are
+  // hoisted here; they are then skipped in their old mid-list positions so nothing
+  // renders twice. When no overlay is active none of these exist and the order is
+  // unchanged (no-overlay output stays byte-identical — asserted in validation).
+  if (arr.ovMotif) clauses.push(arr.ovMotif);
+  if (arr.ovCounter) clauses.push(arr.ovCounter);
+  if (arr.ovHarmony && arr.harmony) clauses.push(arr.harmony);
+
   // foundation: drums(+)bass + how they lock/float (+ remixer groove treatment)
   const drumText = arr.drums ? (arr.groove ? `${arr.drums} ${arr.groove}` : arr.drums) : null;
   if (arr.bass) {
@@ -95,13 +106,9 @@ export function renderStyle(engine, arr) {
     clauses.push(arr.lead);
   }
 
-  // overlay: secondary melodic voice / composer's thematic hand (when the engine's
-  // signature lead is kept) and the composer's counter-melody
-  if (arr.ovMotif) clauses.push(arr.ovMotif);
-  if (arr.ovCounter) clauses.push(arr.ovCounter);
-
-  // harmony (musicality slot — its own clause)
-  if (arr.harmony) clauses.push(arr.harmony);
+  // harmony (musicality slot — its own clause). An OVERLAY harmony was already
+  // front-loaded above; only an ENGINE harmony renders here.
+  if (arr.harmony && !arr.ovHarmony) clauses.push(arr.harmony);
 
   // overlay: secondary sustained layer
   if (arr.ovTexture) clauses.push(arr.ovTexture);
@@ -169,11 +176,18 @@ function applyOverlay(engine, arr, ov, locks = {}) {
     return { text: null, displace: null };                           // overlay drops the mention
   };
 
-  if (r.harmony && free('harmony')) arr.harmony = r.harmony;
+  if (r.harmony && free('harmony')) { arr.harmony = r.harmony; arr.ovHarmony = true; }
   if (r.movement && free('movement')) arr.movement = r.movement;
   if (r.arc) arr.ip = Object.assign({}, arr.ip, { arc: r.arc });
 
-  if (r.color && free('color')) {
+  // LEVER 1 — DEMOTE OVERLAY COLOUR. Colour is the lowest-priority, occasional
+  // decoration slot. When the overlay already carries a foreground melodic voice
+  // (motif or counter), its colour trait is SUPPRESSED — it competes for attention
+  // and over-renders (John's test: an overlay trumpet came through too strong). An
+  // overlay whose only melodic contribution IS colour (e.g. a producer's sampled
+  // choir hits) keeps it.
+  const overlayHasForeground = !!(r.motif || r.counter);
+  if (r.color && free('color') && !overlayHasForeground) {
     const t = resolveTrait('color', r.color);
     if (t.text) { arr.color = t.text; arr.colorFromOverlay = true; }
   }

@@ -223,27 +223,43 @@ export function buildClusterPrompt(clusterId, state) {
   const colorPick = slot("color");
   const colorChance = (typeof c.colorChance === "number") ? c.colorChance : 0.5;
   let color = colorPick && (colorLocked || roll() < colorChance) ? colorPick : null;
-  if (ov.color && !lockedRole("color")) color = ov.color;   // an overlay colour always fires
+  // LEVER 1 — demote overlay colour: suppress it when the overlay already carries a
+  // foreground melodic voice (motif/counter), which over-renders otherwise. A
+  // producer whose only melodic contribution is colour still gets it.
+  const overlayHasForeground = !!(ov.motif || ov.counter);
+  if (ov.color && !lockedRole("color") && !overlayHasForeground) color = ov.color;
+
+  // LEVER 1 — front-load the overlay's signature carriers (harmony / motif / counter)
+  // directly after the genre+tempo anchor so Suno, which front-weights descriptors,
+  // actually renders them. Each is emitted here ONLY when it is overlay-supplied;
+  // the engine's own slot content stays in its normal position (so no-overlay output
+  // is unchanged). The normal slot below is blanked for whichever the overlay owns.
+  const ovFrontHarmony = (ov.harmony && !lockedRole("harmony")) ? ovHarmony : null;
+  const ovFrontMotif   = (ov.motif   && !lockedRole("motif"))   ? ovMotif   : null;
+  const ovFrontCounter = (ov.counter && !lockedRole("counter"))? ovCounter : null;
   const rhythmSlot = c.beatless ? null : slot("rhythm");
   const rhythm = (rhythmSlot && ov.groove) ? `${rhythmSlot} ${ov.groove}` : rhythmSlot;  // remixer treats the engine's own drums
   const parts = [
     c.genre || STYLE_ENGINES[engineName].genre,  // genre anchor (per-cluster, else engine default)
     tempo,                                // BPM range + energy (or override number)
+    ovFrontMotif,                         // LEVER 1: overlay signature carriers, hoisted to the front
+    ovFrontCounter,
+    ovFrontHarmony,
     { t: drawn.pads, role: "pads" },
-    { t: ovHarmony, role: "harmony" },   // harmonic + song-structure direction
+    { t: ovFrontHarmony ? null : ovHarmony, role: "harmony" },   // engine harmony only (overlay harmony was hoisted)
     { t: bassSlot, role: "bass" },       // foundational overlay bass displaces the drawn bass here
     { t: rhythm, role: "rhythm" },
     c.beatless ? null : { t: slot("perc"), drop: 2, role: "perc" },      // extra percussion layer
     { t: drawn.strings, role: "strings" },                   // string / choir / chant bed
     { t: ovTexture, drop: 3, role: "texture" },    // secondary sustained layer
-    { t: ovMotif, role: "motif" },         // always-on melodic hook (instrumental)
-    { t: ovCounter, drop: 1, role: "counter" },    // counter-melody / second voice
+    { t: ovFrontMotif ? null : ovMotif, role: "motif" },         // engine motif only (overlay motif hoisted)
+    { t: ovFrontCounter ? null : ovCounter, drop: 1, role: "counter" },    // engine counter only (overlay counter hoisted)
     color ? { t: color, drop: 4, role: "color" } : null,  // occasional colour, fills gaps
     ipCore,                               // interaction / arrangement language (mandatory)
     ipArc ? { t: ipArc, drop: 5, ov: !!ov.arc } : null,   // arc — shed first when the budget is tight
-    ov.edit || null,                      // remixer edit treatment
+    ov.edit ? { t: ov.edit, drop: 6 } : null,     // remixer edit treatment (shed before truncation)
     { t: ovMovement, role: "movement" },   // production movement
-    ov.treat || null,                     // producer mix treatment
+    ov.treat ? { t: ov.treat, drop: 7 } : null,   // producer mix treatment (shed first of all)
     buildVocalPhrase(state),
     MASTERING
   ];

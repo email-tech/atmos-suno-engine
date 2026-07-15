@@ -431,52 +431,30 @@ const REMIXER = {
  * FAMILY[kind][id][role] = { family, foundational:bool }
  * ------------------------------------------------------------------------*/
 const TRAIT_FAMILY = {
-  composer: {
-    moroder:      { motif: { family: 'bass', foundational: true },   // the arp-bass IS the track
-                    counter: { family: 'lead' } },
-    fidel:        { motif: { family: 'lead' } },
-    barry:        { texture: { family: 'strings' } },
-    horner:       { texture: { family: 'choir' } },
-    zimmer:       { texture: { family: 'brass' } },
-    conti:        { texture: { family: 'brass' } },
-    arnold:       { texture: { family: 'strings' } },
-    williams:     { texture: { family: 'strings' } },
-    newman:       { motif: { family: 'lead' } },
-    morricone:    { motif: { family: 'lead' } },
-    vangelis:     { texture: { family: 'pad' } },
-    dudley:       { texture: { family: 'strings' } },
-    dicola:       { texture: { family: 'pad' } },
-    hammer:       { texture: { family: 'pad' } },
-    faltermeyer:  { texture: { family: 'pad' } },
-    goransson:    { texture: { family: 'strings' } },
-    goldsmith:    { texture: { family: 'strings' } },
-    nyman:        { texture: { family: 'strings' } },
-    lloydwebber:  { texture: { family: 'strings' } },
-  },
-  producer: {
-    quincy:       { texture: { family: 'strings' }, counter: { family: 'brass' } },
-    horn:         { texture: { family: 'sampled' }, color: { family: 'choir' } },
-    flood:        { texture: { family: 'pad' } },
-  },
+  // FOUNDATIONAL overrides only: a trait that must OWN its role and displace the
+  // engine's slot (rather than yield). Everything else derives its family from the
+  // trait text automatically (slotFamily), so any collision is caught without
+  // per-trait bookkeeping.
+  composer: { moroder: { motif: { family: 'bass', foundational: true } } },
+  producer: {},
   remixer: {},
 };
 
 // what instrument family, if any, does an engine slot text occupy? (keyword scan)
+// Narrow, role-defining keywords. A family is only claimed when the text is the
+// PRIMARY carrier of that role, not a decorative accent (e.g. 'arpeggio sparkle'
+// is colour, not a lead). Ordering: most specific first.
 const FAMILY_WORDS = {
   bass:    /\bbass(line)?\b|\bsub-?bass\b|\b808\b|\bupright bass\b|\boud register\b/i,
-  lead:    /\blead\b|\bmelody\b|\bsaw lead\b|\bsteel-?pan\b|\bwhistle\b|\bocarina\b/i,
-  pad:     /\bpad(s)?\b|\bdrone\b|\bwash\b/i,
-  strings: /\bstring(s)?\b|\bviolin\b|\bcello\b|\borchestra\b/i,
-  choir:   /\bchoir\b|\bchant\b|\bvocal\b|\bvoice(s)?\b/i,
-  brass:   /\bbrass\b|\bhorn(s)?\b|\btrumpet\b|\btrombone\b/i,
-  arp:     /\barp(eggi)?/i,
+  lead:    /\blead\b|\bcarrying the melody\b|\bsteel-?pan (melody|lead)\b|\bwhistled\b|\bocarina melody\b/i,
+  choir:   /\bchoir\b|\bchant(ing)?\b|\bwordless (soprano|voice)\b/i,
+  brass:   /\bbrass\b|\bhorn section\b|\btrumpet\b|\btrombone\b/i,
+  strings: /\bstring (bed|ostinato|section)\b|\blegato strings\b|\btremolo strings\b|\bsilky.*strings\b/i,
+  pad:     /\bpad(s)? bed\b|\banalog pads\b|\bsynth pads\b/i,
 };
-// arpeggiated leads and plain leads are both the melodic-lead role for collision
-// purposes, so normalise 'arp' -> 'lead' (two leads must never co-occur).
-const FAMILY_ALIAS = { arp: 'lead' };
 function slotFamily(text) {
   if (!text) return null;
-  for (const [fam, re] of Object.entries(FAMILY_WORDS)) if (re.test(text)) return FAMILY_ALIAS[fam] || fam;
+  for (const [fam, re] of Object.entries(FAMILY_WORDS)) if (re.test(text)) return fam;
   return null;
 }
 function traitFamily(name) {   // name like 'composer:moroder'
@@ -537,7 +515,9 @@ function resolveOverlays(sel = {}, ctx = {}) {
       if (forbid.has('rhythm') && (role === 'groove' || role === 'treat')) continue;
       if (roles[role] == null) {
         roles[role] = ov[role];
-        const fam = traitFamily(`${kind}:${id}`)[role];
+        const hand = traitFamily(`${kind}:${id}`)[role];              // foundational override, if any
+        const auto = slotFamily(ov[role]);                            // else derive from the text
+        const fam = hand || (auto ? { family: auto } : null);
         if (fam) roleFamily[role] = fam;
       }
     }
@@ -633,6 +613,17 @@ function renderStyle(engine, arr) {
     : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`);
   if (arr.tempoLock) clauses.push(arr.tempoLock);
 
+  // LEVER 1 — OVERLAY FRONT-LOADING. Suno front-weights descriptors and renders
+  // only a bounded number of them, so an overlay's defining traits must sit right
+  // after the genre+tempo anchor (not buried at the back where they get dropped).
+  // The signature carriers (thematic motif, counter-melody, harmonic language) are
+  // hoisted here; they are then skipped in their old mid-list positions so nothing
+  // renders twice. When no overlay is active none of these exist and the order is
+  // unchanged (no-overlay output stays byte-identical — asserted in validation).
+  if (arr.ovMotif) clauses.push(arr.ovMotif);
+  if (arr.ovCounter) clauses.push(arr.ovCounter);
+  if (arr.ovHarmony && arr.harmony) clauses.push(arr.harmony);
+
   // foundation: drums(+)bass + how they lock/float (+ remixer groove treatment)
   const drumText = arr.drums ? (arr.groove ? `${arr.drums} ${arr.groove}` : arr.drums) : null;
   if (arr.bass) {
@@ -652,13 +643,9 @@ function renderStyle(engine, arr) {
     clauses.push(arr.lead);
   }
 
-  // overlay: secondary melodic voice / composer's thematic hand (when the engine's
-  // signature lead is kept) and the composer's counter-melody
-  if (arr.ovMotif) clauses.push(arr.ovMotif);
-  if (arr.ovCounter) clauses.push(arr.ovCounter);
-
-  // harmony (musicality slot — its own clause)
-  if (arr.harmony) clauses.push(arr.harmony);
+  // harmony (musicality slot — its own clause). An OVERLAY harmony was already
+  // front-loaded above; only an ENGINE harmony renders here.
+  if (arr.harmony && !arr.ovHarmony) clauses.push(arr.harmony);
 
   // overlay: secondary sustained layer
   if (arr.ovTexture) clauses.push(arr.ovTexture);
@@ -726,11 +713,18 @@ function applyOverlay(engine, arr, ov, locks = {}) {
     return { text: null, displace: null };                           // overlay drops the mention
   };
 
-  if (r.harmony && free('harmony')) arr.harmony = r.harmony;
+  if (r.harmony && free('harmony')) { arr.harmony = r.harmony; arr.ovHarmony = true; }
   if (r.movement && free('movement')) arr.movement = r.movement;
   if (r.arc) arr.ip = Object.assign({}, arr.ip, { arc: r.arc });
 
-  if (r.color && free('color')) {
+  // LEVER 1 — DEMOTE OVERLAY COLOUR. Colour is the lowest-priority, occasional
+  // decoration slot. When the overlay already carries a foreground melodic voice
+  // (motif or counter), its colour trait is SUPPRESSED — it competes for attention
+  // and over-renders (John's test: an overlay trumpet came through too strong). An
+  // overlay whose only melodic contribution IS colour (e.g. a producer's sampled
+  // choir hits) keeps it.
+  const overlayHasForeground = !!(r.motif || r.counter);
+  if (r.color && free('color') && !overlayHasForeground) {
     const t = resolveTrait('color', r.color);
     if (t.text) { arr.color = t.text; arr.colorFromOverlay = true; }
   }
@@ -3614,27 +3608,43 @@ function buildClusterPrompt(clusterId, state) {
   const colorPick = slot("color");
   const colorChance = (typeof c.colorChance === "number") ? c.colorChance : 0.5;
   let color = colorPick && (colorLocked || roll() < colorChance) ? colorPick : null;
-  if (ov.color && !lockedRole("color")) color = ov.color;   // an overlay colour always fires
+  // LEVER 1 — demote overlay colour: suppress it when the overlay already carries a
+  // foreground melodic voice (motif/counter), which over-renders otherwise. A
+  // producer whose only melodic contribution is colour still gets it.
+  const overlayHasForeground = !!(ov.motif || ov.counter);
+  if (ov.color && !lockedRole("color") && !overlayHasForeground) color = ov.color;
+
+  // LEVER 1 — front-load the overlay's signature carriers (harmony / motif / counter)
+  // directly after the genre+tempo anchor so Suno, which front-weights descriptors,
+  // actually renders them. Each is emitted here ONLY when it is overlay-supplied;
+  // the engine's own slot content stays in its normal position (so no-overlay output
+  // is unchanged). The normal slot below is blanked for whichever the overlay owns.
+  const ovFrontHarmony = (ov.harmony && !lockedRole("harmony")) ? ovHarmony : null;
+  const ovFrontMotif   = (ov.motif   && !lockedRole("motif"))   ? ovMotif   : null;
+  const ovFrontCounter = (ov.counter && !lockedRole("counter"))? ovCounter : null;
   const rhythmSlot = c.beatless ? null : slot("rhythm");
   const rhythm = (rhythmSlot && ov.groove) ? `${rhythmSlot} ${ov.groove}` : rhythmSlot;  // remixer treats the engine's own drums
   const parts = [
     c.genre || STYLE_ENGINES[engineName].genre,  // genre anchor (per-cluster, else engine default)
     tempo,                                // BPM range + energy (or override number)
+    ovFrontMotif,                         // LEVER 1: overlay signature carriers, hoisted to the front
+    ovFrontCounter,
+    ovFrontHarmony,
     { t: drawn.pads, role: "pads" },
-    { t: ovHarmony, role: "harmony" },   // harmonic + song-structure direction
+    { t: ovFrontHarmony ? null : ovHarmony, role: "harmony" },   // engine harmony only (overlay harmony was hoisted)
     { t: bassSlot, role: "bass" },       // foundational overlay bass displaces the drawn bass here
     { t: rhythm, role: "rhythm" },
     c.beatless ? null : { t: slot("perc"), drop: 2, role: "perc" },      // extra percussion layer
     { t: drawn.strings, role: "strings" },                   // string / choir / chant bed
     { t: ovTexture, drop: 3, role: "texture" },    // secondary sustained layer
-    { t: ovMotif, role: "motif" },         // always-on melodic hook (instrumental)
-    { t: ovCounter, drop: 1, role: "counter" },    // counter-melody / second voice
+    { t: ovFrontMotif ? null : ovMotif, role: "motif" },         // engine motif only (overlay motif hoisted)
+    { t: ovFrontCounter ? null : ovCounter, drop: 1, role: "counter" },    // engine counter only (overlay counter hoisted)
     color ? { t: color, drop: 4, role: "color" } : null,  // occasional colour, fills gaps
     ipCore,                               // interaction / arrangement language (mandatory)
     ipArc ? { t: ipArc, drop: 5, ov: !!ov.arc } : null,   // arc — shed first when the budget is tight
-    ov.edit || null,                      // remixer edit treatment
+    ov.edit ? { t: ov.edit, drop: 6 } : null,     // remixer edit treatment (shed before truncation)
     { t: ovMovement, role: "movement" },   // production movement
-    ov.treat || null,                     // producer mix treatment
+    ov.treat ? { t: ov.treat, drop: 7 } : null,   // producer mix treatment (shed first of all)
     buildVocalPhrase(state),
     MASTERING
   ];
