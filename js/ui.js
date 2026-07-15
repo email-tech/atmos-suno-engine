@@ -324,9 +324,20 @@ function outBlock(title, text, length, over, hint) {
   const head = el('div', { class: 'out-head' }, [el('h4', { text: title })]);
   if (length != null) head.appendChild(el('span', { class: 'meter' + (over ? ' over' : ''), text: `${length}/1000` }));
   head.appendChild(el('button', { class: 'copy', text: 'Copy', onclick: (e) => { copy(text); e.target.textContent = 'Copied'; setTimeout(() => e.target.textContent = 'Copy', 1200); } }));
-  const kids = [head, el('textarea', { class: 'out', readonly: 'readonly', rows: title === 'Style prompt' ? 5 : 2 }, text)];
+  const ta = el('textarea', { class: 'out', readonly: 'readonly', rows: 1 }, text);
+  autoGrow(ta);
+  const kids = [head, ta];
   if (hint) kids.push(el('p', { class: 'hint', text: hint }));
   return el('div', { class: 'out-block' }, kids);
+}
+// Grow/shrink a textarea to fit its content so the window expands and contracts
+// with the prompt instead of snapping back to a fixed height on every change.
+function autoGrow(ta) {
+  const fit = () => { ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 2) + 'px'; };
+  ta.addEventListener('input', fit);
+  // scrollHeight is only correct once the element is in the document + laid out.
+  requestAnimationFrame(fit);
+  setTimeout(fit, 0);
 }
 function copy(t) {
   if (navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {});

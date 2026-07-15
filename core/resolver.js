@@ -1,5 +1,6 @@
 import { ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette } from './constants.js';
 import { compactPart } from './compress.js';
+import { slotFamily } from './overlays.js';
 
 // opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed }
 // locks drive all three control levels:
@@ -143,21 +144,56 @@ export function renderNegative(engine, arr) {
 function applyOverlay(engine, arr, ov, locks = {}) {
   if (!ov || !ov.roles) return arr;
   const r = ov.roles;
+  const fam = ov.roleFamily || {};
   const free = role => locks[role] == null || locks[role] === '';
+
+  // Which instrument families has the ENGINE already put on the track? A slot the
+  // user locked counts too (never silently displace a locked instrument).
+  const present = new Set();
+  for (const k of ['bass', 'lead', 'pads', 'color']) {
+    const f = slotFamily(arr[k]); if (f) present.add(f);
+  }
+
+  // Decide what to do when an overlay trait names an instrument family the engine
+  // already carries:
+  //   foundational (e.g. Moroder's arp-bass) -> DISPLACE the engine's slot in that
+  //     family, so there is exactly one instrument in that role.
+  //   otherwise -> the overlay YIELDS: its instrument mention is dropped so it does
+  //     not duplicate what is already there.
+  const resolveTrait = (role, text) => {
+    const meta = fam[role];
+    if (!meta || !meta.family) return { text, displace: null };
+    const clash = present.has(meta.family);
+    if (!clash) { present.add(meta.family); return { text, displace: null }; }
+    if (meta.foundational) return { text, displace: meta.family };   // overlay wins the role
+    return { text: null, displace: null };                           // overlay drops the mention
+  };
 
   if (r.harmony && free('harmony')) arr.harmony = r.harmony;
   if (r.movement && free('movement')) arr.movement = r.movement;
-  if (r.color && free('color')) { arr.color = r.color; arr.colorFromOverlay = true; }
   if (r.arc) arr.ip = Object.assign({}, arr.ip, { arc: r.arc });
 
-  if (r.motif && free('lead')) {
-    if (engine.signatureLead) arr.ovMotif = r.motif;   // keep the engine's signature lead
-    else arr.lead = r.motif;
-  } else if (r.motif) arr.ovMotif = r.motif;
+  if (r.color && free('color')) {
+    const t = resolveTrait('color', r.color);
+    if (t.text) { arr.color = t.text; arr.colorFromOverlay = true; }
+  }
 
-  if (r.counter) arr.ovCounter = r.counter;   // resolver has no counter slot -> its own clause
-  if (r.texture) arr.ovTexture = r.texture;   // resolver has no texture slot -> its own clause
-  if (r.groove && arr.drums) arr.groove = r.groove;   // treatment ON the engine's own drums
+  // motif = the composer's melodic/thematic hand
+  if (r.motif) {
+    const t = resolveTrait('motif', r.motif);
+    if (t.displace === 'bass' && free('bass')) {
+      // foundational bass motif (Moroder) OWNS the low end: it replaces the drawn
+      // bass in the foundation clause; no second bass elsewhere.
+      arr.bass = t.text; arr.ovMotifIsBass = true;
+    } else if (t.text) {
+      if (engine.signatureLead || !free('lead')) arr.ovMotif = t.text; // keep engine lead
+      else arr.lead = t.text;
+    }
+  }
+
+  if (r.counter) { const t = resolveTrait('counter', r.counter); if (t.text) arr.ovCounter = t.text; }
+  if (r.texture) { const t = resolveTrait('texture', r.texture); if (t.text) arr.ovTexture = t.text; }
+  if (r.groove && arr.drums) arr.groove = r.groove;
   if (r.edit) arr.ovEdit = r.edit;
   if (r.treat) arr.ovTreat = r.treat;
 

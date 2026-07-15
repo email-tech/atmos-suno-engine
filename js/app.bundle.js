@@ -419,6 +419,71 @@ const REMIXER = {
   },
 };
 
+/* ---- INSTRUMENT-FAMILY COLLISION GUARD ----------------------------------
+ * Some overlay traits name a specific instrument that occupies the SAME sonic
+ * role the engine may already have drawn (bass, lead, pad, choir, string bed).
+ * Two basses or two leads in one prompt is the duplicate-instrument bug. Each
+ * such trait is tagged with the family it occupies and whether it is FOUNDATIONAL
+ * (must own that role outright -> it DISPLACES the engine's slot) or a COLOUR
+ * layer (must yield -> its instrument mention is dropped when the engine already
+ * fills that family). Traits with no instrument (harmony direction, arc, mix
+ * treatment) carry no family and never collide.
+ * FAMILY[kind][id][role] = { family, foundational:bool }
+ * ------------------------------------------------------------------------*/
+const TRAIT_FAMILY = {
+  composer: {
+    moroder:      { motif: { family: 'bass', foundational: true },   // the arp-bass IS the track
+                    counter: { family: 'lead' } },
+    fidel:        { motif: { family: 'lead' } },
+    barry:        { texture: { family: 'strings' } },
+    horner:       { texture: { family: 'choir' } },
+    zimmer:       { texture: { family: 'brass' } },
+    conti:        { texture: { family: 'brass' } },
+    arnold:       { texture: { family: 'strings' } },
+    williams:     { texture: { family: 'strings' } },
+    newman:       { motif: { family: 'lead' } },
+    morricone:    { motif: { family: 'lead' } },
+    vangelis:     { texture: { family: 'pad' } },
+    dudley:       { texture: { family: 'strings' } },
+    dicola:       { texture: { family: 'pad' } },
+    hammer:       { texture: { family: 'pad' } },
+    faltermeyer:  { texture: { family: 'pad' } },
+    goransson:    { texture: { family: 'strings' } },
+    goldsmith:    { texture: { family: 'strings' } },
+    nyman:        { texture: { family: 'strings' } },
+    lloydwebber:  { texture: { family: 'strings' } },
+  },
+  producer: {
+    quincy:       { texture: { family: 'strings' }, counter: { family: 'brass' } },
+    horn:         { texture: { family: 'sampled' }, color: { family: 'choir' } },
+    flood:        { texture: { family: 'pad' } },
+  },
+  remixer: {},
+};
+
+// what instrument family, if any, does an engine slot text occupy? (keyword scan)
+const FAMILY_WORDS = {
+  bass:    /\bbass(line)?\b|\bsub-?bass\b|\b808\b|\bupright bass\b|\boud register\b/i,
+  lead:    /\blead\b|\bmelody\b|\bsaw lead\b|\bsteel-?pan\b|\bwhistle\b|\bocarina\b/i,
+  pad:     /\bpad(s)?\b|\bdrone\b|\bwash\b/i,
+  strings: /\bstring(s)?\b|\bviolin\b|\bcello\b|\borchestra\b/i,
+  choir:   /\bchoir\b|\bchant\b|\bvocal\b|\bvoice(s)?\b/i,
+  brass:   /\bbrass\b|\bhorn(s)?\b|\btrumpet\b|\btrombone\b/i,
+  arp:     /\barp(eggi)?/i,
+};
+// arpeggiated leads and plain leads are both the melodic-lead role for collision
+// purposes, so normalise 'arp' -> 'lead' (two leads must never co-occur).
+const FAMILY_ALIAS = { arp: 'lead' };
+function slotFamily(text) {
+  if (!text) return null;
+  for (const [fam, re] of Object.entries(FAMILY_WORDS)) if (re.test(text)) return FAMILY_ALIAS[fam] || fam;
+  return null;
+}
+function traitFamily(name) {   // name like 'composer:moroder'
+  const [kind, id] = name.split(':');
+  return (TRAIT_FAMILY[kind] && TRAIT_FAMILY[kind][id]) || {};
+}
+
 const OVERLAYS = {
   composer: Object.assign({}, COMPOSER_ORCHESTRAL, COMPOSER_ELECTRONIC),
   producer: PRODUCER,
@@ -447,6 +512,7 @@ function overlayList(kind) {
  */
 function resolveOverlays(sel = {}, ctx = {}) {
   const roles = {};
+  const roleFamily = {};   // role -> { family, foundational } for collision handling
   const negative = [];
   const names = [];
   const banTags = new Set(ctx.banTags || []);
@@ -469,24 +535,29 @@ function resolveOverlays(sel = {}, ctx = {}) {
       // rhythm-writing roles never land on a beatless character
       if (ctx.beatless && (role === 'groove' || role === 'treat')) continue;
       if (forbid.has('rhythm') && (role === 'groove' || role === 'treat')) continue;
-      if (roles[role] == null) roles[role] = ov[role];
+      if (roles[role] == null) {
+        roles[role] = ov[role];
+        const fam = traitFamily(`${kind}:${id}`)[role];
+        if (fam) roleFamily[role] = fam;
+      }
     }
     if (ov.negative) negative.push(...ov.negative);
   }
-  return { roles, negative, names };
+  return { roles, roleFamily, negative, names };
 }
 
 function hasOverlay(sel = {}) {
   return !!(sel.composer || sel.producer || sel.remixer);
 }
 
-Object.assign(window.__ATMOS, { overlayList, resolveOverlays, hasOverlay, OVERLAYS, SLOT_RIGHTS });
+Object.assign(window.__ATMOS, { slotFamily, traitFamily, overlayList, resolveOverlays, hasOverlay, TRAIT_FAMILY, OVERLAYS, SLOT_RIGHTS });
 })();
 
 /* core/resolver.js */
 (function(){
 const {ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette} = window.__ATMOS;
 const {compactPart} = window.__ATMOS;
+const {slotFamily} = window.__ATMOS;
 
 // opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed }
 // locks drive all three control levels:
@@ -630,21 +701,56 @@ function renderNegative(engine, arr) {
 function applyOverlay(engine, arr, ov, locks = {}) {
   if (!ov || !ov.roles) return arr;
   const r = ov.roles;
+  const fam = ov.roleFamily || {};
   const free = role => locks[role] == null || locks[role] === '';
+
+  // Which instrument families has the ENGINE already put on the track? A slot the
+  // user locked counts too (never silently displace a locked instrument).
+  const present = new Set();
+  for (const k of ['bass', 'lead', 'pads', 'color']) {
+    const f = slotFamily(arr[k]); if (f) present.add(f);
+  }
+
+  // Decide what to do when an overlay trait names an instrument family the engine
+  // already carries:
+  //   foundational (e.g. Moroder's arp-bass) -> DISPLACE the engine's slot in that
+  //     family, so there is exactly one instrument in that role.
+  //   otherwise -> the overlay YIELDS: its instrument mention is dropped so it does
+  //     not duplicate what is already there.
+  const resolveTrait = (role, text) => {
+    const meta = fam[role];
+    if (!meta || !meta.family) return { text, displace: null };
+    const clash = present.has(meta.family);
+    if (!clash) { present.add(meta.family); return { text, displace: null }; }
+    if (meta.foundational) return { text, displace: meta.family };   // overlay wins the role
+    return { text: null, displace: null };                           // overlay drops the mention
+  };
 
   if (r.harmony && free('harmony')) arr.harmony = r.harmony;
   if (r.movement && free('movement')) arr.movement = r.movement;
-  if (r.color && free('color')) { arr.color = r.color; arr.colorFromOverlay = true; }
   if (r.arc) arr.ip = Object.assign({}, arr.ip, { arc: r.arc });
 
-  if (r.motif && free('lead')) {
-    if (engine.signatureLead) arr.ovMotif = r.motif;   // keep the engine's signature lead
-    else arr.lead = r.motif;
-  } else if (r.motif) arr.ovMotif = r.motif;
+  if (r.color && free('color')) {
+    const t = resolveTrait('color', r.color);
+    if (t.text) { arr.color = t.text; arr.colorFromOverlay = true; }
+  }
 
-  if (r.counter) arr.ovCounter = r.counter;   // resolver has no counter slot -> its own clause
-  if (r.texture) arr.ovTexture = r.texture;   // resolver has no texture slot -> its own clause
-  if (r.groove && arr.drums) arr.groove = r.groove;   // treatment ON the engine's own drums
+  // motif = the composer's melodic/thematic hand
+  if (r.motif) {
+    const t = resolveTrait('motif', r.motif);
+    if (t.displace === 'bass' && free('bass')) {
+      // foundational bass motif (Moroder) OWNS the low end: it replaces the drawn
+      // bass in the foundation clause; no second bass elsewhere.
+      arr.bass = t.text; arr.ovMotifIsBass = true;
+    } else if (t.text) {
+      if (engine.signatureLead || !free('lead')) arr.ovMotif = t.text; // keep engine lead
+      else arr.lead = t.text;
+    }
+  }
+
+  if (r.counter) { const t = resolveTrait('counter', r.counter); if (t.text) arr.ovCounter = t.text; }
+  if (r.texture) { const t = resolveTrait('texture', r.texture); if (t.text) arr.ovTexture = t.text; }
+  if (r.groove && arr.drums) arr.groove = r.groove;
   if (r.edit) arr.ovEdit = r.edit;
   if (r.treat) arr.ovTreat = r.treat;
 
@@ -3304,6 +3410,7 @@ Object.assign(window.__ATMOS, { drawInterplay, EngineExtras });
 const {MASTERING, MAX_MODE_STR, STYLE_ENGINES} = window.__ATMOS;
 const {EngineExtras, drawInterplay} = window.__ATMOS;
 const {compactPart} = window.__ATMOS;
+const {slotFamily} = window.__ATMOS;
 
 /* join descriptor parts into one clean comma line, drop trailing periods, honour
  * the 1000-char budget, lead with the MAX-mode meta-tag block when enabled. */
@@ -3463,9 +3570,41 @@ function buildClusterPrompt(clusterId, state) {
   else if (presetDriven && s.phase) tempo = s.phase;                 // Preset sets character, Phase sets tempo
   else tempo = c.phase;
   // ---- MODIFIER OVERLAY: writes INTO existing slots; a user lock always wins ----
+  // Draw the engine's structural slots FIRST so overlay traits can be checked for
+  // instrument-family collisions against what the engine actually put down.
   const ov = (s.ov && s.ov.roles) || {};
+  const ovFam = (s.ov && s.ov.roleFamily) || {};
   const lockedRole = n => locks[n] != null && locks[n] !== "";
-  const ovv = (name, val) => (ov[name] && !lockedRole(name)) ? ov[name] : val;
+  const drawn = { pads: slot("pads"), harmony: slot("harmony"), bass: slot("bass"),
+                  strings: slot("strings"), texture: slot("texture"), motif: slot("motif"),
+                  counter: slot("counter"), movement: slot("movement") };
+  // families already on the track from the engine's own draw
+  const present = new Set(["pads", "bass", "strings"].map(k => slotFamily(drawn[k])).filter(Boolean));
+  let ovBass = null;   // set if a foundational overlay bass DISPLACES the engine bass
+
+  // ovv(role): overlay writes into the slot when present and unlocked, but a trait
+  // that would DUPLICATE an instrument family already on the track either displaces
+  // (foundational, e.g. Moroder's arp-bass -> owns the bass slot) or yields (its
+  // instrument mention is dropped, so no second bass/lead/string bed appears).
+  const ovv = (name, val) => {
+    if (!ov[name] || lockedRole(name)) return val;
+    const meta = ovFam[name];
+    if (!meta || !meta.family) { if (name === "motif" || name === "counter") { const f = slotFamily(ov[name]); if (f) present.add(f); } return ov[name]; }
+    if (!present.has(meta.family)) { present.add(meta.family); return ov[name]; }
+    if (meta.foundational && meta.family === "bass") { ovBass = ov[name]; return val; }  // handled at the bass slot
+    if (meta.foundational) return ov[name];
+    return val;   // yield: keep the engine's slot, drop the overlay's duplicate
+  };
+
+  // resolve overlay-affected slots up front (order matters: ovBass is set here and
+  // read by the bass slot below, which is emitted before the motif slot).
+  const ovHarmony = ovv("harmony", drawn.harmony);
+  const ovTexture = ovv("texture", drawn.texture);
+  const ovMotif   = ovv("motif", drawn.motif);
+  { const mf = slotFamily(ovMotif); if (mf) present.add(mf); }   // the emitted motif may be a lead
+  const ovCounter = ovv("counter", drawn.counter);
+  const ovMovement= ovv("movement", drawn.movement);
+  const bassSlot  = ovBass || drawn.bass;
 
   const wantInterplay = engine.interplayAlways || s.arrangement;
   const ipPhrases = (wantInterplay && c.interplay) ? drawInterplay(engineName, clusterId, roll) : [];
@@ -3481,20 +3620,20 @@ function buildClusterPrompt(clusterId, state) {
   const parts = [
     c.genre || STYLE_ENGINES[engineName].genre,  // genre anchor (per-cluster, else engine default)
     tempo,                                // BPM range + energy (or override number)
-    { t: slot("pads"), role: "pads" },
-    { t: ovv("harmony", slot("harmony")), role: "harmony" },   // harmonic + song-structure direction
-    { t: slot("bass"), role: "bass" },
+    { t: drawn.pads, role: "pads" },
+    { t: ovHarmony, role: "harmony" },   // harmonic + song-structure direction
+    { t: bassSlot, role: "bass" },       // foundational overlay bass displaces the drawn bass here
     { t: rhythm, role: "rhythm" },
     c.beatless ? null : { t: slot("perc"), drop: 2, role: "perc" },      // extra percussion layer
-    { t: slot("strings"), role: "strings" },                   // string / choir / chant bed
-    { t: ovv("texture", slot("texture")), drop: 3, role: "texture" },    // secondary sustained layer
-    { t: ovv("motif", slot("motif")), role: "motif" },         // always-on melodic hook (instrumental)
-    { t: ovv("counter", slot("counter")), drop: 1, role: "counter" },    // counter-melody / second voice
+    { t: drawn.strings, role: "strings" },                   // string / choir / chant bed
+    { t: ovTexture, drop: 3, role: "texture" },    // secondary sustained layer
+    { t: ovMotif, role: "motif" },         // always-on melodic hook (instrumental)
+    { t: ovCounter, drop: 1, role: "counter" },    // counter-melody / second voice
     color ? { t: color, drop: 4, role: "color" } : null,  // occasional colour, fills gaps
     ipCore,                               // interaction / arrangement language (mandatory)
     ipArc ? { t: ipArc, drop: 5, ov: !!ov.arc } : null,   // arc — shed first when the budget is tight
     ov.edit || null,                      // remixer edit treatment
-    { t: ovv("movement", slot("movement")), role: "movement" },   // production movement
+    { t: ovMovement, role: "movement" },   // production movement
     ov.treat || null,                     // producer mix treatment
     buildVocalPhrase(state),
     MASTERING
@@ -4217,9 +4356,20 @@ function outBlock(title, text, length, over, hint) {
   const head = el('div', { class: 'out-head' }, [el('h4', { text: title })]);
   if (length != null) head.appendChild(el('span', { class: 'meter' + (over ? ' over' : ''), text: `${length}/1000` }));
   head.appendChild(el('button', { class: 'copy', text: 'Copy', onclick: (e) => { copy(text); e.target.textContent = 'Copied'; setTimeout(() => e.target.textContent = 'Copy', 1200); } }));
-  const kids = [head, el('textarea', { class: 'out', readonly: 'readonly', rows: title === 'Style prompt' ? 5 : 2 }, text)];
+  const ta = el('textarea', { class: 'out', readonly: 'readonly', rows: 1 }, text);
+  autoGrow(ta);
+  const kids = [head, ta];
   if (hint) kids.push(el('p', { class: 'hint', text: hint }));
   return el('div', { class: 'out-block' }, kids);
+}
+// Grow/shrink a textarea to fit its content so the window expands and contracts
+// with the prompt instead of snapping back to a fixed height on every change.
+function autoGrow(ta) {
+  const fit = () => { ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 2) + 'px'; };
+  ta.addEventListener('input', fit);
+  // scrollHeight is only correct once the element is in the document + laid out.
+  requestAnimationFrame(fit);
+  setTimeout(fit, 0);
 }
 function copy(t) {
   if (navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {});

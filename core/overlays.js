@@ -301,6 +301,49 @@ const REMIXER = {
   },
 };
 
+/* ---- INSTRUMENT-FAMILY COLLISION GUARD ----------------------------------
+ * Some overlay traits name a specific instrument that occupies the SAME sonic
+ * role the engine may already have drawn (bass, lead, pad, choir, string bed).
+ * Two basses or two leads in one prompt is the duplicate-instrument bug. Each
+ * such trait is tagged with the family it occupies and whether it is FOUNDATIONAL
+ * (must own that role outright -> it DISPLACES the engine's slot) or a COLOUR
+ * layer (must yield -> its instrument mention is dropped when the engine already
+ * fills that family). Traits with no instrument (harmony direction, arc, mix
+ * treatment) carry no family and never collide.
+ * FAMILY[kind][id][role] = { family, foundational:bool }
+ * ------------------------------------------------------------------------*/
+export const TRAIT_FAMILY = {
+  // FOUNDATIONAL overrides only: a trait that must OWN its role and displace the
+  // engine's slot (rather than yield). Everything else derives its family from the
+  // trait text automatically (slotFamily), so any collision is caught without
+  // per-trait bookkeeping.
+  composer: { moroder: { motif: { family: 'bass', foundational: true } } },
+  producer: {},
+  remixer: {},
+};
+
+// what instrument family, if any, does an engine slot text occupy? (keyword scan)
+// Narrow, role-defining keywords. A family is only claimed when the text is the
+// PRIMARY carrier of that role, not a decorative accent (e.g. 'arpeggio sparkle'
+// is colour, not a lead). Ordering: most specific first.
+const FAMILY_WORDS = {
+  bass:    /\bbass(line)?\b|\bsub-?bass\b|\b808\b|\bupright bass\b|\boud register\b/i,
+  lead:    /\blead\b|\bcarrying the melody\b|\bsteel-?pan (melody|lead)\b|\bwhistled\b|\bocarina melody\b/i,
+  choir:   /\bchoir\b|\bchant(ing)?\b|\bwordless (soprano|voice)\b/i,
+  brass:   /\bbrass\b|\bhorn section\b|\btrumpet\b|\btrombone\b/i,
+  strings: /\bstring (bed|ostinato|section)\b|\blegato strings\b|\btremolo strings\b|\bsilky.*strings\b/i,
+  pad:     /\bpad(s)? bed\b|\banalog pads\b|\bsynth pads\b/i,
+};
+export function slotFamily(text) {
+  if (!text) return null;
+  for (const [fam, re] of Object.entries(FAMILY_WORDS)) if (re.test(text)) return fam;
+  return null;
+}
+export function traitFamily(name) {   // name like 'composer:moroder'
+  const [kind, id] = name.split(':');
+  return (TRAIT_FAMILY[kind] && TRAIT_FAMILY[kind][id]) || {};
+}
+
 export const OVERLAYS = {
   composer: Object.assign({}, COMPOSER_ORCHESTRAL, COMPOSER_ELECTRONIC),
   producer: PRODUCER,
@@ -329,6 +372,7 @@ export function overlayList(kind) {
  */
 export function resolveOverlays(sel = {}, ctx = {}) {
   const roles = {};
+  const roleFamily = {};   // role -> { family, foundational } for collision handling
   const negative = [];
   const names = [];
   const banTags = new Set(ctx.banTags || []);
@@ -351,11 +395,17 @@ export function resolveOverlays(sel = {}, ctx = {}) {
       // rhythm-writing roles never land on a beatless character
       if (ctx.beatless && (role === 'groove' || role === 'treat')) continue;
       if (forbid.has('rhythm') && (role === 'groove' || role === 'treat')) continue;
-      if (roles[role] == null) roles[role] = ov[role];
+      if (roles[role] == null) {
+        roles[role] = ov[role];
+        const hand = traitFamily(`${kind}:${id}`)[role];              // foundational override, if any
+        const auto = slotFamily(ov[role]);                            // else derive from the text
+        const fam = hand || (auto ? { family: auto } : null);
+        if (fam) roleFamily[role] = fam;
+      }
     }
     if (ov.negative) negative.push(...ov.negative);
   }
-  return { roles, negative, names };
+  return { roles, roleFamily, negative, names };
 }
 
 export function hasOverlay(sel = {}) {

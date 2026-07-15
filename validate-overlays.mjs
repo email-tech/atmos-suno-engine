@@ -21,6 +21,7 @@ import { SACREDSPIRIT } from './engines/sacredspirit.js';
 import { build, resolveArrangement, renderStyle } from './core/resolver.js';
 import { OVERLAYS, resolveOverlays, overlayList } from './core/overlays.js';
 import { compactPart, lostWords } from './core/compress.js';
+import { slotFamily } from './core/overlays.js';
 import { EngineExtras } from './legacy/engine-extras.js';
 import { buildStylePrompt, buildNegativePrompt } from './legacy/prompt-style-builder.js';
 
@@ -86,6 +87,21 @@ for (const eng of ENGINES) {
           maxLen = Math.max(maxLen, out.length);
           if (out.overLimit) fail(`OVER LIMIT ${out.length} ${eng.id}/${cid}/${palette} ${JSON.stringify(sel)}`);
           if (out.style.includes('...')) fail(`TRUNCATED ${eng.id}/${cid} ${JSON.stringify(sel)}`);
+          // duplicate-instrument guard: a family that is duplicated AFTER the overlay
+          // but was NOT already duplicated by the engine's own bare draw = an overlay
+          // collision bug. Engine-internal overlaps (e.g. a carnival's brass line +
+          // brass stabs) are pre-existing and out of scope.
+          if (Object.keys(overlay.roles).length) {
+            const famCounts = (a) => {
+              const slots = [a.bass, a.lead, a.ovMotif, a.ovCounter, a.color, a.ovTexture].filter(Boolean);
+              const m = {}; slots.map(slotFamily).filter(Boolean).forEach(f => m[f] = (m[f] || 0) + 1); return m;
+            };
+            const bare = resolveArrangement(eng, { characterId: cid, palette, locks: {}, seed });
+            const before = famCounts(bare), after = famCounts(out.arrangement);
+            for (const f of Object.keys(after))
+              if (after[f] > 1 && after[f] > (before[f] || 0))
+                fail(`OVERLAY DUPLICATE ${f} ${eng.id}/${cid} ${JSON.stringify(sel)}`);
+          }
 
           const active = Object.keys(overlay.roles);
           if (active.length) {

@@ -19,6 +19,7 @@
 import { MASTERING, MAX_MODE_STR, STYLE_ENGINES } from "./data-style-engines.js";
 import { EngineExtras, drawInterplay } from "./engine-extras.js";
 import { compactPart } from "../core/compress.js";
+import { slotFamily } from "../core/overlays.js";
 
 /* join descriptor parts into one clean comma line, drop trailing periods, honour
  * the 1000-char budget, lead with the MAX-mode meta-tag block when enabled. */
@@ -178,9 +179,41 @@ export function buildClusterPrompt(clusterId, state) {
   else if (presetDriven && s.phase) tempo = s.phase;                 // Preset sets character, Phase sets tempo
   else tempo = c.phase;
   // ---- MODIFIER OVERLAY: writes INTO existing slots; a user lock always wins ----
+  // Draw the engine's structural slots FIRST so overlay traits can be checked for
+  // instrument-family collisions against what the engine actually put down.
   const ov = (s.ov && s.ov.roles) || {};
+  const ovFam = (s.ov && s.ov.roleFamily) || {};
   const lockedRole = n => locks[n] != null && locks[n] !== "";
-  const ovv = (name, val) => (ov[name] && !lockedRole(name)) ? ov[name] : val;
+  const drawn = { pads: slot("pads"), harmony: slot("harmony"), bass: slot("bass"),
+                  strings: slot("strings"), texture: slot("texture"), motif: slot("motif"),
+                  counter: slot("counter"), movement: slot("movement") };
+  // families already on the track from the engine's own draw
+  const present = new Set(["pads", "bass", "strings"].map(k => slotFamily(drawn[k])).filter(Boolean));
+  let ovBass = null;   // set if a foundational overlay bass DISPLACES the engine bass
+
+  // ovv(role): overlay writes into the slot when present and unlocked, but a trait
+  // that would DUPLICATE an instrument family already on the track either displaces
+  // (foundational, e.g. Moroder's arp-bass -> owns the bass slot) or yields (its
+  // instrument mention is dropped, so no second bass/lead/string bed appears).
+  const ovv = (name, val) => {
+    if (!ov[name] || lockedRole(name)) return val;
+    const meta = ovFam[name];
+    if (!meta || !meta.family) { if (name === "motif" || name === "counter") { const f = slotFamily(ov[name]); if (f) present.add(f); } return ov[name]; }
+    if (!present.has(meta.family)) { present.add(meta.family); return ov[name]; }
+    if (meta.foundational && meta.family === "bass") { ovBass = ov[name]; return val; }  // handled at the bass slot
+    if (meta.foundational) return ov[name];
+    return val;   // yield: keep the engine's slot, drop the overlay's duplicate
+  };
+
+  // resolve overlay-affected slots up front (order matters: ovBass is set here and
+  // read by the bass slot below, which is emitted before the motif slot).
+  const ovHarmony = ovv("harmony", drawn.harmony);
+  const ovTexture = ovv("texture", drawn.texture);
+  const ovMotif   = ovv("motif", drawn.motif);
+  { const mf = slotFamily(ovMotif); if (mf) present.add(mf); }   // the emitted motif may be a lead
+  const ovCounter = ovv("counter", drawn.counter);
+  const ovMovement= ovv("movement", drawn.movement);
+  const bassSlot  = ovBass || drawn.bass;
 
   const wantInterplay = engine.interplayAlways || s.arrangement;
   const ipPhrases = (wantInterplay && c.interplay) ? drawInterplay(engineName, clusterId, roll) : [];
@@ -196,20 +229,20 @@ export function buildClusterPrompt(clusterId, state) {
   const parts = [
     c.genre || STYLE_ENGINES[engineName].genre,  // genre anchor (per-cluster, else engine default)
     tempo,                                // BPM range + energy (or override number)
-    { t: slot("pads"), role: "pads" },
-    { t: ovv("harmony", slot("harmony")), role: "harmony" },   // harmonic + song-structure direction
-    { t: slot("bass"), role: "bass" },
+    { t: drawn.pads, role: "pads" },
+    { t: ovHarmony, role: "harmony" },   // harmonic + song-structure direction
+    { t: bassSlot, role: "bass" },       // foundational overlay bass displaces the drawn bass here
     { t: rhythm, role: "rhythm" },
     c.beatless ? null : { t: slot("perc"), drop: 2, role: "perc" },      // extra percussion layer
-    { t: slot("strings"), role: "strings" },                   // string / choir / chant bed
-    { t: ovv("texture", slot("texture")), drop: 3, role: "texture" },    // secondary sustained layer
-    { t: ovv("motif", slot("motif")), role: "motif" },         // always-on melodic hook (instrumental)
-    { t: ovv("counter", slot("counter")), drop: 1, role: "counter" },    // counter-melody / second voice
+    { t: drawn.strings, role: "strings" },                   // string / choir / chant bed
+    { t: ovTexture, drop: 3, role: "texture" },    // secondary sustained layer
+    { t: ovMotif, role: "motif" },         // always-on melodic hook (instrumental)
+    { t: ovCounter, drop: 1, role: "counter" },    // counter-melody / second voice
     color ? { t: color, drop: 4, role: "color" } : null,  // occasional colour, fills gaps
     ipCore,                               // interaction / arrangement language (mandatory)
     ipArc ? { t: ipArc, drop: 5, ov: !!ov.arc } : null,   // arc — shed first when the budget is tight
     ov.edit || null,                      // remixer edit treatment
-    { t: ovv("movement", slot("movement")), role: "movement" },   // production movement
+    { t: ovMovement, role: "movement" },   // production movement
     ov.treat || null,                     // producer mix treatment
     buildVocalPhrase(state),
     MASTERING
