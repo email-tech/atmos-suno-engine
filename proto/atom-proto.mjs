@@ -157,19 +157,19 @@ function compose(held){
     if(sigBass) cl.push(`${groove.instrument} locking to the sequence`);
     else if(bass) cl.push(`${wt(bass)} and ${groove.instrument}, ${REL.foundation.render}`);
   }
-  const perc=A("perc"); if(perc) cl.push(`${perc.instrument} threading the groove`);
+  const perc=ownerOf("perc"); if(perc) cl.push(`${perc.instrument} threading the groove`);
 
   // lead (engine core survives family reconcile)
   const lead=ownerOf("lead"); if(lead) cl.push(`${wt(lead)} carrying the melody out front`);
 
   // pads + harmony (skip harmony here if a signature harmony was hoisted)
-  const pads=A("pads"), harm=ownerOf("harmony");
+  const pads=ownerOf("pad"), harm=ownerOf("harmony");
   if(pads||harm){ let h=pads?wt(pads):"";
     if(harm && !sigHarm) h=(h?`${h} moving through `:"")+ (harm.text||harm.instrument);
     if(h) cl.push(h); }
 
-  const strings=A("strings"); if(strings) cl.push(`${wt(strings)} beneath the harmony`);
-  const texture=A("texture"); if(texture) cl.push(`${texture.instrument} sustaining under the chords`);
+  const strings=ownerOf("strings"); if(strings) cl.push(`${wt(strings)} beneath the harmony`);
+  const texture=ownerOf("texture"); if(texture) cl.push(`${texture.instrument} sustaining under the chords`);
 
   const counter=ownerOf("counter");
   if(counter && lead) cl.push(counterClause(counter));
