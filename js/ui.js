@@ -1,5 +1,6 @@
 import {
   ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool,
+  atomCharacterList, atomOverlays,
   legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,
 } from './registry.js';
 import { syncEngineDefaults, newSeed } from './state.js';
@@ -115,7 +116,7 @@ function renderAll() {
     return el('button', {
       class: 'tab' + (e.id === S.engineId ? ' active' : '') + (disabled ? ' disabled' : ''),
       onclick: () => { if (!disabled) { syncEngineDefaults(S, e.id); renderAll(); } },
-    }, [el('span', { text: e.label }), el('span', { class: 'kind', text: e.kind === 'resolver' ? 'resolver' : e.kind === 'legacy' ? 'proven' : 'soon' })]);
+    }, [el('span', { text: e.label }), el('span', { class: 'kind', text: e.kind === 'resolver' ? 'resolver' : e.kind === 'legacy' ? 'proven' : e.kind === 'atom' ? 'atom' : 'soon' })]);
   })));
 
   const grid = el('div', { class: 'grid' });
@@ -125,12 +126,29 @@ function renderAll() {
   rootEl.appendChild(grid);
 
   const eng = getEngine(S.engineId);
-  if (eng.kind === 'resolver') renderResolverControls(controls, eng);
+  if (eng.kind === 'atom') renderAtomControls(controls, eng);
+  else if (eng.kind === 'resolver') renderResolverControls(controls, eng);
   else if (eng.kind === 'legacy') renderLegacyControls(controls, eng);
   else renderStub(controls, eng);
-  if (eng.kind !== 'stub') overlayPanel(controls);
+  if (eng.kind !== 'stub' && eng.kind !== 'atom') overlayPanel(controls);
 
   refreshOutput();
+}
+
+// ---- atom controls ---------------------------------------------------------
+function renderAtomControls(root, eng) {
+  const a = S.atom;
+  const chars = atomCharacterList(eng.module);
+  root.appendChild(field('Character',
+    select(chars.map(x => ({ value: x.id, label: `${x.label} \u2014 ${x.source}` })), a.characterId,
+      v => { a.characterId = v; renderAll(); })));
+
+  const ovOpts = [{ value: '', label: 'None' }]
+    .concat(atomOverlays().map(o => ({ value: o.id, label: `${o.label} (${o.kind})` })));
+  root.appendChild(field('Overlay', select(ovOpts, a.overlayId || '', v => { a.overlayId = v; refreshOutput(); })));
+
+  root.appendChild(el('p', { class: 'note', text: 'Atom assembly path. Overlays are congruent-by-default \u2014 an incongruent one is refused (shown below the prompt).' }));
+  root.appendChild(buttons());
 }
 
 // ---- resolver controls -----------------------------------------------------
@@ -315,6 +333,7 @@ function refreshOutput() {
 
   const res = generate(S);
   host.appendChild(outBlock('Style prompt', res.style, res.length, res.over));
+  if (res.overlayNote) host.appendChild(el('p', { class: 'note', text: `Overlay: ${res.overlayNote}` }));
   host.appendChild(outBlock('Negative prompt', res.negative, null, false));
   const lyr = res.lyrics || '[Instrumental]';
   host.appendChild(outBlock('Lyrics field', lyr, null, false, 'Paste into Suno\u2019s lyrics box; use Suno\u2019s Instrumental toggle for reliable vocal suppression.'));

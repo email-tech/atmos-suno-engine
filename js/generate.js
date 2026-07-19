@@ -4,6 +4,7 @@
 //   - legacy engines apply it through their proven maxMode path (byte-identical to old app)
 //   - resolver engines get it here in the router
 import { getEngine, legacyClassic } from './registry.js';
+import { buildAtoms } from '../core/atoms.js';
 import { build } from '../core/resolver.js';
 import { CHAR_LIMIT, rng } from '../core/constants.js';
 import { resolveOverlays } from '../core/overlays.js';
@@ -27,6 +28,18 @@ function overlayFor(S, beatless) {
 
 export function generate(S) {
   const eng = getEngine(S.engineId);
+
+  if (eng.kind === 'atom') {
+    const a = S.atom;
+    const char = eng.module[a.characterId];
+    const out = buildAtoms(char, { seed: S.seed, overlayId: a.overlayId || null, maxMode: S.maxMode });
+    const style = applyMax(out.style, S.maxMode);
+    return {
+      style, negative: out.negative, lyrics: '',
+      length: style.length, over: style.length > CHAR_LIMIT,
+      arrangement: out.arrangement, overlayNote: out.overlayNote,
+    };
+  }
 
   if (eng.kind === 'resolver') {
     const r = S.res;

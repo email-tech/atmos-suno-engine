@@ -2,7 +2,7 @@
 // chosen by the selected engine's kind. Kept deliberately small — the modifier
 // overlays and the Lyric/Metatag engine will add their own sub-states later
 // without touching this shape.
-import { getEngine, resolverCharacters, legacyPresetMap, legacyClusters, legacyClassic } from './registry.js';
+import { getEngine, resolverCharacters, atomCharacterList, legacyPresetMap, legacyClusters, legacyClassic } from './registry.js';
 
 export function newSeed() { return (Math.random() * 2147483647) >>> 0; }
 
@@ -11,7 +11,7 @@ export function initState() {
   // ov = modifier overlays (Composer / Producer / Remixer). Global like maxMode:
   // an overlay is a hand applied ON TOP of whichever engine is selected.
   const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false,
-              ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null };
+              ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null, atom: null };
   syncEngineDefaults(S, 'Delerium');
   return S;
 }
@@ -22,7 +22,11 @@ export function syncEngineDefaults(S, engineId) {
   S.seed = newSeed();
   const eng = getEngine(engineId);
 
-  if (eng.kind === 'resolver') {
+  if (eng.kind === 'atom') {
+    const chars = atomCharacterList(eng.module);
+    S.atom = { characterId: chars[0].id, overlayId: '' };   // atom overlays are their own table
+    S.res = null; S.leg = null;
+  } else if (eng.kind === 'resolver') {
     const chars = resolverCharacters(eng.module);
     S.res = {
       characterId: chars[0].id,
@@ -30,7 +34,7 @@ export function syncEngineDefaults(S, engineId) {
       level: 'random',          // 'random' | 'lockSome' | 'manual'
       locks: {},                // role -> chosen text (only in lockSome/manual)
     };
-    S.leg = null;
+    S.leg = null; S.atom = null;
   } else if (eng.kind === 'legacy') {
     const presetMap = legacyPresetMap(engineId);
     const clusters = legacyClusters(engineId);
@@ -58,8 +62,8 @@ export function syncEngineDefaults(S, engineId) {
       clusterLocks: {},          // cluster role -> chosen value
       vocalMode: 'Instrumental',
     };
-    S.res = null;
+    S.res = null; S.atom = null;
   } else {
-    S.res = null; S.leg = null;   // stub
+    S.res = null; S.leg = null; S.atom = null;   // stub
   }
 }

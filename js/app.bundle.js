@@ -810,6 +810,309 @@ function build(engine, opts) {
 Object.assign(window.__ATMOS, { resolveArrangement, renderStyle, renderNegative, build });
 })();
 
+/* core/atoms.js */
+(function(){
+/* ==========================================================================
+ * atoms.js — the atom ASSEMBLY engine (character-agnostic).
+ * Promoted from proto/atom-proto.mjs. Pipeline is unchanged from the validated
+ * prototype: atoms -> holding area (engine + overlay) -> reconcile -> compose.
+ * Reconcile is pure data: one voice per family, priority wins (signature > core
+ * > support > decorative); a foundational overlay bass DISPLACES; a colliding
+ * overlay voice YIELDS; signature carriers hoist to the front (Lever 1).
+ *
+ * NEW (congruence, 2026-07-19 direction): overlays are congruent-by-default.
+ * Each overlay carries a congruence profile; a congruence PRE-PASS runs before
+ * the family contest:
+ *   - lean gate: an electronic-only overlay on a non-electronic character is
+ *     REFUSED entirely (Moroder-on-Balearic — a confirmed genre clash).
+ *   - takeover gate: an overlay may only seize a genre-owned family (bass timbre,
+ *     drum kit) if its profile permits AND the character's lean allows it. A
+ *     classical/orchestral composer takes over none — it finesses lead / strings
+ *     / texture / perc / colour over an intact engine foundation.
+ * Genre-owned attributes can't be claimed by a cross-genre overlay regardless of
+ * prompt craft or position — so we don't author a prompt that fights the prior.
+ * ========================================================================*/
+const {CHAR_LIMIT, ALWAYS_BAN} = window.__ATMOS;
+
+function mulberry32(a){let t=(a>>>0)||1;return()=>{t+=0x6D2B79F5;let r=Math.imul(t^(t>>>15),1|t);r^=r+Math.imul(r^(r>>>7),61|r);return((r^(r>>>14))>>>0)/4294967296;};}
+const RANK = { signature:0, core:1, support:2, decorative:3 };
+
+// ---- OVERLAY ATOM TABLES (ingredients + congruence profile) --------------
+// congruence.lean:'any'|'electronic'  — required character lean.
+// congruence.engines: compatible engine sources (null = any).
+// congruence.takeover: which genre-owned families this overlay may seize.
+// signature:true -> hoists to the front; foundational:true on a bass -> displaces.
+const ATOM_OVERLAYS = {
+  // Congruent, primary path: classical/orchestral composer finesse. Seizes no
+  // genre-owned family; contributes lead/strings/texture/perc/colour + an arc.
+  // Validated shape (Balearic, 2026-07-19). Rendered text stays generic — no
+  // artist names in prompts.
+  composer_orchestral: {
+    label: 'Orchestral composer (finesse)',
+    kind: 'composer',
+    congruence: { lean:'any', engines:['Balearic','Enigma','Delerium','Era'],
+                  takeover:{ bass:false, drums:false, harmony:false } },
+    atoms: {
+      ov_lead:    { role:'motif',  family:'lead', fn:'foreground-melody',
+                    instrument:'a piano and glassy-mallet lead', priority:'signature', signature:true },
+      ov_strings: { role:'strings',family:'strings', fn:'support-bed',
+                    instrument:'plucked strings under orchestral colour', priority:'signature', signature:true },
+      ov_texture: { role:'texture',family:'texture', fn:'sustain-under',
+                    instrument:'a pulsing synth texture', priority:'support' },
+      ov_perc:    { role:'perc',   family:'perc', fn:'groove-thread',
+                    instrument:'brushed percussion', priority:'decorative' },
+      ov_colour:  { role:'colour', family:'colour', fn:'accent',
+                    instrument:'orchestral swells', priority:'decorative' },
+      ov_arc:     { role:'arc', fn:'arc', text:'orchestral swells rising and receding under the melody',
+                    priority:'support' },
+    },
+  },
+  // Electronic-only. On a non-electronic character the lean gate REFUSES it
+  // (Moroder-on-Balearic downtempo — confirmed incompatible, parked 2026-07-17).
+  moroder: {
+    label: 'Giorgio Moroder (composer)',
+    kind: 'composer',
+    congruence: { lean:'electronic', engines:null,
+                  takeover:{ bass:true, drums:true, harmony:true } },
+    atoms: {
+      ov_bass:   { role:'bass',   family:'bass',   fn:'foundation-drive',
+                   instrument:'an arpeggiated analog synth-bass sequence driving the pulse',
+                   priority:'signature', foundational:true, signature:true, prominence:'foreground' },
+      ov_harm:   { role:'harmony',family:'harmony',fn:'chord-movement',
+                   text:'a simple minor vamp with filtered chord pumps',
+                   priority:'signature', signature:true },
+      ov_lead:   { role:'motif',  family:'lead',   fn:'foreground-melody',
+                   instrument:'a filtered sawtooth synth lead', priority:'support' },
+      ov_colour: { role:'colour', family:'perc-accent', fn:'accent',
+                   instrument:'handclap and tambourine accents on the backbeat', priority:'decorative' },
+      ov_arc:    { role:'arc', fn:'arc', text:'the sequence running unbroken while the layers stack over it',
+                   priority:'support' },
+    },
+  },
+};
+
+const REL = {
+  foundation:    { needs:['bass','drums'], render:'locked in a soft, spacious pocket that anchors without intruding' },
+  arc:           { needs:['pad'],          render:'a slow dynamic arc, layers stacking to a lush peak then receding' },
+  harmonyResolve:{ needs:['lead','harmony'],render:'the melody stating a phrase and the chords swelling to meet and resolve it' },
+};
+
+// ---- CONGRUENCE PRE-PASS -------------------------------------------------
+// Decides whether an overlay applies at all, and which of its atoms are allowed
+// to seize a genre-owned family. Returns { ok, atoms, reason }.
+function congruenceGate(ov, char){
+  const c = ov.congruence || { lean:'any', engines:null, takeover:{} };
+  if (c.lean === 'electronic' && !char.electronicLean)
+    return { ok:false, atoms:{}, reason:`${ov.label} is electronic-only; ${char.label} is not electronic-leaning — refused (genre clash).` };
+  if (c.engines && !c.engines.includes(char.source))
+    return { ok:false, atoms:{}, reason:`${ov.label} is not congruent with ${char.source} — refused.` };
+  const owned = new Set(char.genreOwned || []);
+  const take = c.takeover || {};
+  const atoms = {};
+  for (const [k,a] of Object.entries(ov.atoms)){
+    if (a.family && owned.has(a.family) && !take[a.family]) continue; // may not seize this family
+    atoms[k] = a;
+  }
+  return { ok:true, atoms, reason:null };
+}
+
+// ---- HOLDING AREA --------------------------------------------------------
+function collect(char, seed, overlayId){
+  const roll = mulberry32(seed);
+  const pick = a => Array.isArray(a) ? a[Math.floor(roll()*a.length)] : a;
+  const held = [];
+  const push = (key, a, source) => {
+    if (a.chance!=null && roll()>=a.chance) return;
+    held.push({ key, source, role:a.role, family:a.family||null, register:a.register||null, fn:a.fn||null,
+      priority:a.priority||'support', instrument:a.instrument?pick(a.instrument):null, text:a.text?pick(a.text):null,
+      timbre:(a.timbre||[]).slice(), prominence:a.prominence||'foreground', mix:a.mix||null,
+      dynamic:a.dynamic||null, density:a.density||null,
+      foundational:!!a.foundational, signature:!!a.signature });
+  };
+  for (const [k,a] of Object.entries(char.atoms)) push(k,a,'engine');
+  let overlayNote = null;
+  if (overlayId && ATOM_OVERLAYS[overlayId]){
+    const gate = congruenceGate(ATOM_OVERLAYS[overlayId], char);
+    overlayNote = gate.reason;
+    for (const [k,a] of Object.entries(gate.atoms)) push(k,a,'overlay');
+  }
+  return { held, overlayNote };
+}
+
+// ---- RECONCILE (pure data) ----------------------------------------------
+function reconcile(held){
+  const survivor = new Map();
+  for (const at of held){
+    if (!at.family) continue;
+    const cur = survivor.get(at.family);
+    if (!cur || RANK[at.priority] < RANK[cur.priority]) survivor.set(at.family, at);
+  }
+  let kept = held.filter(at => !at.family || survivor.get(at.family)===at);
+  const used=new Set();
+  for (const at of kept){
+    at.timbre = at.timbre.filter(w=>{ const k=w.toLowerCase();
+      if(used.has(k)) return false;
+      if(at.instrument && at.instrument.toLowerCase().includes(k)){ used.add(k); return false; }
+      used.add(k); return true; });
+  }
+  return kept;
+}
+
+// ---- COMPOSE -------------------------------------------------------------
+function wt(at){
+  if(!at.instrument) return at.text||'';
+  if(!at.timbre.length) return at.instrument;
+  const adj=at.timbre[0]; const s=at.instrument.replace(/^(a |an )/i,'');
+  const had=/^(a |an )/i.test(at.instrument); const art=/^[aeiou]/i.test(adj)?'an ':'a ';
+  return (had?art:'')+adj+' '+s;
+}
+function counterClause(c){
+  const bits=[c.instrument];
+  if(c.dynamic) bits.push(c.dynamic);
+  if(c.mix) bits.push(c.mix);
+  const tail = c.density ? `${c.density} in a distant call-and-response with the lead`
+                         : 'answering the lead in call-and-response';
+  return `${bits.join(', ')}, ${tail}`;
+}
+function compose(held, mastering){
+  const fams=new Set(held.map(a=>a.family).filter(Boolean));
+  const has=f=>fams.has(f);
+  const A=k=>held.find(a=>a.key===k);
+  const ownerOf=f=>held.find(a=>a.family===f);
+  const sig = f => { const o=ownerOf(f); return o&&o.signature?o:null; };
+  const cl=[];
+  cl.push(A('genre').text, A('tempo').text);
+
+  const sigBass=sig('bass'), sigHarm=sig('harmony');
+  if(sigBass) cl.push(sigBass.instrument);
+  if(sigHarm) cl.push(sigHarm.text||sigHarm.instrument);
+
+  const bass=ownerOf('bass'), groove=A('groove');
+  if(groove){
+    if(sigBass) cl.push(`${groove.instrument} locking to the sequence`);
+    else if(bass) cl.push(`${wt(bass)} and ${groove.instrument}, ${REL.foundation.render}`);
+  }
+  const perc=ownerOf('perc'); if(perc) cl.push(`${perc.instrument} threading the groove`);
+
+  const lead=ownerOf('lead'); if(lead) cl.push(`${wt(lead)} carrying the melody out front`);
+
+  const pads=ownerOf('pad'), harm=ownerOf('harmony');
+  if(pads||harm){ let h=pads?wt(pads):'';
+    if(harm && !sigHarm) h=(h?`${h} moving through `:'')+ (harm.text||harm.instrument);
+    if(h) cl.push(h); }
+
+  const strings=ownerOf('strings'); if(strings) cl.push(`${wt(strings)} beneath the harmony`);
+  const texture=ownerOf('texture'); if(texture) cl.push(`${texture.instrument} sustaining under the chords`);
+
+  const counter=ownerOf('counter');
+  if(counter && lead) cl.push(counterClause(counter));
+
+  const colour=ownerOf('colour')||ownerOf('perc-accent');
+  if(colour) cl.push(`${colour.instrument} in the gaps`);
+  const movement=A('movement'); if(movement) cl.push(movement.text);
+
+  const ovArc=A('ov_arc');
+  if(ovArc) cl.push(ovArc.text);
+  else { if(REL.harmonyResolve.needs.every(has)) cl.push(REL.harmonyResolve.render);
+         if(REL.arc.needs.every(has)) cl.push(REL.arc.render); }
+  if(ovArc && REL.harmonyResolve.needs.every(has)) cl.push(REL.harmonyResolve.render);
+
+  cl.push(mastering);
+  return cl.filter(Boolean).join(', ').replace(/\s+/g,' ').replace(/\s*,\s*/g,', ').trim();
+}
+
+// ---- PUBLIC: build one atom character (+ optional overlay) ----------------
+// Returns the shell's uniform result shape. `arrangement` is the reconciled
+// atom list — the structured layer the Lyric/Metatag engine will read.
+function buildAtoms(char, opts){
+  const o = opts || {};
+  const { held, overlayNote } = collect(char, o.seed >>> 0, o.overlayId || null);
+  const kept = reconcile(held);
+  let style = compose(kept, char.mastering);
+  const over = style.length > CHAR_LIMIT;
+  if (o.maxMode) { /* atom path is already budget-safe; Max is a legacy-only directive */ }
+  const negative = ALWAYS_BAN.join(', ') + '.';
+  return { style, negative, lyrics:'', length:style.length, over,
+           arrangement:kept, overlayNote };
+}
+
+function atomOverlayList(){
+  return Object.keys(ATOM_OVERLAYS).map(id => ({ id, label:ATOM_OVERLAYS[id].label, kind:ATOM_OVERLAYS[id].kind }));
+}
+
+function atomCharacters(module){
+  return Object.keys(module).map(id => ({ id, label:module[id].label, source:module[id].source,
+    tempo: module[id].atoms.tempo ? module[id].atoms.tempo.text : '' }));
+}
+
+Object.assign(window.__ATMOS, { buildAtoms, atomOverlayList, atomCharacters, ATOM_OVERLAYS });
+})();
+
+/* engines/atom-balearic.js */
+(function(){
+/* ==========================================================================
+ * atom-balearic.js — atom-character DATA for the atom assembly path.
+ * Promoted from proto/atom-proto.mjs. The atom table below is the Suno-VALIDATED
+ * Balearic / "Lush cinematic chillout" / Electronic character (John, 2026-07-16)
+ * and is preserved VERBATIM — this file relocates it into production, it does
+ * not re-author it. The character-agnostic engine lives in core/atoms.js.
+ *
+ * A character carries, alongside its atom table:
+ *   electronicLean — false here (downtempo). Drives overlay congruence gating:
+ *                    electronic-only overlays are refused on a non-electronic char.
+ *   genreOwned     — families Suno sets from the genre prior (bass timbre, drum
+ *                    kit). A cross-genre overlay may not seize these (2026-07-17).
+ * ========================================================================*/
+
+const ATOM_CHARACTERS = {
+  'balearic-lush-cinematic': {
+    label: 'Lush Cinematic Chillout',
+    source: 'Balearic',
+    electronicLean: false,
+    genreOwned: ['bass', 'drums'],
+    mastering: 'Polished Dolby Atmos-Master Atmos -2dB',
+    atoms: {
+      genre:   { role:'genre', text:'Balearic downtempo' },
+      tempo:   { role:'tempo', text:'mid chill, 90-105 BPM, medium energy' },
+      bass:    { role:'bass',   family:'bass',   register:'sub',     fn:'foundation-weight',
+                 instrument:['sub bass','FM sub-bass'], timbre:['deep'], priority:'core' },
+      groove:  { role:'rhythm', family:'drums',  register:'low-mid', fn:'groove',
+                 instrument:['a soft downtempo kit','a lounge/house kit with soft kick and brushed snare'],
+                 timbre:[], priority:'core' },
+      perc:    { role:'perc',   family:'perc',   register:'high',    fn:'groove-thread',
+                 instrument:['shaker and triangle accents','a light frame-drum pulse'], timbre:[], priority:'decorative' },
+      pads:    { role:'pads',   family:'pad',    register:'mid',     fn:'harmony-bed',
+                 instrument:['analogue pads','layered synth pads'], timbre:['lush','evolving'], priority:'core' },
+      harmony: { role:'harmony',family:'harmony',register:'mid',     fn:'chord-movement',
+                 text:['a slow minor-to-relative-major progression over eight-bar cycles',
+                       'suspended add9 voicings opening into a major-seventh resolution',
+                       'wide-open sus2 voicings holding before a delayed resolve'], priority:'core' },
+      strings: { role:'strings',family:'strings',register:'mid',     fn:'support-bed',
+                 instrument:['a sweeping string bed','layered strings'], timbre:['soft'], priority:'support' },
+      texture: { role:'texture',family:'texture',register:'low-mid', fn:'sustain-under',
+                 instrument:['a low pipe-organ sustain','a cor-anglais layer'], timbre:[], priority:'decorative' },
+      lead:    { role:'motif',  family:'lead',   register:'upper-mid',fn:'foreground-melody',
+                 instrument:['a Rhodes electric-piano motif','an arpeggiated synth lead','a soft piano motif'],
+                 timbre:['warm'], priority:'core' },
+      // COUNTER — clarinet was over-rendering. Level is an ATTRIBUTE: low register +
+      // pianissimo + buried + occasional, so it answers without dominating.
+      counter: { role:'counter',family:'counter',register:'low',     fn:'answer',
+                 instrument:['a cello counter-melody','a clarinet counter-line'], timbre:[], priority:'support',
+                 prominence:'background', mix:'faint and buried well under the mix',
+                 dynamic:'pianissimo', density:'answering only occasionally' },
+      colour:  { role:'colour', family:'colour', register:'high',    fn:'accent',
+                 instrument:['an occasional glockenspiel accent','a brief flute line','a short tubular-bell tone'],
+                 timbre:[], priority:'decorative', chance:0.5 },
+      movement:{ role:'movement',family:'production',register:'n/a', fn:'movement',
+                 text:['wide stereo panning and slow filter modulation across the pads',
+                       'LFO, chorus and phaser movement evolving across the synth layers'], priority:'support' },
+    },
+  },
+};
+
+Object.assign(window.__ATMOS, { ATOM_CHARACTERS });
+})();
+
 /* engines/delerium.js */
 (function(){
 // Delerium engine — album-era (Faces -> Semantic Spaces -> Karma -> Poem).
@@ -3747,6 +4050,8 @@ Object.assign(window.__ATMOS, { buildLyricsField, buildClusterPrompt, buildClust
 //   'resolver' — new engine-agnostic resolver (Delerium; Era/Deep Forest slot in here later)
 //   'legacy'   — proven cluster/classic path harvested verbatim (Balearic, Enigma)
 //   'stub'     — registered scope, not yet built (none remaining: all six engines are live)
+const {ATOM_CHARACTERS} = window.__ATMOS;
+const {atomCharacters, atomOverlayList} = window.__ATMOS;
 const {DELERIUM} = window.__ATMOS;
 const {ERA} = window.__ATMOS;
 const {DEEPFOREST} = window.__ATMOS;
@@ -3756,6 +4061,7 @@ const {STYLE_ENGINES} = window.__ATMOS;
 
 const ENGINES = [
   { id: 'Balearic',    kind: 'legacy',   label: 'Balearic' },
+  { id: 'Balearic Atom', kind: 'atom',   label: 'Balearic \u00b7 atom', module: ATOM_CHARACTERS },
   { id: 'Enigma',      kind: 'legacy',   label: 'Enigma' },
   { id: 'Delerium',    kind: 'resolver', label: 'Delerium', module: DELERIUM },
   { id: 'Era',         kind: 'resolver', label: 'Era', module: ERA },
@@ -3766,6 +4072,10 @@ const ENGINES = [
 function getEngine(id) {
   return ENGINES.find(e => e.id === id);
 }
+
+// ---- atom-kind helpers -----------------------------------------------------
+function atomCharacterList(module) { return atomCharacters(module); }
+function atomOverlays() { return atomOverlayList(); }
 
 // ---- resolver-kind helpers -------------------------------------------------
 const RESOLVER_ROLES = ['pads', 'harmony', 'bass', 'lead', 'voice', 'color', 'movement'];
@@ -3827,7 +4137,7 @@ function legacyClusterRolePool(engineId, clusterId, role, palette) {
   return pool.map(x => ({ value: x, label: x }));
 }
 
-Object.assign(window.__ATMOS, { getEngine, resolverCharacters, resolverRolePool, legacyPresetMap, legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, ENGINES, RESOLVER_ROLES, CLUSTER_ROLES });
+Object.assign(window.__ATMOS, { getEngine, atomCharacterList, atomOverlays, resolverCharacters, resolverRolePool, legacyPresetMap, legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, ENGINES, RESOLVER_ROLES, CLUSTER_ROLES });
 })();
 
 /* js/state.js */
@@ -3836,7 +4146,7 @@ Object.assign(window.__ATMOS, { getEngine, resolverCharacters, resolverRolePool,
 // chosen by the selected engine's kind. Kept deliberately small — the modifier
 // overlays and the Lyric/Metatag engine will add their own sub-states later
 // without touching this shape.
-const {getEngine, resolverCharacters, legacyPresetMap, legacyClusters, legacyClassic} = window.__ATMOS;
+const {getEngine, resolverCharacters, atomCharacterList, legacyPresetMap, legacyClusters, legacyClassic} = window.__ATMOS;
 
 function newSeed() { return (Math.random() * 2147483647) >>> 0; }
 
@@ -3845,7 +4155,7 @@ function initState() {
   // ov = modifier overlays (Composer / Producer / Remixer). Global like maxMode:
   // an overlay is a hand applied ON TOP of whichever engine is selected.
   const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false,
-              ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null };
+              ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null, atom: null };
   syncEngineDefaults(S, 'Delerium');
   return S;
 }
@@ -3856,7 +4166,11 @@ function syncEngineDefaults(S, engineId) {
   S.seed = newSeed();
   const eng = getEngine(engineId);
 
-  if (eng.kind === 'resolver') {
+  if (eng.kind === 'atom') {
+    const chars = atomCharacterList(eng.module);
+    S.atom = { characterId: chars[0].id, overlayId: '' };   // atom overlays are their own table
+    S.res = null; S.leg = null;
+  } else if (eng.kind === 'resolver') {
     const chars = resolverCharacters(eng.module);
     S.res = {
       characterId: chars[0].id,
@@ -3864,7 +4178,7 @@ function syncEngineDefaults(S, engineId) {
       level: 'random',          // 'random' | 'lockSome' | 'manual'
       locks: {},                // role -> chosen text (only in lockSome/manual)
     };
-    S.leg = null;
+    S.leg = null; S.atom = null;
   } else if (eng.kind === 'legacy') {
     const presetMap = legacyPresetMap(engineId);
     const clusters = legacyClusters(engineId);
@@ -3892,9 +4206,9 @@ function syncEngineDefaults(S, engineId) {
       clusterLocks: {},          // cluster role -> chosen value
       vocalMode: 'Instrumental',
     };
-    S.res = null;
+    S.res = null; S.atom = null;
   } else {
-    S.res = null; S.leg = null;   // stub
+    S.res = null; S.leg = null; S.atom = null;   // stub
   }
 }
 
@@ -3909,6 +4223,7 @@ Object.assign(window.__ATMOS, { newSeed, initState, syncEngineDefaults });
 //   - legacy engines apply it through their proven maxMode path (byte-identical to old app)
 //   - resolver engines get it here in the router
 const {getEngine, legacyClassic} = window.__ATMOS;
+const {buildAtoms} = window.__ATMOS;
 const {build} = window.__ATMOS;
 const {CHAR_LIMIT, rng} = window.__ATMOS;
 const {resolveOverlays} = window.__ATMOS;
@@ -3932,6 +4247,18 @@ function overlayFor(S, beatless) {
 
 function generate(S) {
   const eng = getEngine(S.engineId);
+
+  if (eng.kind === 'atom') {
+    const a = S.atom;
+    const char = eng.module[a.characterId];
+    const out = buildAtoms(char, { seed: S.seed, overlayId: a.overlayId || null, maxMode: S.maxMode });
+    const style = applyMax(out.style, S.maxMode);
+    return {
+      style, negative: out.negative, lyrics: '',
+      length: style.length, over: style.length > CHAR_LIMIT,
+      arrangement: out.arrangement, overlayNote: out.overlayNote,
+    };
+  }
 
   if (eng.kind === 'resolver') {
     const r = S.res;
@@ -4043,7 +4370,7 @@ Object.assign(window.__ATMOS, { generate });
 
 /* js/ui.js */
 (function(){
-const {ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool, legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,} = window.__ATMOS;
+const {ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool, atomCharacterList, atomOverlays, legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,} = window.__ATMOS;
 const {syncEngineDefaults, newSeed} = window.__ATMOS;
 const {generate} = window.__ATMOS;
 const {overlayList} = window.__ATMOS;
@@ -4157,7 +4484,7 @@ function renderAll() {
     return el('button', {
       class: 'tab' + (e.id === S.engineId ? ' active' : '') + (disabled ? ' disabled' : ''),
       onclick: () => { if (!disabled) { syncEngineDefaults(S, e.id); renderAll(); } },
-    }, [el('span', { text: e.label }), el('span', { class: 'kind', text: e.kind === 'resolver' ? 'resolver' : e.kind === 'legacy' ? 'proven' : 'soon' })]);
+    }, [el('span', { text: e.label }), el('span', { class: 'kind', text: e.kind === 'resolver' ? 'resolver' : e.kind === 'legacy' ? 'proven' : e.kind === 'atom' ? 'atom' : 'soon' })]);
   })));
 
   const grid = el('div', { class: 'grid' });
@@ -4167,12 +4494,29 @@ function renderAll() {
   rootEl.appendChild(grid);
 
   const eng = getEngine(S.engineId);
-  if (eng.kind === 'resolver') renderResolverControls(controls, eng);
+  if (eng.kind === 'atom') renderAtomControls(controls, eng);
+  else if (eng.kind === 'resolver') renderResolverControls(controls, eng);
   else if (eng.kind === 'legacy') renderLegacyControls(controls, eng);
   else renderStub(controls, eng);
-  if (eng.kind !== 'stub') overlayPanel(controls);
+  if (eng.kind !== 'stub' && eng.kind !== 'atom') overlayPanel(controls);
 
   refreshOutput();
+}
+
+// ---- atom controls ---------------------------------------------------------
+function renderAtomControls(root, eng) {
+  const a = S.atom;
+  const chars = atomCharacterList(eng.module);
+  root.appendChild(field('Character',
+    select(chars.map(x => ({ value: x.id, label: `${x.label} \u2014 ${x.source}` })), a.characterId,
+      v => { a.characterId = v; renderAll(); })));
+
+  const ovOpts = [{ value: '', label: 'None' }]
+    .concat(atomOverlays().map(o => ({ value: o.id, label: `${o.label} (${o.kind})` })));
+  root.appendChild(field('Overlay', select(ovOpts, a.overlayId || '', v => { a.overlayId = v; refreshOutput(); })));
+
+  root.appendChild(el('p', { class: 'note', text: 'Atom assembly path. Overlays are congruent-by-default \u2014 an incongruent one is refused (shown below the prompt).' }));
+  root.appendChild(buttons());
 }
 
 // ---- resolver controls -----------------------------------------------------
@@ -4357,6 +4701,7 @@ function refreshOutput() {
 
   const res = generate(S);
   host.appendChild(outBlock('Style prompt', res.style, res.length, res.over));
+  if (res.overlayNote) host.appendChild(el('p', { class: 'note', text: `Overlay: ${res.overlayNote}` }));
   host.appendChild(outBlock('Negative prompt', res.negative, null, false));
   const lyr = res.lyrics || '[Instrumental]';
   host.appendChild(outBlock('Lyrics field', lyr, null, false, 'Paste into Suno\u2019s lyrics box; use Suno\u2019s Instrumental toggle for reliable vocal suppression.'));

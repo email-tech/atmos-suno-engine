@@ -14,6 +14,8 @@ const files = [
   'core/compress.js',
   'core/overlays.js',
   'core/resolver.js',
+  'core/atoms.js',
+  'engines/atom-balearic.js',
   'engines/delerium.js',
   'engines/era.js',
   'engines/deepforest.js',

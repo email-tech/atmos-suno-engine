@@ -2,6 +2,8 @@
 //   'resolver' — new engine-agnostic resolver (Delerium; Era/Deep Forest slot in here later)
 //   'legacy'   — proven cluster/classic path harvested verbatim (Balearic, Enigma)
 //   'stub'     — registered scope, not yet built (none remaining: all six engines are live)
+import { ATOM_CHARACTERS } from '../engines/atom-balearic.js';
+import { atomCharacters, atomOverlayList } from '../core/atoms.js';
 import { DELERIUM } from '../engines/delerium.js';
 import { ERA } from '../engines/era.js';
 import { DEEPFOREST } from '../engines/deepforest.js';
@@ -11,6 +13,7 @@ import { STYLE_ENGINES } from '../legacy/data-style-engines.js';
 
 export const ENGINES = [
   { id: 'Balearic',    kind: 'legacy',   label: 'Balearic' },
+  { id: 'Balearic Atom', kind: 'atom',   label: 'Balearic \u00b7 atom', module: ATOM_CHARACTERS },
   { id: 'Enigma',      kind: 'legacy',   label: 'Enigma' },
   { id: 'Delerium',    kind: 'resolver', label: 'Delerium', module: DELERIUM },
   { id: 'Era',         kind: 'resolver', label: 'Era', module: ERA },
@@ -21,6 +24,10 @@ export const ENGINES = [
 export function getEngine(id) {
   return ENGINES.find(e => e.id === id);
 }
+
+// ---- atom-kind helpers -----------------------------------------------------
+export function atomCharacterList(module) { return atomCharacters(module); }
+export function atomOverlays() { return atomOverlayList(); }
 
 // ---- resolver-kind helpers -------------------------------------------------
 export const RESOLVER_ROLES = ['pads', 'harmony', 'bass', 'lead', 'voice', 'color', 'movement'];
