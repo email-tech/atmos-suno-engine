@@ -15,7 +15,7 @@ const INSTR = ['tabla', 'bouzouki', 'clavinet', 'hammond organ', 'mellotron', 'c
   'kalimba', 'harp', 'flute', 'pan flute', 'clarinet', 'oboe', 'celeste', 'glockenspiel', 'melodica', 'trumpet',
   'accordion', 'mandolin', 'harmonica', 'clavinet', 'organ', 'piano', 'upright bass', 'sub bass', 'fretless bass',
   'bouzouki', 'kora', 'santoor', 'hang drum', 'toy-piano', 'autoharp', 'steel-pan', 'tubular bell', 'music-box',
-  'shakuhachi', 'sitar', 'duduk', 'bamboo flute'];
+  'shakuhachi', 'sitar', 'duduk', 'bamboo flute', 'sax', 'flugelhorn', 'lap-steel', 'slide guitar', 'ney-flute', 'felt-piano', 'grand-piano', 'whistl'];
 
 let draws = 0, over = 0, fails = [];
 const stats = {};

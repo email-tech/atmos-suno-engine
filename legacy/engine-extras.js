@@ -149,7 +149,7 @@ export const EngineExtras = {
             perc: ["a tabla pattern ticking beneath the kit","light tambourine and cabasa accents threading the groove"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
             texture: ["a warm Hammond organ bed sustaining beneath the chords","a soft mellotron choir layer drifting under the harmony"],
-            motif: ["Rhodes electric piano motifs with warm chord movement and melodic phrasing","Arpeggiated synth leads weaving through the mix with evolving rhythmic motion","Clean nylon guitar motifs with soft rhythmic strumming drifting in and out of the mix"],
+            motif: ["Rhodes electric piano motifs with warm chord movement and melodic phrasing","Arpeggiated synth leads weaving through the mix with evolving rhythmic motion","Clean nylon guitar motifs with soft rhythmic strumming drifting in and out of the mix","Restrained soft soprano-sax lines with warm breathy phrasing drifting through the mix"],
             counter: ["a plucked bouzouki counter-figure weaving against the motif","a soft clavinet counter-line answering the lead"],
             color: ["an occasional melodica phrase answering in a gap","a brief hang drum figure surfacing between phrases","a short harp flourish drifting through the space"],
             movement: ["Rhythmic autopan and modulation creating groove-based movement across percussion and melodic elements","Wide stereo panning movement across pads and motifs using left-right automation and slow modulation","Delay-driven movement using tempo-synced echoes and cascading repeats creating evolving rhythmic space"]
@@ -159,7 +159,7 @@ export const EngineExtras = {
             bass: ["Warm upright bass walking in a loose organic groove with soft fingered articulation", "Soft-attack fretless upright bass gliding melodically beneath the harmony", "Fingerstyle rounded electric bass with warm woody tone and relaxed movement"],
             rhythm: ["Loose live hand-percussion broken-beat with brushed snare backbeat, congas and shakers breathing between hits", "Natural brushed drums with soft ghost-note snare, congas and hand percussion for an organic live feel", "Soft live kit with brushed snare, light rimwork and warm hand percussion textures"],
             strings: ["Soft-bowed layered strings swelling gently underneath the harmony for warmth and depth", "Distant soft brass pad adding warm mellow colour beneath the mix", "Mellow muted-guitar comping weaving lightly through the texture"],
-            motif: ["Restrained soft flute lines with airy breathy phrasing drifting through the mix", "Understated mallet melody with warm rounded tone and gentle sustained notes", "Muted vibraphone motif with soft mallet phrasing and smooth melodic movement", "Gentle kalimba melody with delicate plucked tone and hypnotic repetition", "Breathy soft clarinet line with warm woody tone and relaxed phrasing"],
+            motif: ["Restrained soft flute lines with airy breathy phrasing drifting through the mix", "Understated mallet melody with warm rounded tone and gentle sustained notes", "Muted vibraphone motif with soft mallet phrasing and smooth melodic movement", "Gentle kalimba melody with delicate plucked tone and hypnotic repetition", "Breathy soft soprano-sax line with warm mellow tone and relaxed phrasing", "Soft slide-guitar motif with warm gliding phrasing drifting through the mix", "Warm grand-piano motif with soft rounded voicings and gentle melodic phrasing"],
             color: ["an occasional melodica phrase answering in a gap","a brief hang drum figure surfacing between phrases","a short harp flourish drifting through the space"],
             movement: ["Gentle ensemble dynamics rising and falling naturally as the arrangement breathes", "Soft tape-delay movement drifting melodic phrases through the mix", "Warm reverb space with the players easing in and out of the groove"]
           }
@@ -185,16 +185,16 @@ export const EngineExtras = {
             strings: ["Slow string bed sitting deep in the mix","Soft layered strings blended underneath the pads for depth","Sweeping string textures rising and falling beneath the pads"],
             texture: ["a low pipe-organ layer sustaining beneath the harmony","a soft cor-anglais layer drifting under the chords"],
             motif: ["Rhodes electric piano motifs with warm chord movement and melodic phrasing","Arpeggiated synth leads weaving through the mix with evolving rhythmic motion","Soft piano motifs with gentle melodic phrasing drifting through the mix"],
-            counter: ["a cello counter-melody answering the lead beneath the strings","a clarinet counter-line weaving against the motif"],
+            counter: ["a cello counter-melody answering the lead beneath the strings","a soprano-saxophone counter-line weaving against the motif"],
             color: ["an occasional glockenspiel accent shimmering above the chords","a brief flute line rising through a gap in the arrangement","a short tubular bell tone ringing beneath the harmony"],
             movement: ["Wide stereo panning movement across pads and motifs using left-right automation and slow modulation","Filter and modulation movement using LFO, chorus and phaser creating evolving tonal shifts across pads and textures"]
           },
           acoustic: {
-            pads: ["Warm string-machine chords swelling slowly with lush cinematic depth", "Glossy electric-piano voicings with smooth sustained chord movement", "Soft harp glissando chords cascading gently through the harmonic space", "Lush bowed-string chord beds rising and falling beneath the melody"],
+            pads: ["Warm string-machine chords swelling slowly with lush cinematic depth", "Glossy electric-piano voicings with smooth sustained chord movement", "Soft harp glissando chords cascading gently through the harmonic space", "Lush bowed-string chord beds rising and falling beneath the melody", "Soft felt-piano chord voicings with intimate muted tone and gentle sustain"],
             bass: ["Bowed sustained upright bass holding long warm tones beneath the harmony", "Smooth fretless electric bass gliding melodically under the strings"],
             rhythm: ["Soft hybrid kit with a gentle brushed-snare shuffle and light orchestral percussion", "Brushed drums with delicate cymbal swells and soft timpani-style accents"],
             strings: ["Soft-focus sweeping strings rising in long cinematic phrases across the field", "Distant soft choir pad adding wordless warmth beneath the harmony", "Shimmering orchestral texture with gentle tremolo movement"],
-            motif: ["Distant soft muted-horn swell with warm restrained phrasing", "Soft vibraphone melody with smooth sustained notes and cinematic space", "Delicate celeste melody with bell-like clarity drifting over the strings", "Restrained soft oboe line with warm expressive phrasing"],
+            motif: ["Distant soft muted-horn swell with warm restrained phrasing", "Soft vibraphone melody with smooth sustained notes and cinematic space", "Delicate celeste melody with bell-like clarity drifting over the strings", "Restrained soft flugelhorn line with warm mellow expressive phrasing"],
             color: ["an occasional glockenspiel accent shimmering above the chords","a brief flute line rising through a gap in the arrangement","a short tubular bell tone ringing beneath the harmony"],
             movement: ["A slow cinematic dynamic swell rising to a lush peak then receding", "Orchestral crescendo movement building tension then releasing into open space", "Warm reverb space with sweeping string dynamics"]
           }
@@ -254,8 +254,8 @@ export const EngineExtras = {
             perc: ["udu and shaker accents drifting through the space","a woodblock pulse ticking between the beats"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
             texture: ["a sustained cello drone sitting beneath the groove","a slow flanged string layer drifting under the mix"],
-            motif: ["Sparse Rhodes electric piano motifs drifting in and out of the mix","Soft synth lead motifs echoing through the mix with spacious phrasing","Clean guitar motifs with dub delay drifting through the mix"],
-            counter: ["a vibraphone counter-line answering the lead through the delay","a marimba counter-figure ticking against the motif"],
+            motif: ["Sparse Rhodes electric piano motifs drifting in and out of the mix","Soft synth lead motifs echoing through the mix with spacious phrasing","Clean guitar motifs with dub delay drifting through the mix","Spacious lap-steel slide guitar with dub delay gliding through the mix"],
+            counter: ["a vibraphone counter-line answering the lead through the delay","a marimba counter-figure ticking against the motif","a breathy ney-flute counter-line drifting through the delay"],
             color: ["an occasional dub organ stab spinning off into the delay","an occasional clavinet skank chopping into the echo","a short hand-bell accent ringing away into the space"],
             movement: ["Delay-driven movement using tempo-synced echoes and cascading repeats creating evolving rhythmic space","Dub-style delay throws and spring reverb movement creating deep spacious motion"]
           },
@@ -290,12 +290,12 @@ export const EngineExtras = {
             strings: ["Subtle string textures supporting the harmonic space","Slow string bed sitting deep in the mix"],
             texture: ["a low pipe-organ drone sustaining under the pulse","a dark analogue sequence pulsing beneath the chords"],
             motif: ["Sparse synth stabs drifting through the mix with deep reverb","Soft Rhodes electric piano motifs with sparse phrasing and deep space","Sparse arpeggiated synth lead weaving slowly through the mix"],
-            counter: ["a muted trumpet counter-line answering across the space","a clarinet counter-figure weaving beneath the lead"],
+            counter: ["a muted trumpet counter-line answering across the space","a mournful duduk counter-figure weaving beneath the lead"],
             color: ["an isolated celeste note surfacing then dissolving into the reverb","an occasional low bell tone ringing out into the space","a brief harp figure drifting faintly beneath the pulse"],
             movement: ["Filter and modulation movement using LFO and phaser creating slow evolving tonal shifts","Wide stereo panning movement across pads using left-right automation and slow modulation"]
           },
           acoustic: {
-            pads: ["Dark sustained Rhodes chords holding long tones in deep space", "Sparse detuned electric-piano voicings with cold restrained movement"],
+            pads: ["Dark sustained Rhodes chords holding long tones in deep space", "Sparse detuned electric-piano voicings with cold restrained movement", "Soft felt-piano chords holding sparse muted tones in deep space"],
             bass: ["Dark deep upright bass with sparse fingered notes and heavy space", "Sparse plucked contrabass sitting low and barely moving in the dark"],
             rhythm: ["Sparse soft brushed groove with wide space and restrained ghost-note snare", "Minimal live kit with soft brushwork and long silences between hits"],
             strings: ["Cold bowed-string wash drifting slowly beneath the harmony", "Sparse low bowed drone holding a dark sustained tone"],
@@ -324,9 +324,9 @@ export const EngineExtras = {
             perc: ["a cajon and tambourine pulse threading the groove","light claves and shaker accents ticking through the beat"],
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
             texture: ["a warm Hammond organ bed sustaining beneath the chords","a soft harmonium layer breathing under the harmony"],
-            motif: ["Clean nylon guitar motifs with soft rhythmic strumming drifting in and out of the mix","Rhodes electric piano motifs with warm chord movement and melodic phrasing","Soft acoustic guitar phrases with gentle rhythmic movement and natural flow"],
-            counter: ["a bouzouki counter-line answering the lead","a clarinet counter-figure weaving against the motif"],
-            color: ["an occasional accordion phrase drifting through a gap","a brief kalimba figure surfacing over the groove","a short vibraphone accent shimmering above the chords"],
+            motif: ["Clean nylon guitar motifs with soft rhythmic strumming drifting in and out of the mix","Rhodes electric piano motifs with warm chord movement and melodic phrasing","Soft acoustic guitar phrases with gentle rhythmic movement and natural flow","Warm lap-steel guitar melody with smooth gliding sunset phrasing","Restrained soft soprano-sax melody with warm breathy sunset phrasing"],
+            counter: ["a bouzouki counter-line answering the lead","a warm flugelhorn counter-figure drifting over the groove"],
+            color: ["a brief melodica phrase drifting warmly through a gap","a brief kalimba figure surfacing over the groove","a short vibraphone accent shimmering above the chords","an occasional carefree whistled melody drifting over the groove"],
             movement: ["Wide stereo panning movement across pads and motifs using left-right automation and slow modulation","Rhythmic autopan and modulation creating groove-based movement across percussion and melodic elements"]
           },
           acoustic: {
@@ -335,7 +335,7 @@ export const EngineExtras = {
             rhythm: ["Light bongos and shaker with a soft snare backbeat and gentle forward motion", "Warm live kit with congas, light percussion and a relaxed daytime feel"],
             strings: ["Sun-warmed soft strings adding gentle warmth beneath the harmony", "Light-touch string shimmer floating over the groove"],
             motif: ["Gentle airy pan-flute melody with soft breathy phrasing drifting through the mix", "Light warm marimba melody with rounded wooden tone and easy movement", "Softly fingerpicked nylon-guitar motif with warm delicate phrasing", "Soft restrained Wurlitzer melody with warm mellow tone and unhurried phrasing"],
-            color: ["an occasional accordion phrase drifting through a gap","a brief kalimba figure surfacing over the groove","a short vibraphone accent shimmering above the chords"],
+            color: ["a brief melodica phrase drifting warmly through a gap","a brief kalimba figure surfacing over the groove","a short vibraphone accent shimmering above the chords","an occasional carefree whistled melody drifting over the groove"],
             movement: ["Warm afternoon dynamics rising and falling gently as the groove breathes", "Soft tape-delay drifting melodic phrases warmly through the mix"]
           }
         },
@@ -361,7 +361,7 @@ export const EngineExtras = {
             strings: ["Slow string bed sitting deep in the mix","Soft layered strings blended underneath the pads for depth"],
             texture: ["a slow mellotron string layer drifting beneath the drone","a distant vibraphone shimmer sustaining in the field"],
             motif: ["Sparse soft synth tones drifting through the mix with deep reverb","Gentle bell-like synth tones with slow sparse phrasing"],
-            counter: ["a viola counter-line rising slowly beneath the tones","a soft clarinet counter-figure drifting through the space"],
+            counter: ["a viola counter-line rising slowly beneath the tones","a soft duduk counter-figure drifting through the space"],
             color: ["an occasional distant harp figure drifting through the field","a brief soft flute tone surfacing in the space","a short kalimba tone rippling faintly through the atmosphere"],
             movement: ["Filter and modulation movement using LFO, chorus and phaser creating slow evolving tonal shifts across pads and textures","Wide stereo panning movement across pad layers using left-right automation and slow modulation"]
           },
@@ -397,7 +397,7 @@ export const EngineExtras = {
             strings: ["Subtle string textures supporting the harmonic space","Soft layered strings blended underneath the pads for depth"],
             texture: ["a dusty mellotron string layer smeared under the beat","a low harmonium bed sustaining beneath the groove"],
             motif: ["Rhodes electric piano motifs with hazy detuned chord movement","Vibraphone phrases with smooth sustained notes and gentle movement","Sparse synth lead motifs drifting through the mix with analog saturation"],
-            counter: ["a clarinet counter-line drifting against the lead","a sitar counter-figure weaving hazily behind the beat"],
+            counter: ["a smoky tenor-saxophone counter-line drifting against the lead","a sitar counter-figure weaving hazily behind the beat"],
             color: ["an occasional dusty organ stab surfacing behind the beat","a brief harmonica phrase smeared through the delay","a short flute line drifting hazily above the groove"],
             movement: ["Filter and modulation movement using LFO, chorus and phaser creating evolving tonal shifts across pads and textures","Delay-driven movement using tempo-synced echoes creating evolving rhythmic space"]
           },
