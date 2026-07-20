@@ -49,7 +49,7 @@ export const ATOM_OVERLAYS = {
                     instrument:'brushed percussion', priority:'decorative' },
       ov_colour:  { role:'colour', family:'colour', fn:'accent',
                     instrument:'orchestral swells', priority:'decorative' },
-      ov_arc:     { role:'arc', fn:'arc', text:'orchestral swells rising and receding under the melody',
+      ov_arc:     { role:'arc', fn:'arc', text:'the arrangement rising and receding in dynamic waves under the melody',
                     priority:'support' },
     },
   },
