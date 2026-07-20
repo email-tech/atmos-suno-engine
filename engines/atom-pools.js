@@ -178,7 +178,7 @@ export const ATOM_POOLS_BALEARIC = {
     acoustic: {
       bass: ['upright bass', 'fretless bass'],
       rhythm: ['brushed drum kit', 'cajón kit'],
-      perc: ['cajón', 'shakers', 'congas', 'tambourine', 'cabasa'],
+      perc: ['shakers', 'congas', 'tambourine', 'cabasa', 'frame drum'],
       pads: ['accordion', 'harmonium'],
       strings: ['string ensemble', 'cello'],
       texture: ['nylon guitar', 'lap-steel guitar'],

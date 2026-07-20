@@ -143,6 +143,13 @@ function renderAtomControls(root, eng) {
     select(chars.map(x => ({ value: x.id, label: `${x.label} \u2014 ${x.source}` })), a.characterId,
       v => { a.characterId = v; renderAll(); })));
 
+  // Palette axis (electronic | acoustic) — draws each role from that palette's pool.
+  if (eng.module[a.characterId] && eng.module[a.characterId].palettes) {
+    const palOpts = [{ value: 'electronic', label: 'Electronic' }, { value: 'acoustic', label: 'Acoustic' }];
+    root.appendChild(field('Palette', segmented(palOpts, a.palette || 'electronic',
+      v => { a.palette = v; refreshOutput(); })));
+  }
+
   const ovOpts = [{ value: '', label: 'None' }]
     .concat(atomOverlays().map(o => ({ value: o.id, label: `${o.label} (${o.kind})` })));
   root.appendChild(field('Overlay', select(ovOpts, a.overlayId || '', v => { a.overlayId = v; refreshOutput(); })));

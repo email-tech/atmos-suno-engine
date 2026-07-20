@@ -24,7 +24,9 @@ export function syncEngineDefaults(S, engineId) {
 
   if (eng.kind === 'atom') {
     const chars = atomCharacterList(eng.module);
-    S.atom = { characterId: chars[0].id, overlayId: '' };   // atom overlays are their own table
+    // palette is an axis on the atom path (electronic | acoustic); characters
+    // without palettes (e.g. a validated ref) simply ignore it at generate.
+    S.atom = { characterId: chars[0].id, palette: 'electronic', overlayId: '' };
     S.res = null; S.leg = null;
   } else if (eng.kind === 'resolver') {
     const chars = resolverCharacters(eng.module);

@@ -177,6 +177,9 @@ function compose(held, mastering){
   if(groove){
     if(sigBass) cl.push(`${groove.instrument} locking to the sequence`);
     else if(bass) cl.push(`${wt(bass)} and ${groove.instrument}, ${REL.foundation.render}`);
+  } else if(bass && !sigBass){
+    // groove-absent (beatless) character: bass still anchors, no drum pocket.
+    cl.push(`${wt(bass)} anchoring the low end, spacious and unhurried`);
   }
   const perc=ownerOf('perc'); if(perc) cl.push(`${perc.instrument} threading the groove`);
 

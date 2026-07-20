@@ -991,6 +991,9 @@ function compose(held, mastering){
   if(groove){
     if(sigBass) cl.push(`${groove.instrument} locking to the sequence`);
     else if(bass) cl.push(`${wt(bass)} and ${groove.instrument}, ${REL.foundation.render}`);
+  } else if(bass && !sigBass){
+    // groove-absent (beatless) character: bass still anchors, no drum pocket.
+    cl.push(`${wt(bass)} anchoring the low end, spacious and unhurried`);
   }
   const perc=ownerOf('perc'); if(perc) cl.push(`${perc.instrument} threading the groove`);
 
@@ -1048,69 +1051,485 @@ function atomCharacters(module){
 Object.assign(window.__ATMOS, { buildAtoms, atomOverlayList, atomCharacters, ATOM_OVERLAYS });
 })();
 
-/* engines/atom-balearic.js */
+/* engines/atom-pools.js */
 (function(){
 /* ==========================================================================
- * atom-balearic.js — atom-character DATA for the atom assembly path.
- * Promoted from proto/atom-proto.mjs. The atom table below is the Suno-VALIDATED
- * Balearic / "Lush cinematic chillout" / Electronic character (John, 2026-07-16)
- * and is preserved VERBATIM — this file relocates it into production, it does
- * not re-author it. The character-agnostic engine lives in core/atoms.js.
+ * atom-pools.js — corrected instrument pools for the atom model (Balearic set).
  *
- * A character carries, alongside its atom table:
- *   electronicLean — false here (downtempo). Drives overlay congruence gating:
- *                    electronic-only overlays are refused on a non-electronic char.
- *   genreOwned     — families Suno sets from the genre prior (bass timbre, drum
- *                    kit). A cross-genre overlay may not seize these (2026-07-17).
+ * Rebuilt from scratch (legacy engine-extras Balearic pools were 68% defective).
+ * RUBRIC (locked with John, 2026-07-20):
+ *  - Palette = sound source. electronic = synthesized/sequenced. acoustic =
+ *    acoustically sounded. Electro-acoustic (Rhodes, Wurlitzer, Hammond, clavinet,
+ *    electric guitar, lap-steel guitar, fretless bass, mellotron) are the only
+ *    instruments allowed in either palette, where the genre supports them.
+ *  - Instrument roles hold a PURE INSTRUMENT NAME. harmony = key/mode/progression.
+ *    movement = production directives. Both structural, not prose.
+ *  - Theory-appropriate + complementary per cluster; an instrument appears in at
+ *    most one role per cluster+palette so draws don't self-collide.
+ *
+ * 2026-07-20 revision: clarinet removed everywhere (too dominant) -> French horn /
+ * flugelhorn / cor anglais; fretless bass added across acoustic bass pools;
+ * lap-steel guitar added (Guitar del Mar strand); thin pools deepened for batch
+ * variety.
  * ========================================================================*/
 
-const ATOM_CHARACTERS = {
-  'balearic-lush-cinematic': {
-    label: 'Lush Cinematic Chillout',
-    source: 'Balearic',
-    electronicLean: false,
-    genreOwned: ['bass', 'drums'],
-    mastering: 'Polished Dolby Atmos-Master Atmos -2dB',
-    atoms: {
-      genre:   { role:'genre', text:'Balearic downtempo' },
-      tempo:   { role:'tempo', text:'mid chill, 90-105 BPM, medium energy' },
-      bass:    { role:'bass',   family:'bass',   register:'sub',     fn:'foundation-weight',
-                 instrument:['sub bass','FM sub-bass'], timbre:['deep'], priority:'core' },
-      groove:  { role:'rhythm', family:'drums',  register:'low-mid', fn:'groove',
-                 instrument:['a soft downtempo kit','a lounge/house kit with soft kick and brushed snare'],
-                 timbre:[], priority:'core' },
-      perc:    { role:'perc',   family:'perc',   register:'high',    fn:'groove-thread',
-                 instrument:['shaker and triangle accents','a light frame-drum pulse'], timbre:[], priority:'decorative' },
-      pads:    { role:'pads',   family:'pad',    register:'mid',     fn:'harmony-bed',
-                 instrument:['analogue pads','layered synth pads'], timbre:['lush','evolving'], priority:'core' },
-      harmony: { role:'harmony',family:'harmony',register:'mid',     fn:'chord-movement',
-                 text:['a slow minor-to-relative-major progression over eight-bar cycles',
-                       'suspended add9 voicings opening into a major-seventh resolution',
-                       'wide-open sus2 voicings holding before a delayed resolve'], priority:'core' },
-      strings: { role:'strings',family:'strings',register:'mid',     fn:'support-bed',
-                 instrument:['a sweeping string bed','layered strings'], timbre:['soft'], priority:'support' },
-      texture: { role:'texture',family:'texture',register:'low-mid', fn:'sustain-under',
-                 instrument:['a low pipe-organ sustain','a cor-anglais layer'], timbre:[], priority:'decorative' },
-      lead:    { role:'motif',  family:'lead',   register:'upper-mid',fn:'foreground-melody',
-                 instrument:['a Rhodes electric-piano motif','an arpeggiated synth lead','a soft piano motif'],
-                 timbre:['warm'], priority:'core' },
-      // COUNTER — clarinet was over-rendering. Level is an ATTRIBUTE: low register +
-      // pianissimo + buried + occasional, so it answers without dominating.
-      counter: { role:'counter',family:'counter',register:'low',     fn:'answer',
-                 instrument:['a cello counter-melody','a clarinet counter-line'], timbre:[], priority:'support',
-                 prominence:'background', mix:'faint and buried well under the mix',
-                 dynamic:'pianissimo', density:'answering only occasionally' },
-      colour:  { role:'colour', family:'colour', register:'high',    fn:'accent',
-                 instrument:['an occasional glockenspiel accent','a brief flute line','a short tubular-bell tone'],
-                 timbre:[], priority:'decorative', chance:0.5 },
-      movement:{ role:'movement',family:'production',register:'n/a', fn:'movement',
-                 text:['wide stereo panning and slow filter modulation across the pads',
-                       'LFO, chorus and phaser movement evolving across the synth layers'], priority:'support' },
+const ATOM_POOLS_BALEARIC = {
+
+  'organic-warm-downtempo': {
+    label: 'Organic warm downtempo', genre: 'Balearic downtempo', tempo: '80-100 BPM, low-mid energy', beatless: false,
+    harmony: ['minor key', 'Dorian mode', 'minor 7th and add9 voicings', 'ii-V-i in a minor key', 'a suspended-to-major resolution'],
+    movement: ['wide stereo panning', 'slow low-pass filter sweeps', 'tape-saturated warmth', 'tempo-synced delay throws', 'gentle sidechain movement'],
+    electronic: {
+      bass: ['analog synth bass', 'sub bass', 'FM bass'],
+      rhythm: ['soft downtempo kit', 'dusty boom-bap kit', 'drum machine'],
+      perc: ['drum-machine hi-hats', 'rimshot clicks', 'synth clap', 'electro shaker'],
+      pads: ['analog synth pads', 'string-machine pad', 'mellotron', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'granular synth'],
+      motif: ['Rhodes', 'synth lead', 'synth pluck'],
+      counter: ['Wurlitzer', 'synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth', 'synth marimba'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'double bass', 'fretless bass'],
+      rhythm: ['brushed drum kit', 'soft jazz kit', 'live drum kit'],
+      perc: ['shakers', 'congas', 'bongos', 'cabasa', 'frame drum', 'hang drum'],
+      pads: ['harmonium', 'bowed string ensemble'],
+      strings: ['cello', 'viola', 'string ensemble'],
+      texture: ['felt piano', 'harp', 'bowed vibraphone'],
+      motif: ['nylon guitar', 'lap-steel guitar', 'flugelhorn'],
+      counter: ['muted trumpet', 'French horn', 'cor anglais'],
+      color: ['glockenspiel', 'vibraphone', 'kalimba', 'celeste'],
     },
   },
+
+  'lush-cinematic-chillout': {
+    label: 'Lush cinematic chillout', genre: 'Balearic downtempo', tempo: '85-105 BPM, medium energy', beatless: false,
+    harmony: ['minor-to-relative-major over eight-bar cycles', 'add9 voicings into a major-seventh resolution', 'wide sus2 voicings with a delayed resolve', 'Aeolian mode', 'a Picardy-third lift'],
+    movement: ['wide stereo panning', 'slow filter modulation on the pads', 'orchestral swells rising and receding', 'long reverb tails', 'LFO and chorus movement on the synths'],
+    electronic: {
+      bass: ['sub bass', 'FM sub-bass'],
+      rhythm: ['soft downtempo kit', 'lounge kit'],
+      perc: ['electro shaker', 'synth triangle', 'drum-machine hi-hats'],
+      pads: ['analog synth pads', 'layered synth pads', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'mellotron'],
+      motif: ['Rhodes', 'synth lead'],
+      counter: ['synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['double bass', 'upright bass', 'fretless bass'],
+      rhythm: ['brushed drum kit'],
+      perc: ['shakers', 'frame drum', 'triangle'],
+      pads: ['pipe organ', 'harmonium', 'bowed string ensemble'],
+      strings: ['cello', 'string ensemble', 'violin', 'viola'],
+      texture: ['cor anglais', 'lap-steel guitar'],
+      motif: ['grand piano', 'felt piano', 'flute'],
+      counter: ['French horn', 'flugelhorn', 'muted trumpet'],
+      color: ['glockenspiel', 'tubular bells', 'harp', 'celeste'],
+    },
+  },
+
+  'dreamy-analog-electronic': {
+    label: 'Dreamy analog electronic', genre: 'dreamy analog electronic', tempo: '90-110 BPM, medium energy', beatless: false,
+    harmony: ['major key with modal color', 'Lydian mode', 'slow major-seventh pads', 'a plagal cadence', 'suspended major voicings'],
+    movement: ['slow pitch drift', 'slow filter sweeps', 'wide stereo panning', 'chorus and phaser on the synths', 'tempo-synced delay'],
+    electronic: {
+      bass: ['Moog bass', 'analog synth bass', 'sub bass'],
+      rhythm: ['soft drum machine', 'LinnDrum-style kit'],
+      perc: ['drum-machine hi-hats', 'synth clap', 'electro shaker', 'rimshot clicks'],
+      pads: ['detuned analog pads', 'analog synth pads', 'mellotron', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['granular synth', 'drone synth'],
+      motif: ['synth lead', 'synth arp', 'synth pluck'],
+      counter: ['Wurlitzer', 'synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth', 'synth marimba'],
+    },
+    acoustic: {
+      bass: [],
+      rhythm: [],
+      perc: [],
+      pads: ['harmonium'],
+      strings: [],
+      texture: ['harp', 'lap-steel guitar'],
+      motif: ['Rhodes', 'grand piano'],
+      counter: ['French horn'],
+      color: ['glockenspiel', 'celeste', 'kalimba'],
+    },
+  },
+
+  'dub-space-downtempo': {
+    label: 'Dub-space downtempo', genre: 'dub-space downtempo', tempo: '70-95 BPM, low-mid energy', beatless: false,
+    harmony: ['minor key', 'a modal minor vamp', 'dominant-seventh dub stabs', 'a two-chord minor rock', 'Phrygian color'],
+    movement: ['spring reverb', 'tempo-synced dub delay throws', 'wide stereo panning', 'low-pass filter sweeps', 'echo feedback swells'],
+    electronic: {
+      bass: ['dub sub bass', 'sine sub bass', 'analog synth bass'],
+      rhythm: ['dub kit', 'soft drum machine', 'one-drop kit'],
+      perc: ['rimshot clicks', 'drum-machine hi-hats', 'electro shaker'],
+      pads: ['analog synth pads', 'organ-stab synth'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'granular synth'],
+      motif: ['synth stabs', 'synth lead', 'Rhodes'],
+      counter: ['Wurlitzer', 'synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'fretless bass'],
+      rhythm: ['brushed drum kit'],
+      perc: ['congas', 'bongos', 'shakers', 'frame drum', 'hang drum'],
+      pads: ['harmonium'],
+      strings: ['cello'],
+      texture: ['lap-steel guitar'],
+      motif: ['melodica', 'muted trumpet'],
+      counter: ['trombone', 'French horn'],
+      color: ['glockenspiel', 'kalimba'],
+    },
+  },
+
+  'deep-nocturnal-balearic': {
+    label: 'Deep nocturnal Balearic', genre: 'Balearic downtempo', tempo: '100-115 BPM, medium energy', beatless: false,
+    harmony: ['minor key', 'Aeolian mode', 'a minor-seventh vamp', 'add9 and sus4 voicings', 'Phrygian color'],
+    movement: ['low-pass filter sweeps', 'wide stereo panning', 'long reverb tails', 'sidechain movement', 'tempo-synced delay'],
+    electronic: {
+      bass: ['sub bass', 'analog synth bass', 'FM bass'],
+      rhythm: ['downtempo kit', 'deep house kit', 'soft four-on-the-floor kit'],
+      perc: ['drum-machine hi-hats', 'electro shaker', 'rimshot clicks', 'synth clap'],
+      pads: ['analog synth pads', 'organ-stab synth', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'granular synth'],
+      motif: ['synth lead', 'synth pluck', 'Rhodes'],
+      counter: ['synth counter-line', 'Wurlitzer'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'fretless bass'],
+      rhythm: ['brushed drum kit'],
+      perc: ['congas', 'bongos', 'shakers', 'cabasa', 'frame drum'],
+      pads: ['harmonium'],
+      strings: ['cello', 'viola'],
+      texture: ['felt piano', 'lap-steel guitar', 'duduk'],
+      motif: ['nylon guitar', 'ney'],
+      counter: ['French horn', 'flugelhorn'],
+      color: ['vibraphone', 'kalimba'],
+    },
+  },
+
+  'sunlit-mediterranean': {
+    label: 'Sunlit Mediterranean', genre: 'Balearic downtempo', tempo: '100-118 BPM, medium energy', beatless: false,
+    harmony: ['major key', 'Mixolydian mode', 'I-V-vi-IV', 'Andalusian cadence', 'sus2 into major voicings'],
+    movement: ['wide stereo panning', 'slow filter sweeps', 'tape-saturated warmth', 'tempo-synced delay', 'bright reverb'],
+    electronic: {
+      bass: ['analog synth bass', 'sub bass'],
+      rhythm: ['soft house kit', 'downtempo kit'],
+      perc: ['drum-machine hi-hats', 'electro shaker', 'synth clap'],
+      pads: ['analog synth pads', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth'],
+      motif: ['synth pluck', 'synth lead', 'Rhodes'],
+      counter: ['synth counter-line', 'Hammond organ'],
+      color: ['synth marimba', 'synth bells'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'fretless bass'],
+      rhythm: ['brushed drum kit', 'cajón kit'],
+      perc: ['shakers', 'congas', 'tambourine', 'cabasa', 'frame drum'],
+      pads: ['accordion', 'harmonium'],
+      strings: ['string ensemble', 'cello'],
+      texture: ['nylon guitar', 'lap-steel guitar'],
+      motif: ['flamenco guitar', 'pan flute', 'flugelhorn', 'mandolin'],
+      counter: ['muted trumpet', 'French horn', 'saxophone'],
+      color: ['marimba', 'glockenspiel', 'vibraphone'],
+    },
+  },
+
+  'ambient-beatless-atmospheric': {
+    label: 'Ambient / beatless atmospheric', genre: 'ambient atmospheric', tempo: 'free, very low energy', beatless: true,
+    harmony: ['a static major-seventh drone', 'Lydian mode', 'slow suspended-chord shifts', 'an open-fifth pedal', 'minor-to-major cross-fades'],
+    movement: ['very long reverb tails', 'slow granular clouds', 'wide stereo panning', 'slow filter drift', 'cross-faded layer swells'],
+    electronic: {
+      bass: ['sub drone'],
+      rhythm: [],
+      perc: [],
+      pads: ['analog synth pads', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['granular synth', 'drone synth', 'mellotron'],
+      motif: ['synth lead', 'Rhodes'],
+      counter: ['synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['bowed double bass'],
+      rhythm: [],
+      perc: [],
+      pads: ['pipe organ', 'harmonium', 'bowed string ensemble'],
+      strings: ['cello', 'string ensemble', 'violin'],
+      texture: ['felt piano', 'glass harmonica', 'bowed vibraphone', 'lap-steel guitar'],
+      motif: ['flute', 'cor anglais'],
+      counter: ['French horn'],
+      color: ['glockenspiel', 'celeste', 'tubular bells', 'harp'],
+    },
+  },
+
+  'moody-trip-hop-downbeat': {
+    label: 'Moody trip-hop downbeat', genre: 'trip-hop downbeat', tempo: '70-90 BPM, low-mid energy', beatless: false,
+    harmony: ['minor key', 'a minor-seventh vamp', 'Phrygian color', 'chromatic descending bass', 'add9 and minor-sixth voicings'],
+    movement: ['tape-saturated warmth', 'low-pass filter sweeps', 'tempo-synced delay', 'wide stereo panning', 'spring reverb'],
+    electronic: {
+      bass: ['sub bass', 'analog synth bass'],
+      rhythm: ['trip-hop breakbeat kit', 'dusty boom-bap kit', 'drum machine'],
+      perc: ['drum-machine hi-hats', 'rimshot clicks', 'electro shaker'],
+      pads: ['analog synth pads', 'detuned analog pads'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'granular synth', 'mellotron'],
+      motif: ['Rhodes', 'synth lead', 'synth stabs'],
+      counter: ['Wurlitzer', 'synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'fretless bass'],
+      rhythm: ['brushed drum kit', 'live break kit'],
+      perc: ['congas', 'shakers', 'tambourine'],
+      pads: ['harmonium', 'bowed string ensemble'],
+      strings: ['cello', 'viola', 'string ensemble'],
+      texture: ['felt piano', 'lap-steel guitar'],
+      motif: ['muted trumpet', 'flugelhorn', 'Rhodes'],
+      counter: ['French horn', 'cor anglais'],
+      color: ['vibraphone', 'glockenspiel', 'harp'],
+    },
+  },
+
+  'balearic-house': {
+    label: 'Balearic house', genre: 'Balearic house', tempo: '118-124 BPM, medium-high energy', beatless: false,
+    harmony: ['minor key', 'a minor-seventh vamp', 'add9 and sus4 voicings', 'Dorian mode', 'I-V-vi-IV in a minor key'],
+    movement: ['sidechain pump', 'low-pass filter sweeps', 'wide stereo panning', 'tempo-synced delay', 'long reverb tails'],
+    electronic: {
+      bass: ['analog synth bass', 'sub bass', 'plucked synth bass'],
+      rhythm: ['four-on-the-floor house kit', 'soft house kit'],
+      perc: ['drum-machine hi-hats', 'electro shaker', 'synth clap', 'rimshot clicks'],
+      pads: ['analog synth pads', 'organ-stab synth', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'granular synth'],
+      motif: ['synth pluck', 'synth lead', 'Hammond organ'],
+      counter: ['synth counter-line', 'Wurlitzer'],
+      color: ['synth bells', 'synth marimba'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'fretless bass'],
+      rhythm: ['live house kit'],
+      perc: ['congas', 'bongos', 'shakers', 'tambourine', 'cabasa'],
+      pads: ['harmonium'],
+      strings: ['string ensemble', 'cello'],
+      texture: ['nylon guitar', 'lap-steel guitar'],
+      motif: ['saxophone', 'flute', 'Rhodes'],
+      counter: ['muted trumpet', 'French horn', 'flugelhorn'],
+      color: ['vibraphone', 'marimba', 'glockenspiel'],
+    },
+  },
+
+  'nu-disco-slo-mo': {
+    label: 'Nu-disco / slo-mo disco', genre: 'nu-disco', tempo: '100-120 BPM, medium-high energy', beatless: false,
+    harmony: ['major key', 'ii-V-I with secondary dominants', 'a funk-minor vamp', 'seventh and ninth chords', 'I-vi-ii-V'],
+    movement: ['sidechain pump', 'wide stereo panning', 'tempo-synced delay', 'filter sweeps on the strings', 'tape-saturated warmth'],
+    electronic: {
+      bass: ['analog synth bass', 'Moog bass', 'sub bass'],
+      rhythm: ['disco four-on-the-floor kit', 'drum machine'],
+      perc: ['drum-machine hi-hats', 'synth clap', 'electro shaker'],
+      pads: ['analog synth pads', 'string-machine pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['clavinet', 'drone synth'],
+      motif: ['synth arp', 'synth lead', 'Rhodes'],
+      counter: ['synth brass', 'Hammond organ'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['fretless bass', 'electric bass'],
+      rhythm: ['live disco kit'],
+      perc: ['congas', 'bongos', 'tambourine', 'shakers'],
+      pads: ['string ensemble'],
+      strings: ['cello', 'violin'],
+      texture: ['electric guitar', 'clavinet'],
+      motif: ['saxophone', 'flute', 'grand piano'],
+      counter: ['muted trumpet', 'trombone', 'French horn'],
+      color: ['vibraphone', 'marimba', 'glockenspiel'],
+    },
+  },
+
+  'melodic-deep-house': {
+    label: 'Melodic deep house', genre: 'melodic deep house', tempo: '120-124 BPM, medium-high energy', beatless: false,
+    harmony: ['minor key', 'add9 and sus2 voicings', 'a minor-seventh arpeggio cycle', 'Aeolian mode', 'i-VI-III-VII'],
+    movement: ['sidechain pump', 'long reverb tails', 'wide stereo panning', 'filter sweeps on the arp', 'tempo-synced delay'],
+    electronic: {
+      bass: ['sub bass', 'plucked synth bass', 'analog synth bass'],
+      rhythm: ['deep house kit', 'four-on-the-floor house kit'],
+      perc: ['drum-machine hi-hats', 'electro shaker', 'synth clap', 'rimshot clicks'],
+      pads: ['analog synth pads', 'layered synth pads', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'granular synth'],
+      motif: ['synth arp', 'synth lead', 'synth pluck'],
+      counter: ['synth counter-line', 'Rhodes'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['fretless bass'],
+      rhythm: [],
+      perc: ['shakers', 'congas'],
+      pads: ['harmonium'],
+      strings: ['string ensemble'],
+      texture: ['grand piano'],
+      motif: ['Rhodes'],
+      counter: ['cello'],
+      color: ['glockenspiel', 'vibraphone'],
+    },
+  },
+
+  'lounge-house': {
+    label: 'Lounge House', genre: 'lounge house', tempo: '100-120 BPM, medium energy', beatless: false,
+    harmony: ['ii-V-I with jazz sevenths', 'a minor-seventh and ninth vamp', 'bossa-nova major-seventh changes', 'Dorian mode', 'add9 and thirteenth voicings'],
+    movement: ['sidechain pump', 'wide stereo panning', 'tape-saturated warmth', 'tempo-synced delay', 'filter sweeps on the pads'],
+    electronic: {
+      bass: ['sub bass', 'analog synth bass'],
+      rhythm: ['soft house kit', 'four-on-the-floor house kit'],
+      perc: ['drum-machine hi-hats', 'electro shaker', 'synth clap'],
+      pads: ['analog synth pads', 'organ-stab synth', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth'],
+      motif: ['Rhodes', 'synth lead', 'Wurlitzer'],
+      counter: ['Hammond organ', 'synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'double bass', 'fretless bass'],
+      rhythm: ['brushed drum kit', 'jazz drum kit'],
+      perc: ['congas', 'bongos', 'shakers', 'cabasa'],
+      pads: ['Hammond organ'],
+      strings: ['string ensemble', 'cello'],
+      texture: ['jazz guitar', 'nylon guitar'],
+      motif: ['grand piano', 'saxophone', 'flugelhorn'],
+      counter: ['muted trumpet', 'French horn', 'flute'],
+      color: ['vibraphone', 'marimba', 'glockenspiel'],
+    },
+  },
+
 };
 
-Object.assign(window.__ATMOS, { ATOM_CHARACTERS });
+Object.assign(window.__ATMOS, { ATOM_POOLS_BALEARIC });
+})();
+
+/* engines/atom-characters.js */
+(function(){
+/* ==========================================================================
+ * atom-characters.js — the 12 Balearic clusters WIRED as atom characters.
+ *
+ * Each cluster in atom-pools.js becomes ONE atom character (John, 2026-07-20:
+ * "one cluster = one character"). Palette (electronic | acoustic) is an AXIS,
+ * not a separate character — collect() draws per role FROM THE SELECTED PALETTE.
+ *
+ * ATOMS HOLD PURE INSTRUMENT NAMES ONLY. All timbre / level / interplay language
+ * is assembled at compose (core/atoms.js) from the structured attribute fields
+ * below — never fused into the instrument string. The pools are already bare
+ * names, so an atom's `instrument` is just that role's pool array for the palette
+ * and `timbre` stays empty; compose supplies the relational/interaction language.
+ *
+ * The Suno-validated reference character still lives in atom-balearic.js and is
+ * the seed-parity anchor for the harness; migrating IT onto this substrate
+ * (staying byte-identical) is a separate open item.
+ * ========================================================================*/
+const {ATOM_POOLS_BALEARIC} = window.__ATMOS;
+
+const MASTERING = 'Polished Dolby Atmos-Master Atmos -2dB';
+
+// House-family + the one explicitly-electronic cluster lean electronic; these
+// accept an electronic-only overlay (Moroder). Everything else is downtempo /
+// acoustic-leaning and REFUSES it (2026-07-17 congruence finding).
+const ELECTRONIC_LEAN = new Set([
+  'dreamy-analog-electronic', 'balearic-house', 'nu-disco-slo-mo',
+  'melodic-deep-house', 'lounge-house',
+]);
+
+// Pool role -> atom key + family + the structural (non-prose) attributes compose
+// reads. instrument is filled per palette from the pool; timbre stays [] (pure
+// identity — compose adds the language). Order here is documentation only;
+// compose fixes clause order.
+const ROLE_SPEC = {
+  bass:    { key:'bass',    family:'bass',    register:'sub',      fn:'foundation-weight', priority:'core' },
+  rhythm:  { key:'groove',  family:'drums',   register:'low-mid',  fn:'groove',            priority:'core' },
+  perc:    { key:'perc',    family:'perc',    register:'high',     fn:'groove-thread',     priority:'decorative' },
+  pads:    { key:'pads',    family:'pad',     register:'mid',      fn:'harmony-bed',       priority:'core' },
+  strings: { key:'strings', family:'strings', register:'mid',      fn:'support-bed',       priority:'support' },
+  texture: { key:'texture', family:'texture', register:'low-mid',  fn:'sustain-under',     priority:'decorative' },
+  motif:   { key:'lead',    family:'lead',    register:'upper-mid',fn:'foreground-melody', priority:'core' },
+  // counter carries the hard-won "answer without dominating" LEVEL as structured
+  // attributes (not baked into the name) so a counter voice never over-renders.
+  counter: { key:'counter', family:'counter', register:'low',     fn:'answer',            priority:'support',
+             prominence:'background', mix:'faint and buried well under the mix',
+             dynamic:'pianissimo', density:'answering only occasionally' },
+  // pool role is spelled 'color'; compose owns the 'colour' family.
+  color:   { key:'colour',  family:'colour',  register:'high',     fn:'accent',            priority:'decorative', chance:0.5 },
+};
+
+function paletteAtoms(cluster, pal) {
+  const src = cluster[pal] || {};
+  const atoms = {
+    genre: { role:'genre', text: cluster.genre },
+    tempo: { role:'tempo', text: cluster.tempo },
+  };
+  for (const [poolRole, spec] of Object.entries(ROLE_SPEC)) {
+    // beatless characters emit no drum kit; skip empty pool roles entirely.
+    if (cluster.beatless && poolRole === 'rhythm') continue;
+    const names = src[poolRole];
+    if (!names || !names.length) continue;
+    const a = { role: spec.family === 'drums' ? 'rhythm' : poolRole,
+                family: spec.family, register: spec.register, fn: spec.fn,
+                instrument: names.slice(), timbre: [], priority: spec.priority };
+    if (spec.prominence) a.prominence = spec.prominence;
+    if (spec.mix) a.mix = spec.mix;
+    if (spec.dynamic) a.dynamic = spec.dynamic;
+    if (spec.density) a.density = spec.density;
+    if (spec.chance != null) a.chance = spec.chance;
+    atoms[spec.key] = a;
+  }
+  // harmony + movement are structural TEXT atoms drawn from cluster metadata.
+  if (cluster.harmony && cluster.harmony.length)
+    atoms.harmony = { role:'harmony', family:'harmony', register:'mid', fn:'chord-movement',
+                      text: cluster.harmony.slice(), priority:'core' };
+  if (cluster.movement && cluster.movement.length)
+    atoms.movement = { role:'movement', family:'production', register:'n/a', fn:'movement',
+                       text: cluster.movement.slice(), priority:'support' };
+  return atoms;
+}
+
+function buildCharacters() {
+  const out = {};
+  for (const [key, cluster] of Object.entries(ATOM_POOLS_BALEARIC)) {
+    const electronic = paletteAtoms(cluster, 'electronic');
+    const acoustic   = paletteAtoms(cluster, 'acoustic');
+    out[key] = {
+      label: cluster.label,
+      source: 'Balearic',
+      electronicLean: ELECTRONIC_LEAN.has(key),
+      genreOwned: ['bass', 'drums'],
+      beatless: !!cluster.beatless,
+      mastering: MASTERING,
+      // palette axis: generate resolves char.atoms = palettes[palette].
+      palettes: { electronic, acoustic },
+      // default so any code reading char.atoms.tempo (lists/validation) works.
+      atoms: electronic,
+    };
+  }
+  return out;
+}
+
+const ATOM_POOL_CHARACTERS = buildCharacters();
+
+// Resolve a character's atom table for a palette (generate calls this).
+function atomCharacterForPalette(char, palette) {
+  if (!char.palettes) return char;                       // e.g. the validated ref
+  const atoms = char.palettes[palette] || char.palettes.electronic;
+  return Object.assign({}, char, { atoms });
+}
+
+Object.assign(window.__ATMOS, { atomCharacterForPalette, ATOM_POOL_CHARACTERS });
 })();
 
 /* engines/delerium.js */
@@ -4050,7 +4469,7 @@ Object.assign(window.__ATMOS, { buildLyricsField, buildClusterPrompt, buildClust
 //   'resolver' — new engine-agnostic resolver (Delerium; Era/Deep Forest slot in here later)
 //   'legacy'   — proven cluster/classic path harvested verbatim (Balearic, Enigma)
 //   'stub'     — registered scope, not yet built (none remaining: all six engines are live)
-const {ATOM_CHARACTERS} = window.__ATMOS;
+const {ATOM_POOL_CHARACTERS} = window.__ATMOS;
 const {atomCharacters, atomOverlayList} = window.__ATMOS;
 const {DELERIUM} = window.__ATMOS;
 const {ERA} = window.__ATMOS;
@@ -4061,7 +4480,7 @@ const {STYLE_ENGINES} = window.__ATMOS;
 
 const ENGINES = [
   { id: 'Balearic',    kind: 'legacy',   label: 'Balearic' },
-  { id: 'Balearic Atom', kind: 'atom',   label: 'Balearic \u00b7 atom', module: ATOM_CHARACTERS },
+  { id: 'Balearic Atom', kind: 'atom',   label: 'Balearic \u00b7 atom', module: ATOM_POOL_CHARACTERS },
   { id: 'Enigma',      kind: 'legacy',   label: 'Enigma' },
   { id: 'Delerium',    kind: 'resolver', label: 'Delerium', module: DELERIUM },
   { id: 'Era',         kind: 'resolver', label: 'Era', module: ERA },
@@ -4168,7 +4587,9 @@ function syncEngineDefaults(S, engineId) {
 
   if (eng.kind === 'atom') {
     const chars = atomCharacterList(eng.module);
-    S.atom = { characterId: chars[0].id, overlayId: '' };   // atom overlays are their own table
+    // palette is an axis on the atom path (electronic | acoustic); characters
+    // without palettes (e.g. a validated ref) simply ignore it at generate.
+    S.atom = { characterId: chars[0].id, palette: 'electronic', overlayId: '' };
     S.res = null; S.leg = null;
   } else if (eng.kind === 'resolver') {
     const chars = resolverCharacters(eng.module);
@@ -4224,6 +4645,7 @@ Object.assign(window.__ATMOS, { newSeed, initState, syncEngineDefaults });
 //   - resolver engines get it here in the router
 const {getEngine, legacyClassic} = window.__ATMOS;
 const {buildAtoms} = window.__ATMOS;
+const {atomCharacterForPalette} = window.__ATMOS;
 const {build} = window.__ATMOS;
 const {CHAR_LIMIT, rng} = window.__ATMOS;
 const {resolveOverlays} = window.__ATMOS;
@@ -4250,7 +4672,7 @@ function generate(S) {
 
   if (eng.kind === 'atom') {
     const a = S.atom;
-    const char = eng.module[a.characterId];
+    const char = atomCharacterForPalette(eng.module[a.characterId], a.palette || 'electronic');
     const out = buildAtoms(char, { seed: S.seed, overlayId: a.overlayId || null, maxMode: S.maxMode });
     const style = applyMax(out.style, S.maxMode);
     return {
@@ -4510,6 +4932,13 @@ function renderAtomControls(root, eng) {
   root.appendChild(field('Character',
     select(chars.map(x => ({ value: x.id, label: `${x.label} \u2014 ${x.source}` })), a.characterId,
       v => { a.characterId = v; renderAll(); })));
+
+  // Palette axis (electronic | acoustic) — draws each role from that palette's pool.
+  if (eng.module[a.characterId] && eng.module[a.characterId].palettes) {
+    const palOpts = [{ value: 'electronic', label: 'Electronic' }, { value: 'acoustic', label: 'Acoustic' }];
+    root.appendChild(field('Palette', segmented(palOpts, a.palette || 'electronic',
+      v => { a.palette = v; refreshOutput(); })));
+  }
 
   const ovOpts = [{ value: '', label: 'None' }]
     .concat(atomOverlays().map(o => ({ value: o.id, label: `${o.label} (${o.kind})` })));

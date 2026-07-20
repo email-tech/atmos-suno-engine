@@ -5,6 +5,7 @@
 //   - resolver engines get it here in the router
 import { getEngine, legacyClassic } from './registry.js';
 import { buildAtoms } from '../core/atoms.js';
+import { atomCharacterForPalette } from '../engines/atom-characters.js';
 import { build } from '../core/resolver.js';
 import { CHAR_LIMIT, rng } from '../core/constants.js';
 import { resolveOverlays } from '../core/overlays.js';
@@ -31,7 +32,7 @@ export function generate(S) {
 
   if (eng.kind === 'atom') {
     const a = S.atom;
-    const char = eng.module[a.characterId];
+    const char = atomCharacterForPalette(eng.module[a.characterId], a.palette || 'electronic');
     const out = buildAtoms(char, { seed: S.seed, overlayId: a.overlayId || null, maxMode: S.maxMode });
     const style = applyMax(out.style, S.maxMode);
     return {
