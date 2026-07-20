@@ -98,5 +98,44 @@ for (const [k, want] of Object.entries(GOLDEN)) {
 }
 if (!parityFail) console.log('parity: validated reference byte-identical (golden held).');
 
+// ---- CROSS-COMPOSER DISTINCTNESS -------------------------------------------
+// John's requirement: every composer is unmistakable. On a FIXED base character
+// + seed, each composer must (a) render its own signature phrase, and (b) that
+// phrase must appear in NO other composer's output — proving they're distinct,
+// not just tonal variants. Runs on an electronic-lean character so electronic
+// composers apply too (they'd be refused on a downtempo char).
+function sigText(ov){ const a = Object.values(ov.atoms).find(x => x.signature); return a ? (a.text || a.instrument) : null; }
+const composerIds = Object.keys(ATOM_OVERLAYS).filter(id => ATOM_OVERLAYS[id].kind === 'composer');
+const baseElec = atomCharacterForPalette(ATOM_POOL_CHARACTERS['balearic-house'], 'electronic');
+const baseAcou = atomCharacterForPalette(ATOM_POOL_CHARACTERS['lush-cinematic-chillout'], 'acoustic');
+let distinctFail = 0;
+const dbad = (m) => { if (distinctFail < 15) console.log('  DISTINCT FAIL:', m); distinctFail++; fail++; };
+
+for (const seed of [7, 101, 2024]) {
+  const rendered = {};   // id -> style (on whichever base accepts it)
+  for (const id of composerIds) {
+    const ov = ATOM_OVERLAYS[id];
+    const elec = ov.congruence.lean === 'electronic';
+    const base = elec ? baseElec : baseAcou;
+    const r = buildAtoms(base, { seed, overlayId: id });
+    if (r.overlayNote) { dbad(`${id} refused on its own base (${r.overlayNote})`); continue; }
+    rendered[id] = r.style;
+    const sig = sigText(ov);
+    if (sig && !r.style.includes(sig)) dbad(`${id} signature phrase absent from its output @${seed}`);
+  }
+  // each composer's signature must be unique to it across the same-lean cohort
+  for (const id of composerIds) {
+    const ov = ATOM_OVERLAYS[id], sig = sigText(ov);
+    if (!sig) continue;
+    for (const other of composerIds) {
+      if (other === id) continue;
+      if (ATOM_OVERLAYS[other].congruence.lean !== ov.congruence.lean) continue;
+      if (rendered[other] && rendered[other].includes(sig))
+        dbad(`${id} signature also appears in ${other} @${seed} (not distinct)`);
+    }
+  }
+}
+if (!distinctFail) console.log(`distinctness: ${composerIds.length} composers each render a unique signature.`);
+
 console.log(`atom path: ${n} draws across ${charIds.length} characters x ${PALETTES.length} palettes, ${fail} failures.`);
 process.exit(fail ? 1 : 0);

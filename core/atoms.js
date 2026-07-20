@@ -19,6 +19,7 @@
  * prompt craft or position — so we don't author a prompt that fights the prior.
  * ========================================================================*/
 import { CHAR_LIMIT, ALWAYS_BAN } from './constants.js';
+import { ATOM_COMPOSERS } from './atom-composers.js';
 
 function mulberry32(a){let t=(a>>>0)||1;return()=>{t+=0x6D2B79F5;let r=Math.imul(t^(t>>>15),1|t);r^=r+Math.imul(r^(r>>>7),61|r);return((r^(r>>>14))>>>0)/4294967296;};}
 const RANK = { signature:0, core:1, support:2, decorative:3 };
@@ -28,54 +29,9 @@ const RANK = { signature:0, core:1, support:2, decorative:3 };
 // congruence.engines: compatible engine sources (null = any).
 // congruence.takeover: which genre-owned families this overlay may seize.
 // signature:true -> hoists to the front; foundational:true on a bass -> displaces.
-export const ATOM_OVERLAYS = {
-  // Congruent, primary path: classical/orchestral composer finesse. Seizes no
-  // genre-owned family; contributes lead/strings/texture/perc/colour + an arc.
-  // Validated shape (Balearic, 2026-07-19). Rendered text stays generic — no
-  // artist names in prompts.
-  composer_orchestral: {
-    label: 'Orchestral composer (finesse)',
-    kind: 'composer',
-    congruence: { lean:'any', engines:['Balearic','Enigma','Delerium','Era'],
-                  takeover:{ bass:false, drums:false, harmony:false } },
-    atoms: {
-      ov_lead:    { role:'motif',  family:'lead', fn:'foreground-melody',
-                    instrument:'a piano and glassy-mallet lead', priority:'signature', signature:true },
-      ov_strings: { role:'strings',family:'strings', fn:'support-bed',
-                    instrument:'plucked strings under orchestral colour', priority:'signature', signature:true },
-      ov_texture: { role:'texture',family:'texture', fn:'sustain-under',
-                    instrument:'a pulsing synth texture', priority:'support' },
-      ov_perc:    { role:'perc',   family:'perc', fn:'groove-thread',
-                    instrument:'brushed percussion', priority:'decorative' },
-      ov_colour:  { role:'colour', family:'colour', fn:'accent',
-                    instrument:'orchestral swells', priority:'decorative' },
-      ov_arc:     { role:'arc', fn:'arc', text:'the arrangement rising and receding in dynamic waves under the melody',
-                    priority:'support' },
-    },
-  },
-  // Electronic-only. On a non-electronic character the lean gate REFUSES it
-  // (Moroder-on-Balearic downtempo — confirmed incompatible, parked 2026-07-17).
-  moroder: {
-    label: 'Giorgio Moroder (composer)',
-    kind: 'composer',
-    congruence: { lean:'electronic', engines:null,
-                  takeover:{ bass:true, drums:true, harmony:true } },
-    atoms: {
-      ov_bass:   { role:'bass',   family:'bass',   fn:'foundation-drive',
-                   instrument:'an arpeggiated analog synth-bass sequence driving the pulse',
-                   priority:'signature', foundational:true, signature:true, prominence:'foreground' },
-      ov_harm:   { role:'harmony',family:'harmony',fn:'chord-movement',
-                   text:'a simple minor vamp with filtered chord pumps',
-                   priority:'signature', signature:true },
-      ov_lead:   { role:'motif',  family:'lead',   fn:'foreground-melody',
-                   instrument:'a filtered sawtooth synth lead', priority:'support' },
-      ov_colour: { role:'colour', family:'perc-accent', fn:'accent',
-                   instrument:'handclap and tambourine accents on the backbeat', priority:'decorative' },
-      ov_arc:    { role:'arc', fn:'arc', text:'the sequence running unbroken while the layers stack over it',
-                   priority:'support' },
-    },
-  },
-};
+// The Composer overlays now live atom-native in ./atom-composers.js (20 composers,
+// each a distinct signature-delta set). Producer/Remixer migrate here later.
+export const ATOM_OVERLAYS = { ...ATOM_COMPOSERS };
 
 const REL = {
   foundation:    { needs:['bass','drums'], render:'locked in a soft, spacious pocket that anchors without intruding' },
@@ -172,6 +128,11 @@ function compose(held, mastering){
   const sigBass=sig('bass'), sigHarm=sig('harmony');
   if(sigBass) cl.push(sigBass.instrument);
   if(sigHarm) cl.push(sigHarm.text||sigHarm.instrument);
+  // Overlay signature carriers (Lever 1): any non-bass/harmony signature voice
+  // hoists to the front and is suppressed in its normal slot below. Engine-only
+  // characters carry no signature atoms, so this loop is inert for them (parity-safe).
+  const HOIST=['lead','strings','texture','counter','colour'];
+  for(const f of HOIST){ const s=sig(f); if(s) cl.push(s.text||s.instrument); }
 
   const bass=ownerOf('bass'), groove=A('groove');
   if(groove){
@@ -183,21 +144,21 @@ function compose(held, mastering){
   }
   const perc=ownerOf('perc'); if(perc) cl.push(`${perc.instrument} threading the groove`);
 
-  const lead=ownerOf('lead'); if(lead) cl.push(`${wt(lead)} carrying the melody out front`);
+  const lead=ownerOf('lead'); if(lead && !lead.signature) cl.push(`${wt(lead)} carrying the melody out front`);
 
   const pads=ownerOf('pad'), harm=ownerOf('harmony');
   if(pads||harm){ let h=pads?wt(pads):'';
     if(harm && !sigHarm) h=(h?`${h} moving through `:'')+ (harm.text||harm.instrument);
     if(h) cl.push(h); }
 
-  const strings=ownerOf('strings'); if(strings) cl.push(`${wt(strings)} beneath the harmony`);
-  const texture=ownerOf('texture'); if(texture) cl.push(`${texture.instrument} sustaining under the chords`);
+  const strings=ownerOf('strings'); if(strings && !strings.signature) cl.push(`${wt(strings)} beneath the harmony`);
+  const texture=ownerOf('texture'); if(texture && !texture.signature) cl.push(`${texture.instrument} sustaining under the chords`);
 
   const counter=ownerOf('counter');
-  if(counter && lead) cl.push(counterClause(counter));
+  if(counter && lead && !counter.signature) cl.push(counterClause(counter));
 
   const colour=ownerOf('colour')||ownerOf('perc-accent');
-  if(colour) cl.push(`${colour.instrument} in the gaps`);
+  if(colour && !colour.signature) cl.push(`${colour.instrument} in the gaps`);
   const movement=A('movement'); if(movement) cl.push(movement.text);
 
   const ovArc=A('ov_arc');
