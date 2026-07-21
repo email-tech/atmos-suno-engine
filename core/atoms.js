@@ -8,7 +8,9 @@
  *
  * NEW (congruence, 2026-07-19 direction): overlays are congruent-by-default.
  * Each overlay carries a congruence profile; a congruence PRE-PASS runs before
- * the family contest:
+ * the family contest. As of P2 this pre-pass is DATA-DRIVEN — the lean / engine /
+ * takeover policy is authored as rules in core/rules.js and applied by
+ * evaluateCongruence; congruenceGate() below is a thin delegator. The rules are:
  *   - lean gate: an electronic-only overlay on a non-electronic character is
  *     REFUSED entirely (Moroder-on-Balearic — a confirmed genre clash).
  *   - takeover gate: an overlay may only seize a genre-owned family (bass timbre,
@@ -19,6 +21,7 @@
  * prompt craft or position — so we don't author a prompt that fights the prior.
  * ========================================================================*/
 import { CHAR_LIMIT, ALWAYS_BAN } from './constants.js';
+import { evaluateCongruence } from './rules.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
 import { ATOM_PRODUCERS } from './atom-producers.js';
 import { ATOM_REMIXERS } from './atom-remixers.js';
@@ -43,22 +46,12 @@ const REL = {
 };
 
 // ---- CONGRUENCE PRE-PASS -------------------------------------------------
-// Decides whether an overlay applies at all, and which of its atoms are allowed
-// to seize a genre-owned family. Returns { ok, atoms, reason }.
+// The pre-pass is now DATA-DRIVEN (P2): the lean / engine / takeover policy is
+// authored as rules in core/rules.js and evaluated by evaluateCongruence. This
+// wrapper keeps the call shape { ok, atoms, reason } the rest of atoms.js uses.
+// Decision is identical to the former inline gate — parity-safe.
 function congruenceGate(ov, char){
-  const c = ov.congruence || { lean:'any', engines:null, takeover:{} };
-  if (c.lean === 'electronic' && !char.electronicLean)
-    return { ok:false, atoms:{}, reason:`${ov.label} is electronic-only; ${char.label} is not electronic-leaning — refused (genre clash).` };
-  if (c.engines && !c.engines.includes(char.source))
-    return { ok:false, atoms:{}, reason:`${ov.label} is not congruent with ${char.source} — refused.` };
-  const owned = new Set(char.genreOwned || []);
-  const take = c.takeover || {};
-  const atoms = {};
-  for (const [k,a] of Object.entries(ov.atoms)){
-    if (a.family && owned.has(a.family) && !take[a.family]) continue; // may not seize this family
-    atoms[k] = a;
-  }
-  return { ok:true, atoms, reason:null };
+  return evaluateCongruence(ov, char);
 }
 
 // ---- HOLDING AREA --------------------------------------------------------

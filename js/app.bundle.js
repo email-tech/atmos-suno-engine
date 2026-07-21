@@ -1331,6 +1331,119 @@ const ATOM_REMIXERS = {
 Object.assign(window.__ATMOS, { ATOM_REMIXERS });
 })();
 
+/* core/rules.js */
+(function(){
+/* ==========================================================================
+ * rules.js — the RULE ENGINE (P2 of the Composition Workbench).
+ *
+ * Generalizes the congruence PRE-PASS that used to live as inline if/else in
+ * core/atoms.js (congruenceGate) into a shared, data-driven evaluator:
+ *
+ *   - PROFILES are data. A genre profile projects the character side (what a
+ *     genre owns + its lean); an overlay profile normalizes the congruence block
+ *     already authored on each overlay. Neither copies data — both are read-only
+ *     projections of the authored fields, so there is still ONE source of truth
+ *     (the character's electronicLean/genreOwned and the overlay's congruence).
+ *
+ *   - RULES are data. CONGRUENCE_RULES is an ordered list of rule objects, each
+ *     a pure predicate over {overlay-profile, genre-profile[, atom]}. A `refuse`
+ *     rule short-circuits the whole overlay (genre clash); a `filter` rule drops
+ *     individual overlay atoms that would seize a genre-owned family they may not
+ *     take. Behaviour lives in the table, not in branches — new congruence policy
+ *     is authored by adding a rule, never by editing the evaluator.
+ *
+ * PARITY: evaluateCongruence returns the EXACT same { ok, atoms, reason } shape
+ * and the exact same decision as the old congruenceGate (same rule order, same
+ * reason strings), so the holding area — and therefore the composed style string
+ * — stays byte-identical. This is a refactor of HOW the decision is made, not
+ * WHAT it decides. validate-rules.mjs proves decision-equivalence overlay ×
+ * character × palette; the atom parity golden proves the style output is
+ * unchanged.
+ *
+ * P3 (CIL) will read `ruleId` on a refusal for provenance-tiered inference.
+ * ========================================================================*/
+
+// ---- PROFILE PROJECTIONS (read-only; no data duplication) ----------------
+
+// Genre profile — the character side of congruence, as data.
+// source: the engine/genre a character belongs to (e.g. 'Balearic').
+// electronicLean: whether the character accepts an electronic-only overlay.
+// owned: the genre-owned families a cross-genre overlay may not seize by default.
+function genreProfile(char) {
+  return {
+    source: char.source || null,
+    electronicLean: !!char.electronicLean,
+    owned: new Set(char.genreOwned || []),
+  };
+}
+
+// Overlay profile — the congruence block authored on each overlay, normalized.
+// lean: 'any' | 'electronic'   — required character lean.
+// engines: string[] | null      — compatible engine sources (null = any).
+// takeover: { family: bool }    — which genre-owned families this overlay may seize.
+function overlayProfile(ov) {
+  const c = ov.congruence || {};
+  return {
+    lean: c.lean || 'any',
+    engines: c.engines || null,
+    takeover: c.takeover || {},
+  };
+}
+
+// ---- RULE TABLE (data-driven; order = evaluation order) ------------------
+// `refuse` rules run first, in order, and short-circuit. `filter` rules then
+// narrow the overlay's atoms. Reason strings are kept byte-identical to the
+// former inline gate so nothing downstream (overlayNote, DNA overlayRefused,
+// negative-merge decision) shifts.
+const CONGRUENCE_RULES = [
+  {
+    id: 'lean-gate',
+    kind: 'refuse',
+    test: (ovp, gp) => ovp.lean === 'electronic' && !gp.electronicLean,
+    reason: (ov, char) =>
+      `${ov.label} is electronic-only; ${char.label} is not electronic-leaning — refused (genre clash).`,
+  },
+  {
+    id: 'engine-gate',
+    kind: 'refuse',
+    test: (ovp, gp) => !!ovp.engines && !ovp.engines.includes(gp.source),
+    reason: (ov, char) =>
+      `${ov.label} is not congruent with ${char.source} — refused.`,
+  },
+  {
+    id: 'takeover-gate',
+    kind: 'filter',
+    // keep an overlay atom UNLESS it would seize a genre-owned family it may not take.
+    keep: (atom, ovp, gp) =>
+      !(atom.family && gp.owned.has(atom.family) && !ovp.takeover[atom.family]),
+  },
+];
+
+// ---- EVALUATOR -----------------------------------------------------------
+// The single entry point that replaces the inline congruenceGate. Pure data:
+// project both sides to profiles, run the refuse rules, then apply the filter
+// rules to the overlay's atoms.
+function evaluateCongruence(ov, char, rules) {
+  const table = rules || CONGRUENCE_RULES;
+  const ovp = overlayProfile(ov);
+  const gp = genreProfile(char);
+
+  for (const rule of table) {
+    if (rule.kind === 'refuse' && rule.test(ovp, gp))
+      return { ok: false, atoms: {}, reason: rule.reason(ov, char), ruleId: rule.id };
+  }
+
+  const filters = table.filter(r => r.kind === 'filter');
+  const atoms = {};
+  for (const [k, a] of Object.entries(ov.atoms)) {
+    if (filters.every(f => f.keep(a, ovp, gp))) atoms[k] = a;
+  }
+  return { ok: true, atoms, reason: null, ruleId: null };
+}
+
+Object.assign(window.__ATMOS, { genreProfile, overlayProfile, evaluateCongruence, CONGRUENCE_RULES });
+})();
+
 /* core/atoms.js */
 (function(){
 /* ==========================================================================
@@ -1343,7 +1456,9 @@ Object.assign(window.__ATMOS, { ATOM_REMIXERS });
  *
  * NEW (congruence, 2026-07-19 direction): overlays are congruent-by-default.
  * Each overlay carries a congruence profile; a congruence PRE-PASS runs before
- * the family contest:
+ * the family contest. As of P2 this pre-pass is DATA-DRIVEN — the lean / engine /
+ * takeover policy is authored as rules in core/rules.js and applied by
+ * evaluateCongruence; congruenceGate() below is a thin delegator. The rules are:
  *   - lean gate: an electronic-only overlay on a non-electronic character is
  *     REFUSED entirely (Moroder-on-Balearic — a confirmed genre clash).
  *   - takeover gate: an overlay may only seize a genre-owned family (bass timbre,
@@ -1354,6 +1469,7 @@ Object.assign(window.__ATMOS, { ATOM_REMIXERS });
  * prompt craft or position — so we don't author a prompt that fights the prior.
  * ========================================================================*/
 const {CHAR_LIMIT, ALWAYS_BAN} = window.__ATMOS;
+const {evaluateCongruence} = window.__ATMOS;
 const {ATOM_COMPOSERS} = window.__ATMOS;
 const {ATOM_PRODUCERS} = window.__ATMOS;
 const {ATOM_REMIXERS} = window.__ATMOS;
@@ -1378,22 +1494,12 @@ const REL = {
 };
 
 // ---- CONGRUENCE PRE-PASS -------------------------------------------------
-// Decides whether an overlay applies at all, and which of its atoms are allowed
-// to seize a genre-owned family. Returns { ok, atoms, reason }.
+// The pre-pass is now DATA-DRIVEN (P2): the lean / engine / takeover policy is
+// authored as rules in core/rules.js and evaluated by evaluateCongruence. This
+// wrapper keeps the call shape { ok, atoms, reason } the rest of atoms.js uses.
+// Decision is identical to the former inline gate — parity-safe.
 function congruenceGate(ov, char){
-  const c = ov.congruence || { lean:'any', engines:null, takeover:{} };
-  if (c.lean === 'electronic' && !char.electronicLean)
-    return { ok:false, atoms:{}, reason:`${ov.label} is electronic-only; ${char.label} is not electronic-leaning — refused (genre clash).` };
-  if (c.engines && !c.engines.includes(char.source))
-    return { ok:false, atoms:{}, reason:`${ov.label} is not congruent with ${char.source} — refused.` };
-  const owned = new Set(char.genreOwned || []);
-  const take = c.takeover || {};
-  const atoms = {};
-  for (const [k,a] of Object.entries(ov.atoms)){
-    if (a.family && owned.has(a.family) && !take[a.family]) continue; // may not seize this family
-    atoms[k] = a;
-  }
-  return { ok:true, atoms, reason:null };
+  return evaluateCongruence(ov, char);
 }
 
 // ---- HOLDING AREA --------------------------------------------------------
