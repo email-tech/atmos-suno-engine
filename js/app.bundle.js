@@ -3070,7 +3070,56 @@ function pickTemplate(dna, answers, lyricResult) {
     || STRUCTURE_TEMPLATES[0];
 }
 
-/* ---- entry: build the structured metatag plan ------------------------------ */
+/* ---- LEAN per-section tag (one compact bracket, budget-safe) ---------------
+ * Folds the section change + the single most important arrangement move + one
+ * interplay phrase (+ a short vocal cue when vocal) into ONE bracket, targeting
+ * ~40-90 chars/section. Grounded in the same fn/register data as the full tag;
+ * bass+drums are still named verbatim in the groove-lock so genre-owned families
+ * are quoted, and the interplay rule (a named interaction) still holds. Evidence:
+ * Suno reads bracketed tags best when short and placed at section changes; long
+ * stacked tags dilute adherence and eat the shared 5,000-char lyrics budget. */
+function leanTag(type, v, dna, label, vocalMode, deliveryClass, moodClass) {
+  const L = cap(label);
+  const lead = v.lead || 'lead';
+  const beatless = !!(dna.dynamics && dna.dynamics.beatless);
+  const atmos = /ambient|atmos|texture|breath|sunrise|underwater|drift|aria|sacred|abstract|invocation/.test(String(label).toLowerCase());
+  const groove = (v.bass && v.rhythm) ? `${v.bass} + ${v.rhythm} lock the groove`
+               : v.bass ? `${v.bass} anchors` : v.rhythm ? `${v.rhythm} holds the groove`
+               : (v.answerVoice && v.answerVoice !== lead) ? `${v.answerVoice} answers ${lead}`
+               : `${lead} carries, voices converse`;
+  const vocal = vocalMode === 'vocal';
+  const shade = ({ brooding: 'shadowed', nocturnal: 'hushed', euphoric: 'lifted', ethereal: 'airy',
+                   wistful: 'aching', warm: 'warm', driving: 'urgent', hypnotic: 'trance-like',
+                   contemplative: 'unhurried' }[moodClass]) || 'close';
+  const dc = deliveryClass || 'lead-melodic';
+  const vVerse = dc === 'spoken/chant' ? 'spoken and low' : dc === 'wordless/textural' ? 'wordless vowels'
+               : dc === 'choir/pad' ? 'solo over choir bed' : `${shade} intimate vocal`;
+  const vChorus = dc === 'choir/pad' ? 'choir answers the hook' : 'lead + stacked harmonies lift';
+  const body = (b) => `[${L}: ${b}]`;
+
+  switch (type) {
+    case 'intro':
+      return (beatless || atmos)
+        ? body(`${v.harmonyBed || v.pads || 'pads'} from near silence, no pulse`)
+        : body(`${groove}, ${lead} withheld`);
+    case 'verse':
+      return body(`sparse and dry, ${vocal ? vVerse : lead + ' forward'}, steady groove`);
+    case 'prechorus':
+      return body('rising tension, drums build into the hook');
+    case 'chorus':
+      if (/post-chorus/i.test(String(label))) return body('hook restated simpler, chantable, lead steps back');
+      return body(`full arrangement, ${groove}, ${vocal ? vChorus : (v.answerVoice || v.counter || 'counter') + ' answers ' + lead}`);
+    case 'instrumental':
+      return body(`${v.feature || lead} leads, call-and-response, groove simplifies`);
+    case 'bridge':
+      return body(`stripped back, drums out, ${cadenceHint(dna)}${vocal ? ', exposed vocal' : ''}`);
+    case 'outro':
+      return body(`${lead} thins out, ${tailHint(dna)}`);
+    default:
+      return `[${L}]`;
+  }
+}
+
 function buildMetatagPlan(dna, opts) {
   const o = opts || {};
   const cil = o.cil || null;
@@ -3124,6 +3173,8 @@ function buildMetatagPlan(dna, opts) {
     sections: sections.slice(),
     energyMap: energyMap(sections, total),
     plan,
+    leanLines: sections.map((label, i) =>
+      leanTag(sectionType(label, i, total), v, dna, label, vocalMode, deliveryClass, moodClass)),
   };
 }
 
@@ -3133,10 +3184,12 @@ function energyMap(sections, total) {
   return sections.map((label, i) => ({ section: label, level: LEVEL[sectionType(label, i, total)] || 3 }));
 }
 
-/* ---- render: a paste-ready Suno tag block, aligned to the section order ----
- * Groups each section's tags on one line under its label, e.g.
- *   [Verse 1] [Verse 1: sparse and dry, ...] [close, intimate lead vocal, ...] */
-function renderMetatagBlock(built) {
+/* ---- render: a paste-ready Suno tag block, aligned to the section order -----
+ * mode 'full' = one line per section occurrence with every tag (rich; best for
+ * instrumentals, no lyrics competing). mode 'lean' = one compact bracket per
+ * section (budget-safe; default for vocal tracks that also carry lyrics). */
+function renderMetatagBlock(built, mode) {
+  if (mode === 'lean') return built.leanLines.join('\n');
   const byIdx = new Map();
   for (const item of built.plan) {
     const k = (item.idx == null ? 0 : item.idx);
@@ -3149,15 +3202,18 @@ function renderMetatagBlock(built) {
   }).join('\n');
 }
 
-// flat list of just the tag strings (order-preserving)
+// flat list of just the tag strings (order-preserving, full plan)
 function metatagList(built) {
   return built.plan.map(p => p.tag);
 }
 
-/* ---- runtime driver (no model call — deterministic assembly) --------------- */
-function runMetatagEngine({ dna, cil, answers, lyricResult }) {
+/* ---- runtime driver (no model call — deterministic assembly) ---------------
+ * renderMode default: vocal -> 'lean' (share the lyrics budget), instrumental
+ * -> 'full' (whole lyrics box free). Pass renderMode to override. */
+function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode }) {
   const built = buildMetatagPlan(dna, { cil, answers, lyricResult });
-  return { ...built, block: renderMetatagBlock(built) };
+  const mode = renderMode || (built.vocalMode === 'vocal' ? 'lean' : 'full');
+  return { ...built, renderMode: mode, block: renderMetatagBlock(built, mode) };
 }
 
 Object.assign(window.__ATMOS, { buildMetatagPlan, renderMetatagBlock, metatagList, runMetatagEngine, METATAG_VERSION, METATAG_READABLE });

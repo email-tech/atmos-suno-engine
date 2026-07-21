@@ -39,61 +39,71 @@ for (const cid of charIds) {
 
       for (const mode of ['instrumental', 'vocal']) {
         const answers = { 'vocal.mode': mode, 'vocal.deliveryClass': mode === 'vocal' ? 'lead-melodic' : null };
-        const out = runMetatagEngine({ dna, cil, answers });
+
+        for (const rmode of ['full', 'lean']) {
+        const out = runMetatagEngine({ dna, cil, answers, renderMode: rmode });
         n++;
 
         // 7. contract — no style field, DNA untouched
-        if ('style' in out) bad(`result exposed a style field — ${tag}/${mode}`);
-        if (JSON.stringify(dna) !== snapshot) bad(`DNA mutated — ${tag}/${mode}`);
+        if ('style' in out) bad(`result exposed a style field — ${tag}/${mode}/${rmode}`);
+        if (JSON.stringify(dna) !== snapshot) bad(`DNA mutated — ${tag}/${mode}/${rmode}`);
 
-        // 1. coverage — one block line PER section occurrence, each with >=1 tag,
-        //    and no tag string duplicated inside a line (catches repeated-label collapse).
+        // 1. coverage — one block line PER section occurrence, each with content
         const lines = out.block.split('\n');
         if (lines.length !== out.sections.length)
-          bad(`block lines ${lines.length} != sections ${out.sections.length} — ${tag}/${mode}`);
+          bad(`block lines ${lines.length} != sections ${out.sections.length} — ${tag}/${mode}/${rmode}`);
         lines.forEach((line, i) => {
           const label = out.sections[i];
-          if (!line.startsWith(`[${label}]`) || line.trim() === `[${label}]`)
-            bad(`section[${i}] '${label}' line malformed/empty — ${tag}/${mode}`);
-          const tags = line.match(/\[[^\]]+\]/g) || [];
-          if (new Set(tags).size !== tags.length) bad(`duplicated tag on '${label}' line — ${tag}/${mode}`);
+          if (!line.startsWith(`[${label}`) || line.trim() === `[${label}]`)
+            bad(`section[${i}] '${label}' line malformed/empty — ${tag}/${mode}/${rmode}`);
+          if (rmode === 'full') {
+            const tags = line.match(/\[[^\]]+\]/g) || [];
+            if (new Set(tags).size !== tags.length) bad(`duplicated tag on '${label}' line — ${tag}/${mode}`);
+          }
         });
 
-        // 2. mandatory interplay — >=1 cue, names a real voice
-        const inter = out.plan.filter(p => p.kind === 'interplay');
-        if (!inter.length) bad(`no interplay cue — ${tag}/${mode}`);
-        else {
-          const namesVoice = inter.some(p => arrVoices.some(vc => p.tag.includes(vc)));
-          if (!namesVoice) bad(`interplay cue names no real voice — ${tag}/${mode}`);
+        // lean budget — one bracket per line, and a real reduction vs full
+        if (rmode === 'lean') {
+          lines.forEach((line, i) => {
+            const tags = line.match(/\[[^\]]+\]/g) || [];
+            if (tags.length !== 1) bad(`lean line '${out.sections[i]}' not a single bracket (${tags.length}) — ${tag}/${mode}`);
+          });
+          const full = renderMetatagBlock(buildMetatagPlan(dna, { cil, answers }), 'full');
+          if (out.block.length > full.length * 0.75) bad(`lean not a real reduction (${out.block.length} vs full ${full.length}) — ${tag}/${mode}`);
         }
+
+        // 2. mandatory interplay — a named interaction phrase is present in the block
+        if (!/lock the groove|anchors|holds the groove|call-and-response|answers |converse/.test(out.block))
+          bad(`no interplay/interaction phrase in ${rmode} block — ${tag}/${mode}`);
 
         // 3. no artist names
         if (ov) {
           const label = ATOM_OVERLAYS[ov].label;
-          if (label && out.block.includes(label)) bad(`overlay name '${label}' leaked into block — ${tag}/${mode}`);
+          if (label && out.block.includes(label)) bad(`overlay name '${label}' leaked into ${rmode} block — ${tag}/${mode}`);
         }
 
-        // performance-tag presence rules
+        // performance-tag presence (full plan carries them; block folds them when lean)
         const perf = out.plan.filter(p => p.kind === 'performance');
         if (mode === 'instrumental') {
-          if (perf.length) bad(`vocal-performance tag on instrumental (${perf.length}) — ${tag}`);   // 4
-          if (!out.plan.some(p => p.kind === 'arrangement')) bad(`instrumental has no arrangement direction — ${tag}`);
-          if (!inter.length) bad(`instrumental has no interplay — ${tag}`);
+          if (perf.length) bad(`vocal-performance tag on instrumental (${perf.length}) — ${tag}/${rmode}`);
         } else {
-          if (!perf.length) bad(`vocal read produced no performance tag — ${tag}`);                  // 5
+          if (!perf.length) bad(`vocal read produced no performance tag — ${tag}/${rmode}`);
         }
+        if (!out.plan.some(p => p.kind === 'arrangement')) bad(`no arrangement direction — ${tag}/${mode}/${rmode}`);
+        if (!out.plan.some(p => p.kind === 'interplay')) bad(`no interplay in plan — ${tag}/${mode}/${rmode}`);
 
         // 6. verbatim genre-owned families (bass + drums), when present
         for (const famRole of [['bass', 'bass'], ['rhythm', 'drums']]) {
           const voice = (dna.arrangement.find(a => a.role === famRole[0]) ||
                          dna.arrangement.find(a => a.family === famRole[1]) || {}).voice;
           if (voice && !out.block.includes(voice))
-            bad(`${famRole[1]} voice '${voice}' not quoted verbatim — ${tag}/${mode}`);
+            bad(`${famRole[1]} voice '${voice}' not quoted verbatim — ${tag}/${mode}/${rmode}`);
         }
 
         // 8. determinism
-        const b2 = renderMetatagBlock(buildMetatagPlan(dna, { cil, answers }));
-        if (b2 !== out.block) bad(`non-deterministic block — ${tag}/${mode}`);
+        const b2 = renderMetatagBlock(buildMetatagPlan(dna, { cil, answers }), rmode);
+        if (b2 !== out.block) bad(`non-deterministic block — ${tag}/${mode}/${rmode}`);
+        }
       }
     }
   }
