@@ -30,22 +30,22 @@ export const VOCAL_DISPOSITIONS = Object.freeze([
 export const INFERENCE_PROFILES = Object.freeze({
   // genre-level fallback (only 'Balearic' on the atom path today)
   bySource: {
-    Balearic: { moodClass: 'warm', vocalDisposition: 'either' },
+    Balearic: { moodClass: 'warm', vocalDisposition: 'vocal-capable' },
   },
   // subgenre refinement, keyed by dna.meta.characterId
   bySubgenre: {
-    'organic-warm-downtempo':       { moodClass: 'warm',          vocalDisposition: 'either' },
+    'organic-warm-downtempo':       { moodClass: 'warm',          vocalDisposition: 'vocal-capable' },
     'lush-cinematic-chillout':      { moodClass: 'ethereal',      vocalDisposition: 'vocal-capable' },
-    'dreamy-analog-electronic':     { moodClass: 'hypnotic',      vocalDisposition: 'instrumental-leaning' },
-    'dub-space-downtempo':          { moodClass: 'hypnotic',      vocalDisposition: 'instrumental-leaning' },
-    'deep-nocturnal-balearic':      { moodClass: 'nocturnal',     vocalDisposition: 'either' },
-    'sunlit-mediterranean':         { moodClass: 'warm',          vocalDisposition: 'either' },
-    'ambient-beatless-atmospheric': { moodClass: 'contemplative', vocalDisposition: 'instrumental-leaning' },
+    'dreamy-analog-electronic':     { moodClass: 'hypnotic',      vocalDisposition: 'vocal-capable' },
+    'dub-space-downtempo':          { moodClass: 'hypnotic',      vocalDisposition: 'vocal-capable' },
+    'deep-nocturnal-balearic':      { moodClass: 'nocturnal',     vocalDisposition: 'vocal-capable' },
+    'sunlit-mediterranean':         { moodClass: 'warm',          vocalDisposition: 'vocal-capable' },
+    'ambient-beatless-atmospheric': { moodClass: 'contemplative', vocalDisposition: 'vocal-capable' },
     'moody-trip-hop-downbeat':      { moodClass: 'brooding',      vocalDisposition: 'vocal-capable' },
-    'balearic-house':               { moodClass: 'euphoric',      vocalDisposition: 'either' },
+    'balearic-house':               { moodClass: 'euphoric',      vocalDisposition: 'vocal-capable' },
     'nu-disco-slo-mo':              { moodClass: 'warm',          vocalDisposition: 'vocal-capable' },
-    'melodic-deep-house':           { moodClass: 'driving',       vocalDisposition: 'either' },
-    'lounge-house':                 { moodClass: 'warm',          vocalDisposition: 'either' },
+    'melodic-deep-house':           { moodClass: 'driving',       vocalDisposition: 'vocal-capable' },
+    'lounge-house':                 { moodClass: 'warm',          vocalDisposition: 'vocal-capable' },
   },
 });
 
