@@ -90,7 +90,7 @@ export const ATOM_COMPOSERS = {
     ov_harm:   { role:'harmony', family:'harmony', fn:'chord-movement', priority:'support',
                  text:'a slow tread of minor-to-major harmony resolving warmly' },
     ov_colour: { role:'colour', family:'colour', fn:'accent', priority:'decorative',
-                 instrument:'muted brass and low flute' },
+                 instrument:'muted brass and low woodwind' },
   }),
 
   // Goldsmith — angular chromaticism + inventive metallic/struck percussion.
@@ -110,7 +110,7 @@ export const ATOM_COMPOSERS = {
   // Newman — sparse marimba/hammered-dulcimer ostinato + prepared-piano shimmer.
   composer_newman: composer('Thomas Newman', 'orchestral', ORCH, {
     ov_lead:   { role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
-                 instrument:'a sparse piano motif over a marimba and hammered-dulcimer ostinato' },
+                 instrument:'a sparse piano motif over hammered-dulcimer and mallet-percussion ostinato' },
     ov_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
                  instrument:'a lone oboe line answering in the gaps' },
     ov_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'decorative',
@@ -259,7 +259,7 @@ export const ATOM_COMPOSERS = {
     ov_lead:   { role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
                  instrument:'a long sustained analog lead shaped with expressive pitch bend' },
     ov_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support',
-                 instrument:'layered analog brass and choir pads with wide evolving chorus and long reverb tails' },
+                 instrument:'layered analog brass and choral synth washes with wide evolving chorus and long reverb tails' },
     ov_harm:   { role:'harmony', family:'harmony', fn:'chord-movement', priority:'support',
                  text:'slow drifting harmonic movement resolving softly' },
     ov_arc:    { role:'arc', fn:'arc', priority:'support',

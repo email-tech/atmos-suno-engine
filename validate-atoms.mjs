@@ -141,6 +141,7 @@ function checkDistinct(kind) {
 }
 checkDistinct('composer');
 checkDistinct('producer');
+checkDistinct('remixer');
 
 console.log(`atom path: ${n} draws across ${charIds.length} characters x ${PALETTES.length} palettes, ${fail} failures.`);
 process.exit(fail ? 1 : 0);

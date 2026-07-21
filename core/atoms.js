@@ -21,6 +21,7 @@
 import { CHAR_LIMIT, ALWAYS_BAN } from './constants.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
 import { ATOM_PRODUCERS } from './atom-producers.js';
+import { ATOM_REMIXERS } from './atom-remixers.js';
 
 function mulberry32(a){let t=(a>>>0)||1;return()=>{t+=0x6D2B79F5;let r=Math.imul(t^(t>>>15),1|t);r^=r+Math.imul(r^(r>>>7),61|r);return((r^(r>>>14))>>>0)/4294967296;};}
 const RANK = { signature:0, core:1, support:2, decorative:3 };
@@ -30,10 +31,10 @@ const RANK = { signature:0, core:1, support:2, decorative:3 };
 // congruence.engines: compatible engine sources (null = any).
 // congruence.takeover: which genre-owned families this overlay may seize.
 // signature:true -> hoists to the front; foundational:true on a bass -> displaces.
-// Composer overlays live atom-native in ./atom-composers.js (19 composers) and
-// Producer overlays in ./atom-producers.js (8 producers), each a distinct
-// signature-delta set. Remixer arm migrates here next.
-export const ATOM_OVERLAYS = { ...ATOM_COMPOSERS, ...ATOM_PRODUCERS };
+// All three overlay arms now live atom-native: Composers (./atom-composers.js, 19),
+// Producers (./atom-producers.js, 8), Remixers (./atom-remixers.js, 5) — each a
+// distinct signature-delta set. Overlay system complete on the atom path.
+export const ATOM_OVERLAYS = { ...ATOM_COMPOSERS, ...ATOM_PRODUCERS, ...ATOM_REMIXERS };
 
 const REL = {
   foundation:    { needs:['bass','drums'], render:'locked in a soft, spacious pocket that anchors without intruding' },

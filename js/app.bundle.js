@@ -904,7 +904,7 @@ const ATOM_COMPOSERS = {
     ov_harm:   { role:'harmony', family:'harmony', fn:'chord-movement', priority:'support',
                  text:'a slow tread of minor-to-major harmony resolving warmly' },
     ov_colour: { role:'colour', family:'colour', fn:'accent', priority:'decorative',
-                 instrument:'muted brass and low flute' },
+                 instrument:'muted brass and low woodwind' },
   }),
 
   // Goldsmith — angular chromaticism + inventive metallic/struck percussion.
@@ -924,7 +924,7 @@ const ATOM_COMPOSERS = {
   // Newman — sparse marimba/hammered-dulcimer ostinato + prepared-piano shimmer.
   composer_newman: composer('Thomas Newman', 'orchestral', ORCH, {
     ov_lead:   { role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
-                 instrument:'a sparse piano motif over a marimba and hammered-dulcimer ostinato' },
+                 instrument:'a sparse piano motif over hammered-dulcimer and mallet-percussion ostinato' },
     ov_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
                  instrument:'a lone oboe line answering in the gaps' },
     ov_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'decorative',
@@ -1073,7 +1073,7 @@ const ATOM_COMPOSERS = {
     ov_lead:   { role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
                  instrument:'a long sustained analog lead shaped with expressive pitch bend' },
     ov_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support',
-                 instrument:'layered analog brass and choir pads with wide evolving chorus and long reverb tails' },
+                 instrument:'layered analog brass and choral synth washes with wide evolving chorus and long reverb tails' },
     ov_harm:   { role:'harmony', family:'harmony', fn:'chord-movement', priority:'support',
                  text:'slow drifting harmonic movement resolving softly' },
     ov_arc:    { role:'arc', fn:'arc', priority:'support',
@@ -1238,6 +1238,99 @@ const ATOM_PRODUCERS = {
 Object.assign(window.__ATMOS, { ATOM_PRODUCERS });
 })();
 
+/* core/atom-remixers.js */
+(function(){
+/* ==========================================================================
+ * atom-remixers.js — the Remixer modifier overlays, ATOM-NATIVE.
+ *
+ * Third and final overlay arm (after Composers and Producers). Same model: each
+ * remixer contributes a few SIGNATURE-DELTA atoms; reconcile drops collisions;
+ * compose weaves the language. Artist names are UI LABELS ONLY — rendered text is
+ * generic and carries the remix fingerprint, not the name.
+ *
+ * REMIXERS reshape ARRANGEMENT and DYNAMICS. Per the standing rule, overlays never
+ * rewrite the genre-owned DRUM family, so the rhythm-reprogramming remixers
+ * (Liebrand, Pettibone) express their signature as percussion / vocal-stab / arc
+ * layers OVER the intact groove, not by replacing the kit. The one exception is a
+ * FOUNDATIONAL BASS signature (Harris' funky sliding bassline) — allowed to seize
+ * the bass family via takeover:{bass:true}, electronic-gated, exactly like the
+ * composer Fidel/Moroder precedent.
+ *
+ * DISTINCTNESS: one signature:true atom each; the harness enforces uniqueness in
+ * the lean cohort. Signatures hoist to the front (Lever 1).
+ * ========================================================================*/
+
+const REMIX_ANY  = { lean:'any', engines:null, takeover:{ bass:false, drums:false, harmony:false } };
+const REMIX_ELEC = (takeover) => ({ lean:'electronic', engines:null,
+                    takeover: Object.assign({ bass:false, drums:false, harmony:false }, takeover||{}) });
+
+function remixer(label, congruence, atoms, negative) {
+  return { label, kind:'remixer', family:'remixer', congruence, atoms, negative:negative||[] };
+}
+
+const ATOM_REMIXERS = {
+
+  // Guetta — a massive supersaw festival lead exploding on the drop (big-room).
+  remixer_guetta: remixer('David Guetta', REMIX_ELEC(), {
+    ov_lead:   { role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
+                 instrument:'a massive supersaw festival lead exploding on the drop' },
+    ov_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support',
+                 instrument:'stacked anthemic supersaw chord stabs' },
+    ov_colour: { role:'colour', family:'colour', fn:'accent', priority:'support',
+                 instrument:'filtered vocal chops' },
+    ov_arc:    { role:'arc', fn:'arc', priority:'support',
+                 text:'a long riser building to an explosive drop' },
+  }),
+
+  // Harris — a funky sliding synth bassline drives the groove (foundational bass).
+  remixer_harris: remixer('Calvin Harris', REMIX_ELEC({ bass:true }), {
+    ov_bass:   { role:'bass', family:'bass', fn:'foundation-drive', priority:'signature', signature:true, foundational:true, prominence:'foreground',
+                 instrument:'a funky sliding synth bassline driving the groove' },
+    ov_colour: { role:'colour', family:'colour', fn:'accent', priority:'support',
+                 instrument:'glowy plucked electric-piano licks' },
+    ov_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support',
+                 instrument:'breezy warm synth-stab pads' },
+    ov_arc:    { role:'arc', fn:'arc', priority:'support',
+                 text:'stripping to the bassline and groove then building the keys back in' },
+  }),
+
+  // Oliver Nelson — filtered disco-sample chops re-triggered into the hook (nu-disco).
+  remixer_nelson: remixer('Oliver Nelson', REMIX_ELEC(), {
+    ov_colour: { role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
+                 instrument:'filtered disco-sample chops re-triggered into the hook' },
+    ov_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support',
+                 instrument:'funky filtered disco-guitar licks' },
+    ov_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
+                 instrument:'a bright plucky synth topline answering the lead' },
+    ov_arc:    { role:'arc', fn:'arc', priority:'support',
+                 text:'a feel-good discofied filter build into the lift' },
+  }),
+
+  // Liebrand — scratch-style stabs and transformer cut FX chopping the arrangement.
+  remixer_liebrand: remixer('Ben Liebrand', REMIX_ANY, {
+    ov_colour: { role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
+                 instrument:'scratch-style synth stabs and transformer cut effects chopping across the beat' },
+    ov_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support',
+                 instrument:'a dramatic sampled orchestral-hit and vocal-stab intro bed' },
+    ov_arc:    { role:'arc', fn:'arc', priority:'support',
+                 text:'extended re-edited breakdowns that chop and rebuild the arrangement' },
+  }),
+
+  // Pettibone — looped echo-drenched vocal stabs over an extended dub breakdown.
+  remixer_pettibone: remixer('Shep Pettibone', REMIX_ANY, {
+    ov_colour: { role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
+                 instrument:'looped echo-drenched vocal stabs threading the mix' },
+    ov_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support',
+                 instrument:'a bed of crisp layered latin hand percussion' },
+    ov_arc:    { role:'arc', fn:'arc', priority:'support',
+                 text:'a long dub breakdown stripping back then rebuilding' },
+  }),
+
+};
+
+Object.assign(window.__ATMOS, { ATOM_REMIXERS });
+})();
+
 /* core/atoms.js */
 (function(){
 /* ==========================================================================
@@ -1263,6 +1356,7 @@ Object.assign(window.__ATMOS, { ATOM_PRODUCERS });
 const {CHAR_LIMIT, ALWAYS_BAN} = window.__ATMOS;
 const {ATOM_COMPOSERS} = window.__ATMOS;
 const {ATOM_PRODUCERS} = window.__ATMOS;
+const {ATOM_REMIXERS} = window.__ATMOS;
 
 function mulberry32(a){let t=(a>>>0)||1;return()=>{t+=0x6D2B79F5;let r=Math.imul(t^(t>>>15),1|t);r^=r+Math.imul(r^(r>>>7),61|r);return((r^(r>>>14))>>>0)/4294967296;};}
 const RANK = { signature:0, core:1, support:2, decorative:3 };
@@ -1272,10 +1366,10 @@ const RANK = { signature:0, core:1, support:2, decorative:3 };
 // congruence.engines: compatible engine sources (null = any).
 // congruence.takeover: which genre-owned families this overlay may seize.
 // signature:true -> hoists to the front; foundational:true on a bass -> displaces.
-// Composer overlays live atom-native in ./atom-composers.js (19 composers) and
-// Producer overlays in ./atom-producers.js (8 producers), each a distinct
-// signature-delta set. Remixer arm migrates here next.
-const ATOM_OVERLAYS = { ...ATOM_COMPOSERS, ...ATOM_PRODUCERS };
+// All three overlay arms now live atom-native: Composers (./atom-composers.js, 19),
+// Producers (./atom-producers.js, 8), Remixers (./atom-remixers.js, 5) — each a
+// distinct signature-delta set. Overlay system complete on the atom path.
+const ATOM_OVERLAYS = { ...ATOM_COMPOSERS, ...ATOM_PRODUCERS, ...ATOM_REMIXERS };
 
 const REL = {
   foundation:    { needs:['bass','drums'], render:'locked in a soft, spacious pocket that anchors without intruding' },
