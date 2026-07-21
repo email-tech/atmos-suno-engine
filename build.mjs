@@ -24,6 +24,8 @@ const files = [
   'core/dna.js',
   'core/profiles.js',
   'core/cil.js',
+  'core/lyric-controls.js',
+  'core/lyric.js',
   'engines/delerium.js',
   'engines/era.js',
   'engines/deepforest.js',

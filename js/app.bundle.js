@@ -2469,6 +2469,356 @@ function inferCIL(dna) {
 Object.assign(window.__ATMOS, { inferCIL, CIL_VERSION, TIERS });
 })();
 
+/* core/lyric-controls.js */
+(function(){
+const CONTROL_OPTIONS = {
+  sourceType: ["Movie", "Book", "Historical figure", "Myth / legend", "True event", "Cultural movement", "Original concept", "Personal memory"],
+  themeLens: ["Faithful to source", "Inspired by source", "Loose metaphor only", "Dark reinterpretation", "Romantic reinterpretation", "Triumphant reinterpretation"],
+  genreFamily: ["Synthpop", "Pop", "Dance-pop", "Rock", "Ballad", "R&B", "Soul", "Reggae", "Chillout / Balearic", "Cinematic / Score-pop", "Balearic chillout", "Downtempo pop", "Ethereal trance", "Trip-hop", "Ambient vocal", "Mystic electronic", "Cinematic pop"],
+  eraBias: ["1980s", "1990s", "2000s", "2010s", "2020s", "Timeless / mixed-era", "Modern Suno polish", "Early 90s", "Late 90s", "Early 2000s", "Timeless"],
+  mood: ["Melancholic", "Hopeful", "Defiant", "Romantic", "Mysterious", "Bittersweet", "Triumphant", "Dark / brooding", "Serene", "Yearning", "Mystical", "Sensual", "Haunted", "Euphoric but restrained"],
+  energy: ["Low", "Low-mid", "Mid", "Medium-high", "High", "Slow burn"],
+  perspective: ["First person", "Second person", "Third person", "Alternating first and second", "Omniscient / cinematic", "Collective voice", "Fragmented voices"],
+  languageStyle: ["Conversational", "Poetic", "Cinematic", "Elegant / literary", "Simple / direct", "Plain poetic", "Mystic but clear", "Minimal", "Sensual and restrained", "Sacred-modern", "Dreamlike"],
+  structureCategory: ["Commercial / Pop-Compatible", "Balearic / Chillout / Atmospheric", "Enigma / Ritual / Chant", "Delerium / Ethereal Vocal", "Experimental"],
+  hookStyle: ["Immediate and memorable", "Subtle and emotional", "Anthemic", "Intimate", "Mantra-like repetition", "Short repeated phrase", "Question hook", "Title hook", "Mantra hook", "Call-and-response", "Melodic vowel hook"],
+  lineLength: ["Flexible", "6-8 syllables", "8-10 syllables", "10-12 syllables", "Mixed by section", "Short", "Medium", "Long", "Mixed with singable anchors"],
+  rhymeDensity: ["Light", "Moderate", "Heavy", "Mixed / natural", "Minimal, prioritise meaning", "Medium", "High but natural", "Internal rhyme"],
+  imageryDensity: ["Low", "Moderate", "High", "Sparse", "Medium", "Rich", "Symbolic"],
+  narrativeClarity: ["Very clear storyline", "Mostly clear with some poetry", "Balanced", "Abstract but coherent", "Abstract", "Clear story", "Emotional fragments"],
+  vocalFraming: ["Male lead", "Female lead", "Gender-neutral", "Duet", "Lead vocal centered", "Airy lead with backing phrases", "Whispered layers", "Choir shadows", "Call-and-response"],
+  deliveryStyle: ["Controlled and intimate", "Warm and emotional", "Cool and detached", "Confessional", "Dramatic but restrained", "Soft intimate", "Breathy", "Chanted", "Ethereal", "Pop direct"],
+  languages: ["French", "Spanish", "Latin", "Arabic", "Turkish", "German", "Gaelic"],
+  languageModes: ["None", "Foreign phrase layer", "Chorus line", "Full chorus", "Verse section", "Call-and-response", "Sacred / chant layer"],
+  languagePlacement: ["Chorus or backing phrase", "Intro texture", "Bridge only", "Outro echo", "Call response after hook"],
+  languageIntensity: ["Light", "Medium", "Prominent"]
+};
+
+const STRUCTURE_TEMPLATES = [
+  ["Commercial / Pop-Compatible", "commercial-classic-pre-chorus", "Verse / Pre / Chorus / Verse / Pre / Chorus / Bridge / Final Chorus", ["Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Pre-Chorus", "Chorus", "Bridge", "Final Chorus"], ["Pop", "Synthpop", "Dance-pop"], "Strong commercial structure with clear hook return."],
+  ["Commercial / Pop-Compatible", "commercial-intro-middle8", "Intro / Verse / Pre / Chorus / Verse / Pre / Chorus / Middle 8 / Final Chorus / Outro", ["Intro", "Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Pre-Chorus", "Chorus", "Middle 8", "Final Chorus", "Outro"], ["Pop", "Cinematic pop"], "Radio-ready flow with an extra release valve before the final chorus."],
+  ["Commercial / Pop-Compatible", "commercial-bridge", "Verse / Chorus / Verse / Chorus / Bridge / Final Chorus", ["Verse 1", "Chorus", "Verse 2", "Chorus", "Bridge", "Final Chorus"], ["Pop", "Downtempo"], "Compact hook-first structure."],
+  ["Commercial / Pop-Compatible", "commercial-double-verse", "Verse / Verse / Chorus / Verse / Chorus / Bridge / Chorus", ["Verse 1", "Verse 2", "Chorus", "Verse 3", "Chorus", "Bridge", "Chorus"], ["Story songs"], "More narrative runway before the hook."],
+  ["Commercial / Pop-Compatible", "commercial-refrain", "Verse / Refrain / Verse / Refrain / Bridge / Final Refrain", ["Verse 1", "Refrain", "Verse 2", "Refrain", "Bridge", "Final Refrain"], ["Folk-pop", "Ambient vocal"], "Soft refrain structure for subtle hooks."],
+  ["Commercial / Pop-Compatible", "commercial-post-chorus", "Intro / Verse / Chorus / Post-Chorus / Verse / Chorus / Bridge / Final Chorus / Outro", ["Intro", "Verse 1", "Chorus", "Post-Chorus", "Verse 2", "Chorus", "Bridge", "Final Chorus", "Outro"], ["Pop", "Dance-pop"], "Adds a chantable post-chorus moment."],
+  ["Commercial / Pop-Compatible", "commercial-lift", "Verse / Lift / Chorus / Verse / Lift / Chorus / Breakdown / Final Chorus", ["Verse 1", "Lift", "Chorus", "Verse 2", "Lift", "Chorus", "Breakdown", "Final Chorus"], ["Electronic pop"], "Useful when pre-chorus should feel atmospheric rather than conventional."],
+  ["Balearic / Chillout / Atmospheric", "balearic-drift", "Ambient Intro / Verse / Chorus / Instrumental Drift / Verse / Chorus / Sunset Outro", ["Ambient Intro", "Verse 1", "Chorus", "Instrumental Drift", "Verse 2", "Chorus", "Sunset Outro"], ["Balearic", "Chillout"], "Leaves space for instrumental atmosphere."],
+  ["Balearic / Chillout / Atmospheric", "balearic-floating-hook", "Intro Texture / Verse / Hook / Verse / Hook / Floating Bridge / Final Hook", ["Intro Texture", "Verse 1", "Hook", "Verse 2", "Hook", "Floating Bridge", "Final Hook"], ["Chillout"], "Gentle hook repetition without pop pressure."],
+  ["Balearic / Chillout / Atmospheric", "balearic-spoken", "Spoken Fragment / Verse / Chorus / Ambient Break / Verse / Final Chorus / Outro", ["Spoken Fragment", "Verse 1", "Chorus", "Ambient Break", "Verse 2", "Final Chorus", "Outro"], ["Atmospheric"], "Creates a cinematic entry point."],
+  ["Balearic / Chillout / Atmospheric", "balearic-instrumental", "Instrumental Intro / Verse / Refrain / Instrumental Passage / Verse / Final Refrain", ["Instrumental Intro", "Verse 1", "Refrain", "Instrumental Passage", "Verse 2", "Final Refrain"], ["Balearic"], "Good for style-led tracks."],
+  ["Balearic / Chillout / Atmospheric", "balearic-sunrise", "Sunrise Intro / Verse / Soft Chorus / Drift / Verse / Final Chorus / Long Outro", ["Sunrise Intro", "Verse 1", "Soft Chorus", "Drift", "Verse 2", "Final Chorus", "Long Outro"], ["Chillout"], "Slow open, soft payoff, long tail."],
+  ["Enigma / Ritual / Chant", "enigma-invocation", "Invocation / Verse / Lift / Chorus / Ritual Break / Final Chorus / Outro", ["Invocation", "Verse 1", "Lift", "Chorus", "Ritual Break", "Final Chorus", "Outro"], ["Mystic electronic"], "Balances chant texture with song form."],
+  ["Enigma / Ritual / Chant", "enigma-chant-intro", "Chant Intro / Verse / Chorus / Instrumental Drift / Verse / Final Chorus", ["Chant Intro", "Verse 1", "Chorus", "Instrumental Drift", "Verse 2", "Final Chorus"], ["Enigma"], "Direct ritual framing."],
+  ["Enigma / Ritual / Chant", "enigma-whisper", "Whispered Intro / Verse / Refrain / Chant Bridge / Final Refrain / Outro", ["Whispered Intro", "Verse 1", "Refrain", "Chant Bridge", "Final Refrain", "Outro"], ["Ritual"], "Subtle refrain plus chant bridge."],
+  ["Enigma / Ritual / Chant", "enigma-pulse", "Pulse Intro / Verse / Hook / Ritual Interlude / Verse / Final Hook", ["Pulse Intro", "Verse 1", "Hook", "Ritual Interlude", "Verse 2", "Final Hook"], ["Downtempo ritual"], "Pulse-forward without clutter."],
+  ["Enigma / Ritual / Chant", "enigma-sacred", "Sacred Texture / Verse / Chorus / Spoken Bridge / Layered Final Chorus", ["Sacred Texture", "Verse 1", "Chorus", "Spoken Bridge", "Layered Final Chorus"], ["Sacred-modern"], "Best for spoken and chanted contrast."],
+  ["Delerium / Ethereal Vocal", "delerium-halo", "Atmos Intro / Verse / Pre / Chorus / Ambient Break / Verse / Final Chorus / Halo Outro", ["Atmos Intro", "Verse 1", "Pre-Chorus", "Chorus", "Ambient Break", "Verse 2", "Final Chorus", "Halo Outro"], ["Ethereal vocal"], "Classic emotional lift with spacious break."],
+  ["Delerium / Ethereal Vocal", "delerium-floating", "Vocal Texture Intro / Verse / Chorus / Floating Bridge / Final Chorus", ["Vocal Texture Intro", "Verse 1", "Chorus", "Floating Bridge", "Final Chorus"], ["Ethereal pop"], "Simple and vocal-centered."],
+  ["Delerium / Ethereal Vocal", "delerium-underwater", "Underwater Intro / Verse / Lift / Chorus / Breakdown / Final Chorus", ["Underwater Intro", "Verse 1", "Lift", "Chorus", "Breakdown", "Final Chorus"], ["Ambient trance"], "Good for immersive low-light tracks."],
+  ["Delerium / Ethereal Vocal", "delerium-aria", "Aria Intro / Verse / Chorus / Sacral Bridge / Final Chorus / Long Tail Outro", ["Aria Intro", "Verse 1", "Chorus", "Sacral Bridge", "Final Chorus", "Long Tail Outro"], ["Cinematic"], "Lets the bridge feel devotional."],
+  ["Delerium / Ethereal Vocal", "delerium-breath", "Breath Intro / Verse / Refrain / Emotional Lift / Final Refrain", ["Breath Intro", "Verse 1", "Refrain", "Emotional Lift", "Final Refrain"], ["Minimal"], "Restrained form for fragile vocals."],
+  ["Experimental", "experimental-fragment", "Fragment / Verse / Fragment / Chorus / Breakdown / Final Fragment", ["Fragment", "Verse 1", "Fragment", "Chorus", "Breakdown", "Final Fragment"], ["Experimental"], "Fragmented, cinematic flow."],
+  ["Experimental", "experimental-response", "Invocation / Spoken Verse / Sung Chorus / Instrumental Response / Final Chorus", ["Invocation", "Spoken Verse", "Sung Chorus", "Instrumental Response", "Final Chorus"], ["Hybrid"], "Useful for spoken-to-sung contrast."],
+  ["Experimental", "experimental-drone", "Verse / Drone Break / Verse / Chant Hook / Outro", ["Verse 1", "Drone Break", "Verse 2", "Chant Hook", "Outro"], ["Minimal"], "Sparse and hypnotic."],
+  ["Experimental", "experimental-mantra", "Minimal Verse / Repeated Mantra / Harmonic Break / Final Mantra", ["Minimal Verse", "Repeated Mantra", "Harmonic Break", "Final Mantra"], ["Mantra"], "Built around repetition and tone."],
+  ["Experimental", "experimental-dissolve", "Abstract Intro / Cinematic Verse / Hook / Dissolve / Hook Reprise", ["Abstract Intro", "Cinematic Verse", "Hook", "Dissolve", "Hook Reprise"], ["Cinematic"], "Loose structure with a returning hook."]
+].map(([group, id, label, sections, bestFor, notes]) => ({ group, id, label, sections, bestFor, notes }));
+
+/* -------------------------------------------------------------------------
+ * Ported verbatim from the proven archive/js/data-lyric-controls.js into core/
+ * as the DNA-era home for lyric control vocabulary + structure templates.
+ * Proven language John validated empirically — reused, not rebuilt.
+ * ---------------------------------------------------------------------- */
+
+// Structure category → subgenre affinity, used to pick a default template from DNA.
+const TEMPLATE_FOR_SUBGENRE = Object.freeze({
+  'ambient-beatless-atmospheric': 'balearic-instrumental',
+  'organic-warm-downtempo':       'balearic-drift',
+  'sunlit-mediterranean':         'balearic-sunrise',
+  'lush-cinematic-chillout':      'delerium-halo',
+  'dreamy-analog-electronic':     'balearic-floating-hook',
+  'dub-space-downtempo':          'balearic-spoken',
+  'deep-nocturnal-balearic':      'delerium-underwater',
+  'moody-trip-hop-downbeat':      'balearic-spoken',
+  'balearic-house':               'commercial-post-chorus',
+  'nu-disco-slo-mo':              'commercial-lift',
+  'melodic-deep-house':           'commercial-post-chorus',
+  'lounge-house':                 'balearic-floating-hook',
+});
+
+function templateById(id) {
+  return STRUCTURE_TEMPLATES.find(t => t.id === id) || null;
+}
+
+Object.assign(window.__ATMOS, { templateById, CONTROL_OPTIONS, STRUCTURE_TEMPLATES, TEMPLATE_FOR_SUBGENRE });
+})();
+
+/* core/lyric.js */
+(function(){
+/* ==========================================================================
+ * lyric.js — Lyric Engine (P4 of the Composition Workbench). CRITICAL PATH.
+ *
+ * A DNA + CIL consumer. It asks only the residue, then either short-circuits to
+ * the [Instrumental] tag or assembles a creative brief and builds a Claude prompt
+ * for ORIGINAL lyrics. It FEEDS the proven lyric-prompt language John validated
+ * empirically (concept hierarchy, section discipline, JSON contract, repair loop),
+ * sourced from the prior prompt-lyric-builder.js — reused, not rebuilt — but wired
+ * from Musical DNA instead of the old UI state object.
+ *
+ * CONSUMER CONTRACT (enforced): the lyric engine reads ONLY the DNA fields whose
+ * consumer set includes 'lyric' — identity, influences, harmony, tempo, vocal,
+ * affect. It never reads arrangement / dynamics / production (those are style +
+ * metatag). Energy is derived from tempo (allowed), mood from CIL affect (allowed).
+ *
+ * SAFETY RULES (enforced + validated headless):
+ *   - [Instrumental] short-circuit when vocal.mode resolves 'instrumental'. That
+ *     tag is the reliable suppression mechanism; lyric GENERATION is skipped, but
+ *     the metatag engine (P5) still runs downstream — this engine just returns.
+ *   - ORIGINAL lyrics only; never reproduce/quote existing lyrics.
+ *   - NO artist names in the prompt or output. Influences are applied as GENERIC
+ *     craft traits only (renderPolicy 'never' on DNA.influences) — never "write
+ *     like <name>".
+ *   - Deterministic brief + prompt assembly (the model call is the only nondeterm-
+ *     inism, and it is dependency-injected so this module is testable offline).
+ * ========================================================================*/
+
+const {CONTROL_OPTIONS, STRUCTURE_TEMPLATES, TEMPLATE_FOR_SUBGENRE, templateById} = window.__ATMOS;
+const {DNA_CONSUMERS} = window.__ATMOS;
+
+const LYRIC_VERSION = '1.0';
+const DEFAULT_LYRIC_MODEL = 'claude-opus-4-8'; // current; configurable by the client
+
+// DNA fields this engine may read (contract). Used to keep the brief honest.
+const LYRIC_READABLE = Object.freeze(
+  Object.keys(DNA_CONSUMERS).filter(f => DNA_CONSUMERS[f].includes('lyric'))
+);
+
+// --- helpers (tempo is lyric-readable) -------------------------------------
+function bpmMid(dna) {
+  const s = dna.tempo && dna.tempo.spec;
+  if (!s) return null;
+  const m = String(s).match(/(\d{2,3})\s*[-\u2013]\s*(\d{2,3})/);
+  if (m) return (Number(m[1]) + Number(m[2])) / 2;
+  const one = String(s).match(/(\d{2,3})/);
+  return one ? Number(one[1]) : null;
+}
+function energyFromTempo(dna) {
+  const b = bpmMid(dna);
+  if (b == null) return 'Mid';
+  if (b < 90) return 'Low-mid';
+  if (b < 110) return 'Mid';
+  if (b < 122) return 'Medium-high';
+  return 'High';
+}
+// CIL abstract mood class -> proven mood vocabulary (for guidance lookup).
+const MOODCLASS_TO_MOOD = {
+  contemplative: 'Serene', ethereal: 'Mystical', warm: 'Hopeful', nocturnal: 'Mysterious',
+  brooding: 'Dark / brooding', euphoric: 'Euphoric but restrained', driving: 'Defiant',
+  hypnotic: 'Mystical', wistful: 'Yearning',
+};
+
+// --- residue: CIL residue + the lyric-specific asks, capped <=5 -------------
+function lyricResidue(dna, cil) {
+  const q = [
+    { field: 'song.subject',     priority: 1, question: 'Subject / topic of the song?', options: [], suggested: null, tier: 'unknown' },
+  ];
+  for (const r of cil.residue) {
+    const pr = r.field === 'vocal.mode' ? 2 : r.field === 'affect.moodClass' ? 3 : 6;
+    q.push({ field: r.field, priority: pr, question: r.question, options: r.options, suggested: r.suggested, tier: r.tier });
+  }
+  q.push({ field: 'song.perspective', priority: 4, question: 'Perspective / speaker?',   options: CONTROL_OPTIONS.perspective, suggested: 'First person',     tier: 'profile' });
+  q.push({ field: 'song.themeLens',   priority: 5, question: 'Interpretation lens?',      options: CONTROL_OPTIONS.themeLens,   suggested: 'Inspired by source', tier: 'profile' });
+  q.push({ field: 'song.sourceType',  priority: 7, question: 'Source type?',              options: CONTROL_OPTIONS.sourceType,  suggested: 'Original concept',   tier: 'profile' });
+  q.push({ field: 'song.languageStyle', priority: 8, question: 'Language style?',         options: CONTROL_OPTIONS.languageStyle, suggested: 'Poetic',           tier: 'profile' });
+  q.sort((a, b) => a.priority - b.priority);
+  return { all: q, default: q.slice(0, 5) };
+}
+
+// --- generic writing tendencies (NEVER names) ------------------------------
+function writingTraits(moodClass, languageStyle) {
+  const base = {
+    contemplative: ['spacious', 'restrained', 'image-led'],
+    ethereal:      ['symbolic', 'airy', 'open-vowel'],
+    warm:          ['intimate', 'sensory', 'plain-poetic'],
+    nocturnal:     ['shadowed', 'suggestive', 'sparse'],
+    brooding:      ['tense', 'symbolic', 'controlled'],
+    euphoric:      ['uplifting', 'repetitive-hook', 'bright'],
+    driving:       ['direct', 'rhythmic', 'urgent'],
+    hypnotic:      ['mantra-like', 'repetitive', 'minimal'],
+    wistful:       ['longing', 'memory-led', 'gentle'],
+  }[moodClass] || ['image-led', 'singable'];
+  return Array.from(new Set([...base, (languageStyle || 'poetic').toLowerCase()]));
+}
+
+// --- brief: merge DNA (lyric-readable only) + CIL + user answers ------------
+function assembleLyricBrief(dna, cil, answers) {
+  const a = answers || {};
+  const cilf = cil.fields || {};
+  const vocalMode = a['vocal.mode'] || (cilf['vocal.mode'] && cilf['vocal.mode'].value) || 'instrumental';
+  const moodClass = a['affect.moodClass'] || (cilf['affect.moodClass'] && cilf['affect.moodClass'].value) || null;
+  const characterId = dna.meta && dna.meta.characterId;
+
+  const template = templateById(a.templateId)
+    || templateById(TEMPLATE_FOR_SUBGENRE[characterId])
+    || STRUCTURE_TEMPLATES[0];
+
+  // influences applied as GENERIC context only — never names (renderPolicy 'never')
+  const influenceTraits = (dna.influences || [])
+    .filter(inf => inf.applied)
+    .map(inf => inf.kind); // 'composer' | 'producer' | 'remixer' — a role word, not a name
+
+  return {
+    lyricVersion: LYRIC_VERSION,
+    vocalMode,                                   // 'vocal' | 'instrumental'
+    // musical context — DNA lyric-readable fields ONLY
+    genreAnchor: dna.identity && dna.identity.genreAnchor,
+    subgenre:    dna.identity && dna.identity.subgenre,
+    keyMode:     dna.harmony && dna.harmony.keyMode,
+    tempoSpec:   dna.tempo && dna.tempo.spec,
+    energy:      energyFromTempo(dna),
+    moodClass,
+    mood:        moodClass ? (MOODCLASS_TO_MOOD[moodClass] || 'Serene') : 'Serene',
+    influenceTraits,
+    writingTraits: writingTraits(moodClass, a['song.languageStyle']),
+    // resolved user controls (with proven defaults)
+    subject:      a['song.subject'] || '',
+    sourceType:   a['song.sourceType']   || 'Original concept',
+    themeLens:    a['song.themeLens']    || 'Inspired by source',
+    perspective:  a['song.perspective']  || 'First person',
+    languageStyle:a['song.languageStyle']|| 'Poetic',
+    titleSeed:    a['song.title'] || null,
+    template,
+    deliveryClass: a['vocal.deliveryClass'] || (cilf['vocal.deliveryClass'] && cilf['vocal.deliveryClass'].value) || null,
+  };
+}
+
+// --- prompt assembly -------------------------------------------------------
+// Instrumental short-circuit or a proven original-lyric Claude prompt.
+function buildLyricPrompt(brief) {
+  if (brief.vocalMode === 'instrumental') {
+    return { instrumental: true, lyrics: '[Instrumental]', prompt: null };
+  }
+  const t = brief.template;
+  const labels = t.sections.map(s => `[${s}]`);
+  const prompt = [
+    'You are writing Suno-compatible ORIGINAL lyrics for a local music prompt tool.',
+    'Return valid JSON only. Do not wrap in markdown fences. Do not include explanations outside JSON.',
+    lyricSchema(),
+    contextBlock(brief, labels),
+    conceptRules(),
+    originalityRules(),
+    'Final lyrics rules:',
+    '- Lyrics must be mainly English unless a foreign-language layer is requested.',
+    '- Do not include translations, pronunciation guides, or explanations in final lyrics.',
+    `- Use Suno section labels exactly and in this order: ${labels.join(' ')}.`,
+    '- Place 3-5 short functional Suno metatags inside the lyrics string as local musical direction (entrance, contrast, handoff, lift, release), not scenic labels.',
+    '- Make the chorus memorable, singable, and clear.',
+    validationBlock(),
+  ].join('\n\n');
+  return { instrumental: false, lyrics: null, prompt };
+}
+
+function buildRepairPrompt(brief, initialResult) {
+  const labels = brief.template.sections.map(s => `[${s}]`);
+  return [
+    'You generated lyrics that failed validation. Rewrite only where needed; improve the score to 80+.',
+    `Validation score: ${initialResult.validation ? initialResult.validation.score : 'n/a'}`,
+    'Issues:', JSON.stringify(initialResult.validation ? initialResult.validation.issues : [], null, 2),
+    'Preserve the concept, structure, section labels, language settings, and originality rules.',
+    lyricSchema(),
+    contextBlock(brief, labels),
+    originalityRules(),
+    'Initial lyrics:', String(initialResult.lyrics || ''),
+  ].join('\n\n');
+}
+
+// batch-of-10: one brief+prompt per answers entry (caller varies subject/etc.)
+function buildLyricBatch(dna, cil, answersList) {
+  return (answersList || []).map(answers => {
+    const brief = assembleLyricBrief(dna, cil, answers);
+    return { brief, ...buildLyricPrompt(brief) };
+  });
+}
+
+// --- runtime driver (transport injected; never called in headless tests) ----
+async function runLyricEngine({ dna, cil, answers, transport, model, temperature, maxTokens, repair }) {
+  const brief = assembleLyricBrief(dna, cil, answers);
+  const built = buildLyricPrompt(brief);
+  if (built.instrumental) {
+    return { instrumental: true, title: brief.titleSeed || null, lyrics: '[Instrumental]', brief };
+  }
+  if (typeof transport !== 'function') throw new Error('runLyricEngine needs a transport(prompt)->text function.');
+  const raw = await transport({ prompt: built.prompt, model: model || DEFAULT_LYRIC_MODEL, temperature, maxTokens });
+  let result = parseLyricJSON(raw);
+  if (repair && result && result.validation && result.validation.passed === false) {
+    const raw2 = await transport({ prompt: buildRepairPrompt(brief, result), model: model || DEFAULT_LYRIC_MODEL, temperature, maxTokens });
+    result = parseLyricJSON(raw2) || result;
+  }
+  return { instrumental: false, ...result, brief };
+}
+
+function parseLyricJSON(text) {
+  if (!text) return null;
+  const clean = String(text).replace(/```json|```/g, '').trim();
+  try { return JSON.parse(clean); } catch { return null; }
+}
+
+// --- proven prompt blocks (ported from prompt-lyric-builder.js, DNA-wired) ---
+function lyricSchema() {
+  return `Required JSON schema:
+{
+  "title": "A concise song title derived from the subject/topic.",
+  "themeBrief": "1-2 paragraph internal creative brief.",
+  "lyrics": "[Section]\\n...\\n[Section]",
+  "lyricMetaTags": "Short explanation-free metatag strategy.",
+  "validation": { "score": 88, "passed": true, "summary": "...", "issues": [], "fixesApplied": [] }
+}`;
+}
+function contextBlock(brief, labels) {
+  return `Musical context (from the finished arrangement's DNA):
+Genre anchor: ${brief.genreAnchor || 'n/a'}
+Subgenre: ${brief.subgenre || 'n/a'}
+Key / mode: ${brief.keyMode || 'n/a'}
+Tempo: ${brief.tempoSpec || 'n/a'}
+Energy: ${brief.energy}
+Mood: ${brief.mood} (class: ${brief.moodClass || 'n/a'})
+Generic craft traits to honour (NOT artists): ${brief.writingTraits.join(', ')}
+
+Song controls:
+Subject/topic: ${brief.subject || 'none - create a fitting concept from the mood + genre'}
+Source type: ${brief.sourceType}
+Theme lens: ${brief.themeLens}
+Perspective: ${brief.perspective}
+Language style: ${brief.languageStyle}
+Optional title seed: ${brief.titleSeed || 'none - create a suitable title from the subject/topic'}
+Vocal delivery: ${brief.deliveryClass || 'lead-melodic'}
+Structure: ${brief.template.label}
+Required sections in order: ${labels.join(', ')}`;
+}
+function conceptRules() {
+  return `Concept hierarchy:
+- Derive the main concept from Subject/topic; if none is given, invent one that fits the mood and genre.
+- Create a suitable song title from the subject/topic; use the optional title seed only if it genuinely fits.
+- Source type must shape the emotional evidence, imagery, and narrative frame.
+- Theme lens must change the angle of interpretation, not just wording.
+- Mood must be interpreted through the specific subject, never named as a bare adjective.
+- Energy must affect lyric density, section momentum, and how fast the emotional point arrives.
+- Perspective must control who is speaking in every section.`;
+}
+function originalityRules() {
+  return `Originality and safety rules (mandatory):
+- Write 100% ORIGINAL lyrics. Never reproduce, quote, or closely paraphrase existing song lyrics.
+- Do NOT name, address, or imitate any specific artist, band, or songwriter. Apply any stylistic direction ONLY as generic craft traits (e.g. sparse, symbolic, open-vowel).
+- No real public figures' words. No copyrighted text.`;
+}
+function validationBlock() {
+  return `Validation:
+Standard validation passes at 80+. Assess concept fidelity, source-type interpretation, theme lens, perspective consistency, energy match, structure/section-label compliance, integrated Suno metatags, chorus memorability, hook clarity, singability, rhyme naturalness, cliche avoidance, originality, and absence of explanatory text.`;
+}
+
+Object.assign(window.__ATMOS, { runLyricEngine, lyricResidue, assembleLyricBrief, buildLyricPrompt, buildRepairPrompt, buildLyricBatch, parseLyricJSON, LYRIC_VERSION, DEFAULT_LYRIC_MODEL, LYRIC_READABLE });
+})();
+
 /* engines/delerium.js */
 (function(){
 // Delerium engine — album-era (Faces -> Semantic Spaces -> Karma -> Poem).
