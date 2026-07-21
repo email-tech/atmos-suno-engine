@@ -255,7 +255,7 @@ export const ATOM_POOLS_BALEARIC = {
       pads: ['analog synth pads', 'organ-stab synth', 'choir pad'],
       strings: ['synth strings', 'string-machine ensemble'],
       texture: ['drone synth', 'granular synth'],
-      motif: ['synth pluck', 'synth lead', 'Hammond organ'],
+      motif: ['synth pluck', 'synth lead', 'filtered saw lead'],
       counter: ['synth counter-line', 'Wurlitzer'],
       color: ['synth bells', 'synth marimba'],
     },

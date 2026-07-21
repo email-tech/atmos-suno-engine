@@ -1149,12 +1149,14 @@ function producer(label, congruence, atoms, negative) {
 
 const ATOM_PRODUCERS = {
 
-  // Price — a hard sidechain pump breathing the whole mix (electronic signature).
+  // Price — pumping chord stabs ducking hard on the kick (electronic signature).
+  // Sidechain expressed as an audible INSTRUMENT gesture, not the desk term
+  // "sidechain" (Suno under-renders production-desk words from text).
   producer_price: producer('Stuart Price', PROD_ELEC, {
     ov_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'signature', signature:true,
-                 instrument:'a hard sidechain pump breathing the whole mix in time with the groove' },
+                 instrument:'pumping filtered synth-chord stabs ducking hard on every kick then surging back' },
     ov_colour: { role:'colour', family:'colour', fn:'accent', priority:'support',
-                 instrument:'vocoded harmony doubles' },
+                 instrument:'vocoded vocal-harmony doubles shadowing the melody' },
     ov_arc:    { role:'arc', fn:'arc', priority:'support',
                  text:'filtering down to a long build then bursting open into the hook' },
   }),
@@ -1704,7 +1706,7 @@ const ATOM_POOLS_BALEARIC = {
       pads: ['analog synth pads', 'organ-stab synth', 'choir pad'],
       strings: ['synth strings', 'string-machine ensemble'],
       texture: ['drone synth', 'granular synth'],
-      motif: ['synth pluck', 'synth lead', 'Hammond organ'],
+      motif: ['synth pluck', 'synth lead', 'filtered saw lead'],
       counter: ['synth counter-line', 'Wurlitzer'],
       color: ['synth bells', 'synth marimba'],
     },
