@@ -26,6 +26,7 @@ const files = [
   'core/cil.js',
   'core/lyric-controls.js',
   'core/lyric.js',
+  'core/metatag.js',
   'engines/delerium.js',
   'engines/era.js',
   'engines/deepforest.js',
