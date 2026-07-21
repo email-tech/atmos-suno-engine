@@ -22,6 +22,8 @@ const files = [
   'engines/atom-pools.js',
   'engines/atom-characters.js',
   'core/dna.js',
+  'core/profiles.js',
+  'core/cil.js',
   'engines/delerium.js',
   'engines/era.js',
   'engines/deepforest.js',
