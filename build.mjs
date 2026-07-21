@@ -20,6 +20,7 @@ const files = [
   'core/atoms.js',
   'engines/atom-pools.js',
   'engines/atom-characters.js',
+  'core/dna.js',
   'engines/delerium.js',
   'engines/era.js',
   'engines/deepforest.js',
