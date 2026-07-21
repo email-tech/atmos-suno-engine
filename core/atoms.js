@@ -20,6 +20,7 @@
  * ========================================================================*/
 import { CHAR_LIMIT, ALWAYS_BAN } from './constants.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
+import { ATOM_PRODUCERS } from './atom-producers.js';
 
 function mulberry32(a){let t=(a>>>0)||1;return()=>{t+=0x6D2B79F5;let r=Math.imul(t^(t>>>15),1|t);r^=r+Math.imul(r^(r>>>7),61|r);return((r^(r>>>14))>>>0)/4294967296;};}
 const RANK = { signature:0, core:1, support:2, decorative:3 };
@@ -29,9 +30,10 @@ const RANK = { signature:0, core:1, support:2, decorative:3 };
 // congruence.engines: compatible engine sources (null = any).
 // congruence.takeover: which genre-owned families this overlay may seize.
 // signature:true -> hoists to the front; foundational:true on a bass -> displaces.
-// The Composer overlays now live atom-native in ./atom-composers.js (20 composers,
-// each a distinct signature-delta set). Producer/Remixer migrate here later.
-export const ATOM_OVERLAYS = { ...ATOM_COMPOSERS };
+// Composer overlays live atom-native in ./atom-composers.js (19 composers) and
+// Producer overlays in ./atom-producers.js (8 producers), each a distinct
+// signature-delta set. Remixer arm migrates here next.
+export const ATOM_OVERLAYS = { ...ATOM_COMPOSERS, ...ATOM_PRODUCERS };
 
 const REL = {
   foundation:    { needs:['bass','drums'], render:'locked in a soft, spacious pocket that anchors without intruding' },
@@ -181,7 +183,12 @@ export function buildAtoms(char, opts){
   let style = compose(kept, char.mastering);
   const over = style.length > CHAR_LIMIT;
   if (o.maxMode) { /* atom path is already budget-safe; Max is a legacy-only directive */ }
-  const negative = ALWAYS_BAN.join(', ') + '.';
+  // overlay-specific negatives merge in only when the overlay actually APPLIED
+  // (not refused). Engine-only + composer paths carry none, so their negative
+  // field is unchanged — ALWAYS_BAN only (parity-safe).
+  const ovDef = (o.overlayId && !overlayNote) ? ATOM_OVERLAYS[o.overlayId] : null;
+  const ovNeg = (ovDef && ovDef.negative) ? ovDef.negative : [];
+  const negative = [...ALWAYS_BAN, ...ovNeg].join(', ') + '.';
   return { style, negative, lyrics:'', length:style.length, over,
            arrangement:kept, overlayNote };
 }

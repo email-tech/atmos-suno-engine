@@ -15,6 +15,7 @@ const files = [
   'core/overlays.js',
   'core/resolver.js',
   'core/atom-composers.js',
+  'core/atom-producers.js',
   'core/atoms.js',
   'engines/atom-pools.js',
   'engines/atom-characters.js',
