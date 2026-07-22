@@ -1470,6 +1470,7 @@ Object.assign(window.__ATMOS, { genreProfile, overlayProfile, evaluateCongruence
  * ========================================================================*/
 const {CHAR_LIMIT, ALWAYS_BAN} = window.__ATMOS;
 const {evaluateCongruence} = window.__ATMOS;
+const {modifierList} = window.__ATMOS;
 const {ATOM_COMPOSERS} = window.__ATMOS;
 const {ATOM_PRODUCERS} = window.__ATMOS;
 const {ATOM_REMIXERS} = window.__ATMOS;
@@ -1655,16 +1656,19 @@ function buildAtoms(char, opts){
            arrangement:kept, overlayNote };
 }
 
-/* OVERLAY REVIEW LOCK — John, 2026-07-22: the overlay atom sets are SIGNATURE-
- * DELTA ONLY (outlier traits, no common body), which promotes an outlier to the
- * front via signature hoisting and yields quirky arrangements. Modifiers are
- * withheld from the UI until a two-tier (body + signature) set is authored and
- * signed off. Engine/validation paths are UNCHANGED so harnesses still exercise
- * overlays; this gate is UI-facing only. Set false to re-expose. */
-const OVERLAYS_REVIEW_LOCKED = true;
+/* GEN-1 RETIRED — John signed off the gen-2 two-tier modifier set on 2026-07-22.
+ * The gen-1 signature-delta overlays in ATOM_OVERLAYS are kept ONLY so the
+ * existing harnesses (validate-dna, validate-overlays) keep exercising the
+ * legacy path; they are no longer offered to the user. The UI list is now the
+ * gen-2 modifiers, each carrying its 3 cores and 3 signatures. */
+const GEN1_OVERLAYS_RETIRED = true;
 
 function atomOverlayList(){
-  if (OVERLAYS_REVIEW_LOCKED) return [];
+  return modifierList();   // gen-2: { id, label, kind, cores[], signatures[] }
+}
+
+// Explicit accessor for the retired gen-1 sets (harnesses only).
+function legacyOverlayList(){
   return Object.keys(ATOM_OVERLAYS).map(id => ({ id, label:ATOM_OVERLAYS[id].label, kind:ATOM_OVERLAYS[id].kind }));
 }
 
@@ -1673,7 +1677,7 @@ function atomCharacters(module){
     tempo: module[id].atoms.tempo ? module[id].atoms.tempo.text : '' }));
 }
 
-Object.assign(window.__ATMOS, { buildAtoms, atomOverlayList, atomCharacters, ATOM_OVERLAYS, OVERLAYS_REVIEW_LOCKED });
+Object.assign(window.__ATMOS, { buildAtoms, atomOverlayList, legacyOverlayList, atomCharacters, ATOM_OVERLAYS, GEN1_OVERLAYS_RETIRED });
 })();
 
 /* engines/atom-pools.js */
@@ -2175,6 +2179,7 @@ Object.assign(window.__ATMOS, { atomCharacterForPalette, ATOM_POOL_CHARACTERS })
  * overlay influences render generic (renderPolicy), never as names in output.
  * ========================================================================*/
 
+const {resolveModifier} = window.__ATMOS;
 const {buildAtoms, ATOM_OVERLAYS} = window.__ATMOS;
 const {atomCharacterForPalette} = window.__ATMOS;
 
@@ -2200,18 +2205,24 @@ const byFamily = (arr, family) => arr.find(a => a.family === family);
  * buildMusicalDNA(baseChar, palette, opts)
  *  - baseChar: a pool character (from ATOM_POOL_CHARACTERS) or the validated ref
  *  - palette : 'electronic' | 'acoustic'
- *  - opts    : { seed, overlayId, characterId }
+ *  - opts    : { seed, characterId, modifierId, coreId, signatureId }
+ *              modifierId/coreId/signatureId select a gen-2 two-tier modifier and
+ *              are the LIVE path. overlayId/overlayDef remain for the harnesses
+ *              and the retired gen-1 sets.
  * Returns a serializable MusicalDNA object.
  */
 function buildMusicalDNA(baseChar, palette, opts) {
   const o = opts || {};
   const seed = o.seed >>> 0;
   const char = atomCharacterForPalette(baseChar, palette);
-  const r = buildAtoms(char, { seed, overlayId: o.overlayId || null, overlayDef: o.overlayDef || null });
+  // Gen-2 two-tier modifier (live path) resolves to an overlay definition.
+  const modDef = o.modifierId ? resolveModifier(o.modifierId, o.coreId, o.signatureId) : null;
+  const useDef = modDef || o.overlayDef || null;
+  const r = buildAtoms(char, { seed, overlayId: useDef ? null : (o.overlayId || null), overlayDef: useDef });
 
   const arr = r.arrangement;
   const refused = !!r.overlayNote;
-  const overlayDef = o.overlayDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null);
+  const overlayDef = useDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null);
 
   const genreAnchor = (byRole(arr, 'genre') || {}).text || null;
   const tempoSpec   = (byRole(arr, 'tempo') || {}).text || null;
@@ -2243,7 +2254,7 @@ function buildMusicalDNA(baseChar, palette, opts) {
       label: char.label || null,
       palette,
       seed,
-      overlayId: o.overlayId || (o.overlayDef ? o.overlayDef.label : null),
+      overlayId: o.modifierId || o.overlayId || (o.overlayDef ? o.overlayDef.label : null),
       overlayApplied: !!(o.overlayId || o.overlayDef) && !refused,
       overlayCoreId: (o.overlayDef && o.overlayDef.coreId) || null,
       overlaySignatureId: (o.overlayDef && o.overlayDef.signatureId) || null,

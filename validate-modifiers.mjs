@@ -167,6 +167,35 @@ for (const entry of modifierList()) {
   if (!deadN) console.log('No dead atoms: every declared atom renders on at least one character.');
 }
 
+
+/* ---- LOCK-IN CONTRACT (John signed off the gen-2 set, 2026-07-22) ----------
+ * The live path is modifierId + coreId + signatureId through buildMusicalDNA.
+ * Asserts the UI list is gen-2 (carrying cores/signatures), that the live path
+ * produces identical output to the resolved-def path, and that an unknown
+ * core/signature degrades safely to the first of each rather than throwing. */
+{
+  const { atomOverlayList } = await import('./core/atoms.js');
+  const ui = atomOverlayList();
+  if (ui.length !== Object.keys(ATOM_MODIFIERS).length) bad(`UI list is not the gen-2 set (${ui.length})`);
+  for (const e of ui) if (!e.cores || !e.signatures) bad(`UI entry ${e.id} missing cores/signatures`);
+
+  const cid = CHARS[0];
+  for (const modId of Object.keys(ATOM_MODIFIERS)) {
+    const m = ATOM_MODIFIERS[modId];
+    const c = Object.keys(m.cores)[1], sg = Object.keys(m.signatures)[2];
+    const viaLive = buildMusicalDNA(ATOM_POOL_CHARACTERS[cid], 'electronic',
+      { seed: 404, characterId: cid, modifierId: modId, coreId: c, signatureId: sg });
+    const viaDef = buildMusicalDNA(ATOM_POOL_CHARACTERS[cid], 'electronic',
+      { seed: 404, characterId: cid, overlayDef: resolveModifier(modId, c, sg) });
+    if (viaLive.render.style !== viaDef.render.style) bad(`${modId}: live path != resolved-def path`);
+    // unknown ids must degrade, not throw
+    const viaBad = buildMusicalDNA(ATOM_POOL_CHARACTERS[cid], 'electronic',
+      { seed: 404, characterId: cid, modifierId: modId, coreId: 'nope', signatureId: 'nope' });
+    if (!viaBad || !viaBad.render.style) bad(`${modId}: unknown core/signature did not degrade safely`);
+  }
+  console.log('Lock-in contract: UI list is gen-2, live path matches, unknown ids degrade safely.');
+}
+
 if (!fail) console.log(`Two-tier modifiers: shape, slot disjointness, no collision, body-at-core, one signature, slot correctness, no-names, render — across ${n} variants.`);
 console.log(`validate-modifiers: ${n} variants, ${fail} failures.`);
 process.exit(fail ? 1 : 0);

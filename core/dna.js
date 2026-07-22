@@ -14,6 +14,7 @@
  * overlay influences render generic (renderPolicy), never as names in output.
  * ========================================================================*/
 
+import { resolveModifier } from './atom-modifiers.js';
 import { buildAtoms, ATOM_OVERLAYS } from './atoms.js';
 import { atomCharacterForPalette } from '../engines/atom-characters.js';
 
@@ -39,18 +40,24 @@ const byFamily = (arr, family) => arr.find(a => a.family === family);
  * buildMusicalDNA(baseChar, palette, opts)
  *  - baseChar: a pool character (from ATOM_POOL_CHARACTERS) or the validated ref
  *  - palette : 'electronic' | 'acoustic'
- *  - opts    : { seed, overlayId, characterId }
+ *  - opts    : { seed, characterId, modifierId, coreId, signatureId }
+ *              modifierId/coreId/signatureId select a gen-2 two-tier modifier and
+ *              are the LIVE path. overlayId/overlayDef remain for the harnesses
+ *              and the retired gen-1 sets.
  * Returns a serializable MusicalDNA object.
  */
 export function buildMusicalDNA(baseChar, palette, opts) {
   const o = opts || {};
   const seed = o.seed >>> 0;
   const char = atomCharacterForPalette(baseChar, palette);
-  const r = buildAtoms(char, { seed, overlayId: o.overlayId || null, overlayDef: o.overlayDef || null });
+  // Gen-2 two-tier modifier (live path) resolves to an overlay definition.
+  const modDef = o.modifierId ? resolveModifier(o.modifierId, o.coreId, o.signatureId) : null;
+  const useDef = modDef || o.overlayDef || null;
+  const r = buildAtoms(char, { seed, overlayId: useDef ? null : (o.overlayId || null), overlayDef: useDef });
 
   const arr = r.arrangement;
   const refused = !!r.overlayNote;
-  const overlayDef = o.overlayDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null);
+  const overlayDef = useDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null);
 
   const genreAnchor = (byRole(arr, 'genre') || {}).text || null;
   const tempoSpec   = (byRole(arr, 'tempo') || {}).text || null;
@@ -82,7 +89,7 @@ export function buildMusicalDNA(baseChar, palette, opts) {
       label: char.label || null,
       palette,
       seed,
-      overlayId: o.overlayId || (o.overlayDef ? o.overlayDef.label : null),
+      overlayId: o.modifierId || o.overlayId || (o.overlayDef ? o.overlayDef.label : null),
       overlayApplied: !!(o.overlayId || o.overlayDef) && !refused,
       overlayCoreId: (o.overlayDef && o.overlayDef.coreId) || null,
       overlaySignatureId: (o.overlayDef && o.overlayDef.signatureId) || null,

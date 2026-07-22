@@ -22,6 +22,7 @@
  * ========================================================================*/
 import { CHAR_LIMIT, ALWAYS_BAN } from './constants.js';
 import { evaluateCongruence } from './rules.js';
+import { modifierList } from './atom-modifiers.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
 import { ATOM_PRODUCERS } from './atom-producers.js';
 import { ATOM_REMIXERS } from './atom-remixers.js';
@@ -207,16 +208,19 @@ export function buildAtoms(char, opts){
            arrangement:kept, overlayNote };
 }
 
-/* OVERLAY REVIEW LOCK — John, 2026-07-22: the overlay atom sets are SIGNATURE-
- * DELTA ONLY (outlier traits, no common body), which promotes an outlier to the
- * front via signature hoisting and yields quirky arrangements. Modifiers are
- * withheld from the UI until a two-tier (body + signature) set is authored and
- * signed off. Engine/validation paths are UNCHANGED so harnesses still exercise
- * overlays; this gate is UI-facing only. Set false to re-expose. */
-export const OVERLAYS_REVIEW_LOCKED = true;
+/* GEN-1 RETIRED — John signed off the gen-2 two-tier modifier set on 2026-07-22.
+ * The gen-1 signature-delta overlays in ATOM_OVERLAYS are kept ONLY so the
+ * existing harnesses (validate-dna, validate-overlays) keep exercising the
+ * legacy path; they are no longer offered to the user. The UI list is now the
+ * gen-2 modifiers, each carrying its 3 cores and 3 signatures. */
+export const GEN1_OVERLAYS_RETIRED = true;
 
 export function atomOverlayList(){
-  if (OVERLAYS_REVIEW_LOCKED) return [];
+  return modifierList();   // gen-2: { id, label, kind, cores[], signatures[] }
+}
+
+// Explicit accessor for the retired gen-1 sets (harnesses only).
+export function legacyOverlayList(){
   return Object.keys(ATOM_OVERLAYS).map(id => ({ id, label:ATOM_OVERLAYS[id].label, kind:ATOM_OVERLAYS[id].kind }));
 }
 
