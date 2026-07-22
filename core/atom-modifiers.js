@@ -76,32 +76,32 @@ export const ATOM_MODIFIERS = {
   composer_newman: {
     label: 'Thomas Newman', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
 
     cores: {
       // C1 — the warm chamber body (Shawshank / Road to Perdition lean).
       warm_chamber: { label: 'Warm string chamber', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core',
                      instrument:'a warm mid-register string section' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core',
-                     instrument:'solo cor anglais' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core',
+                     instrument:'a warm woodwind section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft woodwind bed' },
       }},
       // C2 — the airy pastel body (American Beauty / WALL-E lean).
       airy_pastel: { label: 'Airy woodwind pastel', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core',
                      instrument:'thin transparent high strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core',
-                     instrument:'alto flute and bass clarinet' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core',
+                     instrument:'a low woodwind section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'an airy celesta and harp bed' },
       }},
       // C3 — the low sustained body (1917 / Skyfall lean).
       low_sustain: { label: 'Low sustained and muted brass', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core',
                      instrument:'sustained low strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core',
-                     instrument:'muted flugelhorn' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core',
+                     instrument:'a muted brass section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained muted-brass bed' },
       }},
     },
@@ -110,29 +110,29 @@ export const ATOM_MODIFIERS = {
       // S1 — the classic mallet ostinato. NOTE: colour, not motif (ostinato ≠ lead).
       mallet_ostinato: { label: 'Hammered-dulcimer and marimba ostinato', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
-                    instrument:'a hammered-dulcimer and marimba ostinato ticking evenly under the melody' },
+                    instrument:'a hammered-dulcimer and marimba ostinato under the melody' },
         mo_lead:  { role:'motif', family:'lead', fn:'foreground-melody', priority:'core',
                     instrument:'a sparse felt-piano motif' },
         mo_arc:   { role:'arc', fn:'arc', priority:'support',
-                    text:'the ostinato thinning away to nothing then returning alone' },
+                    text:'the ostinato drops out then returns alone' },
       }},
       // S2 — the prepared/plucked tell.
       prepared_pluck: { label: 'Prepared piano and pizzicato', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
-                    instrument:'prepared-piano shimmer over a plucked pizzicato ostinato' },
+                    instrument:'prepared-piano and plucked pizzicato ostinato' },
         mo_lead:  { role:'motif', family:'lead', fn:'foreground-melody', priority:'core',
                     instrument:'a spare tack-piano line' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support',
-                    instrument:'vibraphone and celesta sparkle held under the line' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
+                    instrument:'vibraphone and celesta under the melody' },
       }},
       // S3 — the exotic-colour tell.
       exotic_colour: { label: 'Cimbalom and exotic colour', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
-                    instrument:'a cimbalom and bowed-psaltery figure threading through the texture' },
+                    instrument:'a cimbalom and bowed-psaltery figure through the texture' },
         mo_lead:  { role:'motif', family:'lead', fn:'foreground-melody', priority:'core',
                     instrument:'a long unhurried duduk line' },
         mo_arc:   { role:'arc', fn:'arc', priority:'support',
-                    text:'the exotic colour receding as the strings take the theme over' },
+                    text:'the strings take over the theme' },
       }},
     },
   },
@@ -148,7 +148,7 @@ export const ATOM_MODIFIERS = {
   remixer_liebrand: {
     label: 'Ben Liebrand', kind: 'remixer', family: 'remixer',
     congruence: REMIX_ANY,
-    coreSlots: ['perc', 'bass', 'texture'],
+    coreSlots: ['perc', 'bass', 'texture', 'strings'],
     sigSlots:  ['colour', 'counter', 'arc'],
 
     cores: {
@@ -185,9 +185,9 @@ export const ATOM_MODIFIERS = {
       // S1 — the scratch/transformer tell.
       scratch_cut: { label: 'Scratch and transformer cuts', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
-                    instrument:'scratch-style synth stabs and transformer cut effects chopping across the beat' },
+                    instrument:'scratch-style synth stabs and transformer cut effects across the beat' },
         mo_arc:   { role:'arc', fn:'arc', priority:'support',
-                    text:'the arrangement cutting to a single stab then rebuilding' },
+                    text:'the arrangement cuts to one stab then rebuilds' },
       }},
       // S2 — the dramatic sampled fanfare tell.
       fanfare_intro: { label: 'Dramatic sampled fanfare', atoms: {
@@ -196,16 +196,16 @@ export const ATOM_MODIFIERS = {
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
                     instrument:'a stabbing synth-brass counter-line answering the hook' },
         mo_arc:   { role:'arc', fn:'arc', priority:'support',
-                    text:'a cinematic intro bed opening out into the full groove' },
+                    text:'a cinematic intro bed into the full groove' },
       }},
       // S3 — the extended re-edit tell.
       reedit_break: { label: 'Extended re-edit breakdown', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
-                    instrument:'chopped and re-triggered vocal stabs threading through the mix' },
+                    instrument:'chopped and re-triggered vocal stabs' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
                     instrument:'a filtered synth line rising through the breakdown' },
         mo_arc:   { role:'arc', fn:'arc', priority:'support',
-                    text:'extended re-edited breakdowns that chop and rebuild the arrangement' },
+                    text:'extended re-edited breakdowns' },
       }},
     },
   },
@@ -213,39 +213,39 @@ export const ATOM_MODIFIERS = {
   composer_williams: {
     label: 'John Williams', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
     cores: {
       full_tutti: { label: 'Full symphonic tutti', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a massed symphonic string section' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a horn section' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a horn section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a full brass chorale bed' },
       }},
       woodwind_adventure: { label: 'Woodwind adventure', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'bright agile upper strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'flute and clarinet runs' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'flute and clarinet runs' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm woodwind ensemble bed' },
       }},
       dark_lowbrass: { label: 'Dark low brass and choir', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'dark tremolo low strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'trombone and tuba' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'trombone and tuba' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a massed choir bed' },
       }},
     },
     signatures: {
       theme_transformed: { label: 'Theme returning transformed', atoms: {
-        mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a long-form thematic melody developed and returning transformed at the climax' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the theme breaking down then returning transformed at the peak' },
+        mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a long-form thematic melody returning transformed at the climax' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the theme returns transformed at the peak' },
       }},
       brass_fanfare: { label: 'Heroic brass fanfare', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a heroic brass fanfare figure punctuating the bars' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a heroic brass fanfare figure' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a broad noble horn melody' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a rising build into a full brass statement' },
       }},
       wonder_motif: { label: 'Celesta wonder motif', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'celesta and harp glitter tracing the harmony' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'celesta and harp over the harmony' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a delicate solo flute melody' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support', instrument:'a wordless childrens choir' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a wordless childrens choir' },
       }},
     },
   },
@@ -254,39 +254,39 @@ export const ATOM_MODIFIERS = {
   composer_zimmer: {
     label: 'Hans Zimmer', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
     cores: {
       lowbrass_hybrid: { label: 'Massed low brass and hybrid bed', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'sustained low strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a massed low-brass section' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a massed low-brass section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a hybrid synth-orchestra bed' },
       }},
       ostinato_perc: { label: 'String ostinato and percussion', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a sixteenth-note string ostinato' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'taiko and orchestral percussion' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'taiko and orchestral percussion' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained brass pad' },
       }},
       solo_cello: { label: 'Solo cello over sustained pad', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a solo cello over a sustained string bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a synth-orchestra hybrid layer' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a synth-orchestra hybrid layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep sustained synth bed' },
       }},
     },
     signatures: {
       accumulation: { label: 'Layered accumulation', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'stacked ostinato layers accumulating bar by bar' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a layered build to a huge unison then one resolving chord' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'stacked ostinato layers building bar by bar' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'builds to a unison then one resolving chord' },
       }},
       brass_swell: { label: 'Low-brass swell', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a vast low-brass swell rising under the harmony' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a low-brass swell under the harmony' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a weighty two-note brass motif' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a slow crescendo to a single sustained impact' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a slow crescendo to one sustained hit' },
       }},
       ticking_pulse: { label: 'Ticking clock pulse', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a ticking clock-like pulse figure' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a ticking clock-like pulse' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a simple rising four-note motif' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support', instrument:'a shepard-tone riser bed' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a shepard-tone riser bed' },
       }},
     },
   },
@@ -295,39 +295,39 @@ export const ATOM_MODIFIERS = {
   composer_horner: {
     label: 'James Horner', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
     cores: {
       high_lyric: { label: 'High string lyricism', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'soaring high strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'French horn' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'French horn' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm harp and celesta bed' },
       }},
       ethnic_choir: { label: 'Ethnic flute and choir', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'warm mid-register strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a solo wooden flute' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a massed wooden-flute ensemble' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wordless choir bed' },
       }},
       danger_brass: { label: 'Low brass and timpani', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'dark sustained low strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'low brass and timpani' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'low brass and timpani' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a dark sustained brass bed' },
       }},
     },
     signatures: {
       long_breath: { label: 'Soaring long-breathed melody', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a soaring long-breathed melody high in the strings' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the melody rising to a single sustained peak' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the melody rises to one sustained peak' },
       }},
       wordless_soprano: { label: 'Wordless solo soprano', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a wordless solo soprano floating above the orchestra' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a wordless solo soprano above the orchestra' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a folk-like shakuhachi melody' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support', instrument:'a distant wordless vocal layer' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a distant wordless vocal layer' },
       }},
       four_note: { label: 'Four-note danger motif', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a four-note descending brass danger motif' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a four-note descending brass motif' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'an urgent high string line' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the motif returning louder at each restatement' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the motif returns louder each time' },
       }},
     },
   },
@@ -336,40 +336,40 @@ export const ATOM_MODIFIERS = {
   composer_barry: {
     label: 'John Barry', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
     cores: {
       legato_bed: { label: 'Silky legato string bed', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'silky sustained legato strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'French horn and oboe' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'French horn and oboe' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft vibraphone and harp bed' },
       }},
       chamber_horn: { label: 'Horn and oboe chamber', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a small warm string ensemble' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'solo oboe and cor anglais' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a double-reed section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm horn section bed' },
       }},
       brass_swagger: { label: 'Brass swagger and twang', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'punchy staccato strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a muted trumpet section' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a muted trumpet section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained low brass bed' },
       }},
     },
     signatures: {
       held_back: { label: 'Dynamics reined in', atoms: {
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'signature', signature:true, instrument:'a single unbroken sustained string bed with the dynamics reined in' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'signature', signature:true, instrument:'a sustained string bed, even dynamics' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a plain unadorned melody' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the dynamics deliberately held level throughout' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'dynamics stay level throughout' },
       }},
       plain_theme: { label: 'Plain lyrical theme', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a broad lyrical melody carried on solo horn' },
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'support', instrument:'vibraphone shimmer' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'one long unhurried statement with no climax' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'one long statement, no climax' },
       }},
       brass_stabs: { label: 'Sharp brass stabs', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'sharp syncopated brass stabs punctuating the bars' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a twanging surf-guitar melody' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a taut vamp holding tension without release' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a taut vamp, no release' },
       }},
     },
   },
@@ -378,39 +378,39 @@ export const ATOM_MODIFIERS = {
   composer_goldsmith: {
     label: 'Jerry Goldsmith', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
     cores: {
       angular_brass: { label: 'Angular brass and strings', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'angular staccato strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a stabbing brass section' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a stabbing brass section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained string cluster bed' },
       }},
       orch_electronics: { label: 'Orchestra and analog electronics', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'sustained string clusters' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'an analog synth layer under the orchestra' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'an analog synth layer under the orchestra' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'an analog electronic pad bed' },
       }},
       exotic_woodwind: { label: 'Exotic percussion and woodwind', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'light transparent strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'bass flute and contrabassoon' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'bass flute and contrabassoon' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a low reed and contrabassoon bed' },
       }},
     },
     signatures: {
       asym_ostinato: { label: 'Driving asymmetric ostinato', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a driving asymmetric ostinato figure cutting across the bar' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the ostinato tightening as the layers stack' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a driving asymmetric ostinato across the bar' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the ostinato tightens as layers stack' },
       }},
       shimmer_colour: { label: 'Shimmering electronic colour', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a shimmering metallic electronic sweep' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a stark solo horn motif' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support', instrument:'a bed of bowed metal and echo' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a bed of bowed metal and echo' },
       }},
       noble_horn: { label: 'Noble horn theme', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a noble expansive melody carried by the horns' },
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'support', instrument:'log drums and exotic hand percussion' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the theme opening out into a full orchestral statement' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the theme opens into a full orchestral statement' },
       }},
     },
   },
@@ -419,39 +419,39 @@ export const ATOM_MODIFIERS = {
   composer_nyman: {
     label: 'Michael Nyman', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
     cores: {
       reed_band: { label: 'Amplified reed band', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a string quartet' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'an amplified saxophone section' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'an amplified saxophone section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a massed sustained reed bed' },
       }},
       string_piano: { label: 'String ensemble and piano', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a tight string ensemble' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a percussive piano part' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a percussive piano part' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained string ensemble bed' },
       }},
       baroque_chamber: { label: 'Harpsichord chamber', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a baroque-styled string band' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'harpsichord' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a baroque continuo section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a chamber organ bed' },
       }},
     },
     signatures: {
       ground_bass: { label: 'Baroque ground-bass figure', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a repeating baroque ground-bass figure cycling underneath' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the same cycle repeating while layers are added' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a repeating baroque ground-bass figure underneath' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the same cycle repeats, layers added' },
       }},
       quaver_drive: { label: 'Hammering quaver pulse', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a hammering quaver pulse driving every bar' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a hammering quaver pulse every bar' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a stark repeated melodic cell' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support', instrument:'massed sustained reeds' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'massed sustained reeds' },
       }},
       piano_minimal: { label: 'Minimal piano figure', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a spare repeating piano melody' },
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'support', instrument:'pizzicato string punctuation' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a single figure repeating and slowly thickening' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'one figure repeats and thickens' },
       }},
     },
   },
@@ -460,40 +460,40 @@ export const ATOM_MODIFIERS = {
   composer_morricone: {
     label: 'Ennio Morricone', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
     cores: {
       lush_choir: { label: 'Lush strings and choir', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'lush sweeping strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a wordless mixed choir' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a wordless mixed choir' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wordless mixed choir bed' },
       }},
       twang_trumpet: { label: 'Twang guitar and trumpet', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'tense tremolo strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a lone mariachi trumpet' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a lone mariachi trumpet' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained tremolo string bed' },
       }},
       chamber_reed: { label: 'Chamber woodwind', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a small chamber string group' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'oboe and bass flute' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a chamber woodwind section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft chamber woodwind bed' },
       }},
     },
     signatures: {
       whistle_motif: { label: 'Whistled ocarina melody', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a whistled ocarina line cutting through the texture' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:' a whistled ocarina line through the texture' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a plaintive twanging electric guitar line' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the whistle answering across the empty bars' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the whistle answers across the empty bars' },
       }},
       soprano_vocalise: { label: 'Soprano vocalise', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a wordless soprano vocalise soaring over the orchestra' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a wordless soprano vocalise over the orchestra' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a long aching solo string melody' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support', instrument:'a hushed sustained choir' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a hushed sustained choir' },
       }},
       jews_harp: { label: 'Jews-harp and percussion', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'jews-harp twang and hand percussion accents' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'jews-harp and hand percussion accents' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a terse solo trumpet motif' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a slow tightening vamp before a sudden full entry' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a tightening vamp then a full entry' },
       }},
     },
   },
@@ -501,39 +501,39 @@ export const ATOM_MODIFIERS = {
   composer_goransson: {
     label: 'Ludwig Goransson', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
     cores: {
       hybrid_bed: { label: 'Hybrid orchestra and synth', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'sustained hybrid strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a distorted brass layer' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a distorted brass layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a granular synth-orchestra bed' },
       }},
       tribal_low: { label: 'Tribal percussion and low strings', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'deep low strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'massed tribal drums' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'massed tribal drums' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep sustained brass bed' },
       }},
       sparse_solo: { label: 'Sparse solo and pad', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a thin high string line' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a solo processed cello' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a processed cello section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained synth bed' },
       }},
     },
     signatures: {
       talking_drum: { label: 'Talking-drum figure', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a talking-drum and shaker figure threading the pulse' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the percussion layer thickening bar by bar' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a talking-drum and shaker figure' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the percussion thickens bar by bar' },
       }},
       distorted_brass: { label: 'Distorted brass', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a distorted saturated brass blast' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a terse low horn motif' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support', instrument:'a granular processed orchestral bed' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a granular processed orchestral bed' },
       }},
       processed_chant: { label: 'Processed vocal chant', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a processed group vocal chant looped through the bars' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a looped processed group vocal chant' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a simple modal solo flute melody' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the chant building into a full-cast unison' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the chant builds into a full unison' },
       }},
     },
   },
@@ -542,39 +542,39 @@ export const ATOM_MODIFIERS = {
   composer_dudley: {
     label: 'Anne Dudley', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
     cores: {
       orch_brass: { label: 'Orchestral strings and brass', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a bright full string section' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a punchy brass section' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a punchy brass section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright sustained brass bed' },
       }},
       chamber_piano: { label: 'Chamber strings and piano', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'an intimate chamber string group' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'grand piano' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a layered piano and string bed' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft celesta and harp bed' },
       }},
       choir_orch: { label: 'Choir and orchestra', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'warm sustained strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a full mixed choir' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a full mixed choir' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a full mixed choir bed' },
       }},
     },
     signatures: {
       sampled_stabs: { label: 'Sampled orchestral stabs', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'sampled orchestral stabs punching across the beat' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the stabs cutting the arrangement into blocks' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'sampled orchestral stabs across the beat' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the stabs break the arrangement into blocks' },
       }},
       pizz_playful: { label: 'Playful pizzicato', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'playful pizzicato string figures skipping through the bars' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'playful pizzicato string figures through the bars' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a light solo oboe melody' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support', instrument:'celesta and glockenspiel sparkle' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'celesta and glockenspiel sparkle' },
       }},
       gospel_lift: { label: 'Gospel choir lift', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a gospel choir answering in block harmony' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a soulful solo saxophone melody' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a lift into a full choir-and-orchestra final chorus' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a lift into a full choir and orchestra final chorus' },
       }},
     },
   },
@@ -583,39 +583,39 @@ export const ATOM_MODIFIERS = {
   composer_lloydwebber: {
     label: 'Andrew Lloyd Webber', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
     cores: {
       theatrical: { label: 'Theatrical string orchestra', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a sweeping theatrical string orchestra' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a full brass section' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a full brass section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a massed brass and choir bed' },
       }},
       rock_hybrid: { label: 'Rock band and orchestra', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'urgent staccato strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'overdriven electric guitar' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'overdriven electric guitar' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained organ bed' },
       }},
       ballad_piano: { label: 'Ballad piano and strings', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'warm lush strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'grand piano' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a layered piano and string bed' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained string bed' },
       }},
     },
     signatures: {
       soaring_theme: { label: 'Soaring theatrical melody', atoms: {
-        mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a soaring theatrical melody built for the back of the hall' },
+        mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a soaring theatrical melody' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the melody restated a tone higher for the final chorus' },
       }},
       pipe_organ: { label: 'Dramatic pipe organ', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a dramatic pipe-organ entry filling the harmony' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a dramatic pipe-organ entry' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a bold descending melodic line' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support', instrument:'a massed choir bed' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a massed choir bed' },
       }},
       keychange_lift: { label: 'Key-change lift', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a cascading harp and string run into the lift' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a broad anthemic massed string melody' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a full key-change lift into the last chorus' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a key-change lift into the last chorus' },
       }},
     },
   },
@@ -624,39 +624,39 @@ export const ATOM_MODIFIERS = {
   composer_conti: {
     label: 'Bill Conti', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
     cores: {
       brass_strings: { label: 'Brass section and strings', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'bright punchy strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a tight brass section' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a tight brass section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained horn section bed' },
       }},
       funk_horns: { label: 'Funky rhythm and horns', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'stabbing rhythmic strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a funk horn section' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a funk horn section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm electric piano bed' },
       }},
       lyric_piano: { label: 'Lyrical strings and piano', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'warm lyrical strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'grand piano' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a layered piano and string bed' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft sustained string bed' },
       }},
     },
     signatures: {
       trumpet_fanfare: { label: 'Triumphant trumpet fanfare', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a triumphant trumpet fanfare cutting over the arrangement' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a build from a single line to a full brass statement' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a triumphant trumpet fanfare over the arrangement' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a build from one line to a full brass statement' },
       }},
       horn_riff: { label: 'Driving horn riff', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a driving syncopated horn riff repeating through the bars' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a driving syncopated horn riff' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a bold trumpet-doubled melody' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support', instrument:'sustained brass pads' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'sustained brass pads' },
       }},
       tender_piano: { label: 'Tender piano theme', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a tender unhurried melody on solo piano' },
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'support', instrument:'soft string swells answering the piano' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a slow build from solo piano to full orchestra' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a build from solo piano to full orchestra' },
       }},
     },
   },
@@ -665,34 +665,34 @@ export const ATOM_MODIFIERS = {
   composer_arnold: {
     label: 'David Arnold', kind: 'composer', family: 'orchestral',
     congruence: ORCH_ANY,
-    coreSlots: ['strings', 'counter', 'pads'],
-    sigSlots:  ['colour', 'motif', 'texture', 'arc'],
+    coreSlots: ['strings', 'texture', 'pads'],
+    sigSlots:  ['colour', 'motif', 'counter', 'arc'],
     cores: {
       big_brass: { label: 'Big brass and strings', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'wide cinematic strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a massive brass section' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a massive brass section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide sustained brass bed' },
       }},
       orch_beats: { label: 'Orchestra and electronic beats', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'urgent staccato strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'an electronic synth layer under the orchestra' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'an electronic synth layer under the orchestra' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a glossy synth pad bed' },
       }},
       sultry_sax: { label: 'Sultry sax and strings', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'smoky sustained strings' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a solo tenor saxophone' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a saxophone section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a smoky sustained string bed' },
       }},
     },
     signatures: {
       bond_stabs: { label: 'Sharp brass stabs', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'sharp syncopated brass stabs punching across the groove' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the stabs cutting in at every turnaround' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'stabs on every turnaround' },
       }},
       surf_guitar: { label: 'Twangy surf guitar', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a twanging tremolo surf guitar line' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a suave muted trumpet melody' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'support', instrument:'shimmering vibraphone and strings' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'shimmering vibraphone and strings' },
       }},
       diva_vocalise: { label: 'Diva vocalise', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a soaring wordless female vocalise over the orchestra' },
@@ -705,32 +705,32 @@ export const ATOM_MODIFIERS = {
   composer_moroder: {
     label: 'Giorgio Moroder', kind: 'composer', family: 'electronic',
     congruence: ELEC_ANY,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['bass', 'motif', 'colour', 'arc'],
     cores: {
       arp_strings: { label: 'Arpeggiated synth and strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a pulsing arpeggiated synth bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'sweeping disco strings' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'sweeping disco strings' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm analog pad bed' },
       }},
       vocoder_brass: { label: 'Vocoder pad and synth brass', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a vocoder choir pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a punchy synth-brass section' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a punchy synth-brass section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright sustained pad bed' },
       }},
       analog_filter: { label: 'Analog lead and filtered pads', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'warm filtered analog pads' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a resonant filtered synth layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a resonant filtered synth layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft resonant pad bed' },
       }},
     },
     signatures: {
       sequenced_bass: { label: 'Sequenced octave bassline', atoms: {
         mo_bass:{ role:'bass', family:'bass', fn:'foundation-weight', priority:'signature', signature:true, foundational:true, instrument:'a relentless sequenced octave synth bassline' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the sequence running unbroken while layers enter over it' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the sequence runs unbroken, layers enter over it' },
       }},
       analog_lead: { label: 'Soaring analog lead', atoms: {
-        mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a soaring analog synth lead sung out over the sequence' },
+        mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a soaring analog synth lead over the sequence' },
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'support', instrument:'bright synth-brass punctuation' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a long filter opening into a full-energy peak' },
       }},
@@ -746,39 +746,39 @@ export const ATOM_MODIFIERS = {
   composer_fidel: {
     label: 'Brad Fidel', kind: 'composer', family: 'electronic',
     congruence: ELEC_ANY,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['bass', 'motif', 'colour', 'arc'],
     cores: {
       dark_metal: { label: 'Dark pad and metallic texture', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a dark brooding synth pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a metallic struck-steel layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a metallic struck-steel layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a cold sustained synth bed' },
       }},
       low_drone: { label: 'Low drone and sparse synth', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a low sustained drone bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a sparse cold synth line' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a sparse cold synth line' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep drone pad bed' },
       }},
       choir_pad: { label: 'Synth choir and string pad', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a synthetic choir pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a cold synth string layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a cold synth string layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a synthetic choir bed' },
       }},
     },
     signatures: {
       industrial_bass: { label: 'Industrial pounding bass', atoms: {
         mo_bass:{ role:'bass', family:'bass', fn:'foundation-weight', priority:'signature', signature:true, foundational:true, instrument:'a pounding industrial synth bass ostinato' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the ostinato hammering unchanged beneath everything' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the ostinato stays unchanged underneath' },
       }},
       anvil_hits: { label: 'Metallic anvil hits', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'metallic anvil hits striking on the downbeat' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'metallic anvil hits on the downbeat' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a stark descending synth motif' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a mechanical build of stacking metallic layers' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a build of stacking metallic layers' },
       }},
       descend_motif: { label: 'Descending synth motif', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a cold descending synth melody' },
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'support', instrument:'sheet-metal scrapes and struck steel accents' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a slow menacing crescendo with no release' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a slow crescendo, no release' },
       }},
     },
   },
@@ -787,29 +787,29 @@ export const ATOM_MODIFIERS = {
   composer_dicola: {
     label: 'Vince DiCola', kind: 'composer', family: 'electronic',
     congruence: ELEC_ANY,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['bass', 'motif', 'colour', 'arc'],
     cores: {
       synth_brass: { label: 'Synth brass and gated pad', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a big gated synth pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a stacked synth-brass section' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a stacked synth-brass section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide gated synth pad' },
       }},
       rock_synth: { label: 'Rock guitar and synth', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a wide chorused synth bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'overdriven electric guitar' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'overdriven electric guitar' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a chorused synth pad bed' },
       }},
       piano_orch: { label: 'Piano and orchestral synth', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a lush orchestral synth pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a bright rock piano' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a layered piano and synth bed' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a lush orchestral synth bed' },
       }},
     },
     signatures: {
       power_riff: { label: 'Driving synth-brass riff', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a driving synth-brass power riff hammering the bar' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a relentless build with no let-up into the final chorus' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a driving synth-brass power riff' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a relentless build into the final chorus' },
       }},
       octave_drive: { label: 'Octave synth bass drive', atoms: {
         mo_bass:{ role:'bass', family:'bass', fn:'foundation-weight', priority:'signature', signature:true, foundational:true, instrument:'a driving octave synth bassline' },
@@ -828,39 +828,39 @@ export const ATOM_MODIFIERS = {
   composer_vangelis: {
     label: 'Vangelis', kind: 'composer', family: 'electronic',
     congruence: ELEC_ANY,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['bass', 'motif', 'colour', 'arc'],
     cores: {
       lush_analog: { label: 'Lush analog pad bed', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a vast lush analog pad bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a warm analog string layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a warm analog string layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep analog choir bed' },
       }},
       choir_bells: { label: 'Choir pad and bells', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a soft synthetic choir pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'tuned bells and struck metal' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'tuned bells and struck metal' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained pad bed' },
       }},
       perc_strings: { label: 'Percussive synth and strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a rhythmic percussive synth bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'sweeping synth strings' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'sweeping synth strings' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a shimmering synth bed' },
       }},
     },
     signatures: {
       cs80_lead: { label: 'Pitch-bent analog lead', atoms: {
-        mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a singing analog lead bending slowly between notes' },
+        mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a singing analog lead with slow pitch bends' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'one long unhurried melodic statement over the pad' },
       }},
       bell_arp: { label: 'Shimmering bell arpeggio', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a shimmering bell arpeggio tracing the harmony' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a shimmering bell arpeggio over the harmony' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a stately breathy analog brass melody' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a slow majestic swell to a sustained peak' },
       }},
       deep_sweep: { label: 'Deep resonant sweep', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a deep resonant filter sweep opening the space' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a deep resonant filter sweep' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a solemn hymn-like synth melody' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a slow widening swell opening the whole space' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a slow widening swell' },
       }},
     },
   },
@@ -869,29 +869,29 @@ export const ATOM_MODIFIERS = {
   composer_hammer: {
     label: 'Jan Hammer', kind: 'composer', family: 'electronic',
     congruence: ELEC_ANY,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['bass', 'motif', 'colour', 'arc'],
     cores: {
       pad_perc: { label: 'Synth pad and electronic percussion', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a wide chorused synth pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'crisp electronic percussion layers' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'crisp electronic percussion layers' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm analog pad bed' },
       }},
       rhodes_keys: { label: 'Electric keys and pad', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm analog pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a bright electric piano' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a bright electric piano' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft chorused synth bed' },
       }},
       arp_strings: { label: 'Sequenced arp and synth strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a sequenced synth arpeggio bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a synth string layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a synth string layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide sustained pad bed' },
       }},
     },
     signatures: {
       guitar_synth: { label: 'Guitar-style synth lead', atoms: {
-        mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a guitar-style synth lead bending and sustaining across the phrases' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the lead answering itself across the empty bars' },
+        mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a guitar-style synth lead with bends, sustained' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the lead answers itself across the empty bars' },
       }},
       bass_riff: { label: 'Punchy synth-bass riff', atoms: {
         mo_bass:{ role:'bass', family:'bass', fn:'foundation-weight', priority:'signature', signature:true, foundational:true, instrument:'a punchy syncopated synth-bass riff' },
@@ -899,7 +899,7 @@ export const ATOM_MODIFIERS = {
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a tight vamp opening into a full-energy chorus' },
       }},
       stab_chords: { label: 'Bright stab chords', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'bright synth stab chords punching on the offbeat' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'bright synth stab chords on the offbeat' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a fast agile synth line' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a driving build of stacking synth layers' },
       }},
@@ -910,28 +910,28 @@ export const ATOM_MODIFIERS = {
   composer_faltermeyer: {
     label: 'Harold Faltermeyer', kind: 'composer', family: 'electronic',
     congruence: ELEC_ANY,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['bass', 'motif', 'colour', 'arc'],
     cores: {
       stabs_pad: { label: 'Bright synth stabs and pad', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a bright glossy synth pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'stabbing synth chord layers' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'stabbing synth chord layers' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained synth bed' },
       }},
       brass_gated: { label: 'Synth brass and gated texture', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a big gated reverb pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a stacked synth-brass section' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a stacked synth-brass section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide gated pad bed' },
       }},
       warm_strings: { label: 'Warm pad and synth strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm analog pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'lush synth strings' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'lush synth strings' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft analog pad bed' },
       }},
     },
     signatures: {
       marimba_hook: { label: 'Plucky marimba-toned hook', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a plucky marimba-toned synth hook repeating through the bars' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a plucky marimba-toned synth hook' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the hook returning between every section' },
       }},
       octave_bass: { label: 'Octave synth bassline', atoms: {
@@ -942,7 +942,7 @@ export const ATOM_MODIFIERS = {
       anthem_guitar: { label: 'Anthemic guitar-synth lead', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'an anthemic soaring guitar-synth lead' },
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'support', instrument:'gated snare accents and bright bell stabs' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a wide-open final chorus with every layer in' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a final chorus with every layer in' },
       }},
     },
   },
@@ -950,39 +950,39 @@ export const ATOM_MODIFIERS = {
   producer_price: {
     label: 'Stuart Price', kind: 'producer', family: 'producer',
     congruence: PROD_ELEC,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['colour', 'motif', 'arc'],
     cores: {
       analog_arp: { label: 'Analog arpeggios and pads', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm analog synth pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a running analog arpeggio layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a running analog arpeggio layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a lush analog pad bed' },
       }},
       disco_strings: { label: 'Disco strings and keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a glossy synth string bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a clavinet and electric piano layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a clavinet and electric piano layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained pad bed' },
       }},
       filtered_house: { label: 'Filtered pads and stabs', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'deep filtered house pads' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a stabbing synth chord layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a stabbing synth chord layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep filtered pad bed' },
       }},
     },
     signatures: {
       sidechain_pump: { label: 'Sidechain pump', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'every sustained layer breathing hard in time with the kick' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'sustained layers pumping in time with the kick' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the pump deepening as the arrangement fills out' },
       }},
       vocal_chop: { label: 'Filtered vocal chops', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'filtered vocal chops threading the offbeats' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'filtered vocal chops on the offbeats' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a bright analog synth melody' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a long filter build into an open chorus' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a long filter build into the chorus' },
       }},
       arp_climb: { label: 'Climbing arpeggio build', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a climbing arpeggio figure rising through the section' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a climbing arpeggio figure' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a warm melodic synth lead' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a steady build stacking one layer per eight bars' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a steady build, one layer per eight bars' },
       }},
     },
   },
@@ -991,39 +991,39 @@ export const ATOM_MODIFIERS = {
   producer_terry: {
     label: 'Todd Terry', kind: 'producer', family: 'producer',
     congruence: PROD_ELEC,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['colour', 'motif', 'arc'],
     cores: {
       house_organ: { label: 'House organ and pads', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm house pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a stabbing house organ layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a stabbing house organ layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained pad bed' },
       }},
       sample_loop: { label: 'Sampled loops and keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a filtered sample-loop bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a bright electric piano layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a bright electric piano layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft filtered pad bed' },
       }},
       deep_pad: { label: 'Deep pads and strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a deep sustained pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a synth string layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a synth string layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep sustained synth bed' },
       }},
     },
     signatures: {
       chopped_stabs: { label: 'Chopped vocal stabs', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'chopped vocal stabs punching across the beat' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the stabs re-triggered harder through the breakdown' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'chopped vocal stabs across the beat' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the stabs re-trigger harder in the breakdown' },
       }},
       organ_riff: { label: 'Driving organ riff', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a driving house organ riff repeating through the bars' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a driving house organ riff' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a raw insistent synth hook' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a stripped breakdown rebuilding to full' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a stripped breakdown, rebuilds to full' },
       }},
       filter_sweep: { label: 'Raw filter sweep', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a raw resonant filter sweep tearing across the bars' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a raw resonant filter sweep across the bars' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a simple looping synth melody' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a rough cut-and-rebuild through the middle section' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a cut-and-rebuild through the middle section' },
       }},
     },
   },
@@ -1032,39 +1032,39 @@ export const ATOM_MODIFIERS = {
   producer_flood: {
     label: 'Flood', kind: 'producer', family: 'producer',
     congruence: PROD_ANY,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['colour', 'motif', 'arc'],
     cores: {
       dense_layers: { label: 'Dense atmospheric layers', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a dense layered atmospheric bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a processed guitar layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a processed guitar layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a dense treated pad bed' },
       }},
       processed_gtr: { label: 'Processed guitars', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a wall of processed guitar texture' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a distorted synth layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a distorted synth layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a saturated sustained pad bed' },
       }},
       sparse_dark: { label: 'Sparse and dark', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a sparse cold synth bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a treated piano layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a treated piano layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a cold sparse pad bed' },
       }},
     },
     signatures: {
       industrial_bed: { label: 'Industrial distortion bed', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a saturated industrial distortion bed grinding under everything' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the distortion swelling to swallow the arrangement' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a saturated distortion bed underneath' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the distortion rises over the arrangement' },
       }},
       treated_noise: { label: 'Treated textural noise', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'treated metallic noise washes moving through the stereo field' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'treated metallic noise, wide stereo' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a stark repeated melodic fragment' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a slow oppressive build with no release' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a slow build, no release' },
       }},
       space_drop: { label: 'Cavernous drop', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a cavernous reverb tail opening between the phrases' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a long reverb tail between phrases' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a fragile exposed melodic line' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'everything dropping to one voice then flooding back' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'drops to one voice then returns full' },
       }},
     },
   },
@@ -1073,37 +1073,37 @@ export const ATOM_MODIFIERS = {
   producer_saw: {
     label: 'Stock Aitken Waterman', kind: 'producer', family: 'producer',
     congruence: PROD_ANY,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['colour', 'motif', 'arc'],
     cores: {
       bright_stabs: { label: 'Bright synth stabs', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a bright glossy synth pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'stabbing synth chord hits' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'stabbing synth chord hits' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright glossy pad bed' },
       }},
       gated_pop: { label: 'Gated pop production', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a big gated reverb bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a punchy synth-brass layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a punchy synth-brass layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide gated pad bed' },
       }},
       piano_pop: { label: 'Pop piano and strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a lush synth string bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a bright pop piano' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a layered piano and synth bed' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright sustained pad bed' },
       }},
     },
     signatures: {
       hinrg_bass: { label: 'Hi-NRG octave bass', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a bouncing hi-NRG octave bass pattern driving every bar' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a relentless four-on-the-floor drive with no let-up' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a bouncing hi-NRG octave bass every bar' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a relentless four-on-the-floor drive' },
       }},
       backing_hooks: { label: 'Layered backing vocal hooks', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'stacked backing vocal hooks answering every line' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'stacked backing vocal hooks answering each line' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a bright singalong synth melody' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a key-change lift into the final chorus' },
       }},
       orch_hit: { label: 'Orchestral hit punctuation', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'sampled orchestral hits punctuating the turnarounds' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'sampled orchestral hits on the turnarounds' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a simple insistent synth hook' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a short sharp build straight into the hook' },
       }},
@@ -1114,39 +1114,39 @@ export const ATOM_MODIFIERS = {
   producer_mendelsohn: {
     label: 'Julian Mendelsohn', kind: 'producer', family: 'producer',
     congruence: PROD_ANY,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['colour', 'motif', 'arc'],
     cores: {
       polished_keys: { label: 'Polished layered keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a clean polished synth pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a layered electric piano and synth bed' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a layered electric piano and synth bed' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a clean polished pad bed' },
       }},
       wide_strings: { label: 'Wide synth strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a wide lush synth string bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a chorused guitar layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a chorused guitar layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide lush pad bed' },
       }},
       crisp_pop: { label: 'Crisp pop bed', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a crisp bright synth bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a clean rhythm guitar layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a clean rhythm guitar layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a crisp bright pad bed' },
       }},
     },
     signatures: {
       crystal_clarity: { label: 'Crystalline separation', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'every layer placed with crystalline separation across the stereo field' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the arrangement opening wider with each section' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'wide stereo separation, each layer distinct' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the arrangement widens each section' },
       }},
       wide_chorus: { label: 'Wide chorused sheen', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a wide chorused sheen spreading the upper layers' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a wide chorused sheen on the upper layers' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a clean melodic synth line' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a smooth controlled build into the chorus' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a smooth build into the chorus' },
       }},
       vocal_stack: { label: 'Polished vocal stacks', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'polished stacked harmony layers answering the lead line' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'stacked harmony layers answering the lead' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a warm singing melodic line' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a full wide-open final chorus' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a full open final chorus' },
       }},
     },
   },
@@ -1155,39 +1155,39 @@ export const ATOM_MODIFIERS = {
   producer_hague: {
     label: 'Stephen Hague', kind: 'producer', family: 'producer',
     congruence: PROD_ANY,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['colour', 'motif', 'arc'],
     cores: {
       clean_synthpop: { label: 'Clean synth-pop keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a clean restrained synth pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a precise synth keyboard layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a precise synth keyboard layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a clean restrained pad bed' },
       }},
       restrained_arr: { label: 'Restrained arrangement', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a sparse controlled synth bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a muted rhythm guitar layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a muted rhythm guitar layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sparse controlled pad bed' },
       }},
       warm_analog: { label: 'Warm analog keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm analog synth pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'an electric piano layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'an electric piano layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm analog pad bed' },
       }},
     },
     signatures: {
       precise_arp: { label: 'Precise arpeggio figure', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a precise clockwork arpeggio figure running through the bars' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'one element entering at a time with nothing crowded' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a precise clockwork arpeggio figure' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'one element enters at a time' },
       }},
       space_placement: { label: 'Deliberate space', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'deliberate space left open around every voice' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'space left around every voice' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a plain unadorned melodic line' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a restrained build that never fully saturates' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a restrained build, never saturated' },
       }},
       bell_accent: { label: 'Bell accents', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'clean bell accents marking the phrase ends' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'clean bell accents on the phrase ends' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a simple memorable synth melody' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a controlled lift into a spacious chorus' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a controlled lift into the chorus' },
       }},
     },
   },
@@ -1196,39 +1196,39 @@ export const ATOM_MODIFIERS = {
   producer_horn: {
     label: 'Trevor Horn', kind: 'producer', family: 'producer',
     congruence: PROD_ANY,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['colour', 'motif', 'arc'],
     cores: {
       sampled_orch: { label: 'Sampled orchestral layers', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a huge sampled orchestral bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a stacked synth-brass layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a stacked synth-brass layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a massed sustained brass bed' },
       }},
       layered_wall: { label: 'Layered production wall', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a vast layered production bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a massed choir layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a massed choir layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a massed choir and synth bed' },
       }},
       digital_sheen: { label: 'Digital sheen and keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a glossy digital synth bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a bright sampled keyboard layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a bright sampled keyboard layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a glossy digital pad bed' },
       }},
     },
     signatures: {
       wall_fanfare: { label: 'Wall-of-sound fanfare', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a wall-of-sound sampled fanfare filling every gap' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a vast build to a full-cast wall of sound' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a wall-of-sound sampled fanfare filling the arrangement' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a build to a full wall of sound' },
       }},
       sampled_stab: { label: 'Sampled stab punctuation', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'huge sampled stabs punctuating the arrangement' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'huge sampled stabs through the arrangement' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a bold anthemic melodic line' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a dramatic full stop then a full re-entry' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a full stop then full re-entry' },
       }},
       choir_swell: { label: 'Massed choir swell', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a massed choir swelling behind the chorus' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a massed choir behind the chorus' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a soaring theatrical melody' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'an epic layered climb to the final statement' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a layered climb to the final statement' },
       }},
     },
   },
@@ -1237,39 +1237,39 @@ export const ATOM_MODIFIERS = {
   producer_quincy: {
     label: 'Quincy Jones', kind: 'producer', family: 'producer',
     congruence: PROD_ANY,
-    coreSlots: ['texture', 'counter', 'pads'],
+    coreSlots: ['texture', 'texture', 'pads', 'strings'],
     sigSlots:  ['colour', 'motif', 'arc'],
     cores: {
       horn_funk: { label: 'Horn section and funk keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm layered keyboard bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a tight funk horn section' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a tight funk horn section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained brass bed' },
       }},
       lush_strings: { label: 'Lush strings and keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a lush sweeping string bed' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'an electric piano and clavinet layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'an electric piano and clavinet layer' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained horn bed' },
       }},
       smooth_jazz: { label: 'Smooth jazz bed', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a smooth warm synth pad' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core', instrument:'a solo tenor saxophone layer' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a saxophone section' },
         mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a smooth warm pad bed' },
       }},
     },
     signatures: {
       brass_punch: { label: 'Tight brass punches', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'tight brass punches landing hard on the offbeats' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the horns answering the hook every turnaround' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'tight brass punches on the offbeats' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the horns answer the hook every turnaround' },
       }},
       vocal_stacks: { label: 'Layered vocal stacks', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'richly stacked backing vocal harmonies answering the lead' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'stacked backing vocal harmonies answering the lead' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a soulful melodic line' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a full-cast final chorus with horns and voices together' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a final chorus with horns and voices together' },
       }},
       perc_bed: { label: 'Layered percussion bed', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'layered congas and shakers filling the groove' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'layered congas and shakers in the groove' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a smooth saxophone line' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a groove-led build with each section adding a layer' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a groove-led build, one layer per section' },
       }},
     },
   },
@@ -1278,7 +1278,7 @@ export const ATOM_MODIFIERS = {
   remixer_guetta: {
     label: 'David Guetta', kind: 'remixer', family: 'remixer',
     congruence: REMIX_ELEC,
-    coreSlots: ['perc', 'bass', 'texture'],
+    coreSlots: ['perc', 'bass', 'texture', 'strings'],
     sigSlots:  ['colour', 'counter', 'motif', 'arc'],
     cores: {
       bigroom: { label: 'Big-room dance body', atoms: {
@@ -1300,17 +1300,17 @@ export const ATOM_MODIFIERS = {
     signatures: {
       festival_lead: { label: 'Supersaw festival lead', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a massive supersaw festival lead exploding on the drop' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a long riser building to an explosive drop' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a long riser into the drop' },
       }},
       vocal_chop: { label: 'Filtered vocal chops', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'filtered vocal chops stuttering across the beat' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'filtered vocal chops across the beat' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a bright plucked synth answering the hook' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a stripped build then a full-energy drop' },
       }},
       piano_house: { label: 'Piano house lift', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'bright house piano chords stabbing on the offbeat' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a soaring synth line rising through the build' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a euphoric open lift into the final chorus' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a lift into the final chorus' },
       }},
     },
   },
@@ -1319,7 +1319,7 @@ export const ATOM_MODIFIERS = {
   remixer_harris: {
     label: 'Calvin Harris', kind: 'remixer', family: 'remixer',
     congruence: REMIX_ELEC,
-    coreSlots: ['perc', 'texture', 'pads'],
+    coreSlots: ['perc', 'texture', 'pads', 'strings'],
     sigSlots:  ['bass', 'colour', 'counter', 'arc'],
     cores: {
       funky_house: { label: 'Funky house body', atoms: {
@@ -1341,17 +1341,17 @@ export const ATOM_MODIFIERS = {
     signatures: {
       sliding_bass: { label: 'Funky sliding bassline', atoms: {
         mo_bass:{ role:'bass', family:'bass', fn:'foundation-weight', priority:'signature', signature:true, foundational:true, instrument:'a funky sliding synth bassline' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the bassline carrying the whole groove through the drop' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the bassline carries the groove through the drop' },
       }},
       pluck_hook: { label: 'Plucked synth hook', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a bright plucked synth hook repeating through the bars' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a bright plucked synth hook' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a filtered chord stab answering the hook' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a clean build into an open drop' },
       }},
       filtered_disco: { label: 'Filtered disco loop', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a filtered disco guitar loop cycling under the beat' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a filtered disco guitar loop under the beat' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a bright brass-synth stab layer' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a long filter opening into a full chorus' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a long filter opening into the chorus' },
       }},
     },
   },
@@ -1360,7 +1360,7 @@ export const ATOM_MODIFIERS = {
   remixer_nelson: {
     label: 'Oliver Nelson', kind: 'remixer', family: 'remixer',
     congruence: REMIX_ANY,
-    coreSlots: ['perc', 'bass', 'texture'],
+    coreSlots: ['perc', 'bass', 'texture', 'strings'],
     sigSlots:  ['colour', 'counter', 'motif', 'arc'],
     cores: {
       nudisco: { label: 'Nu-disco body', atoms: {
@@ -1381,8 +1381,8 @@ export const ATOM_MODIFIERS = {
     },
     signatures: {
       disco_strings: { label: 'Filtered disco strings', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'filtered disco string swells rising through the bars' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a smooth filter build into an open chorus' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'filtered disco string swells' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a smooth filter build into the chorus' },
       }},
       guitar_lick: { label: 'Funk guitar licks', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'clipped funk guitar licks answering on the offbeat' },
@@ -1392,7 +1392,7 @@ export const ATOM_MODIFIERS = {
       sunset_lead: { label: 'Sunset synth lead', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a warm singing synth lead over the groove' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a soft brass-synth stab layer' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a relaxed lift into a wide final chorus' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a lift into a wide final chorus' },
       }},
     },
   },
@@ -1401,7 +1401,7 @@ export const ATOM_MODIFIERS = {
   remixer_pettibone: {
     label: 'Shep Pettibone', kind: 'remixer', family: 'remixer',
     congruence: REMIX_ANY,
-    coreSlots: ['perc', 'bass', 'texture'],
+    coreSlots: ['perc', 'bass', 'texture', 'strings'],
     sigSlots:  ['colour', 'counter', 'motif', 'arc'],
     cores: {
       latin_perc: { label: 'Latin percussion body', atoms: {
@@ -1422,16 +1422,16 @@ export const ATOM_MODIFIERS = {
     },
     signatures: {
       echo_stabs: { label: 'Echo-drenched vocal stabs', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'looped echo-drenched vocal stabs threading the mix' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'an extended dub breakdown stripping to percussion and echo' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'looped echo-drenched vocal stabs' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'an extended dub breakdown, percussion and echo only' },
       }},
       dub_delay: { label: 'Dub delay throws', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'dub delay throws spinning off every phrase end' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'dub delay throws on every phrase end' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a filtered organ stab layer' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a long breakdown rebuilding one layer at a time' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a long breakdown, one layer at a time' },
       }},
       piano_riff: { label: 'House piano riff', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a rolling house piano riff cycling through the bars' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a rolling house piano riff' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a bright string-synth stab layer' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a percussive build into a full open chorus' },
       }},

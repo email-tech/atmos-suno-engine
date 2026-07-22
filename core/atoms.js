@@ -40,10 +40,16 @@ const RANK = { signature:0, core:1, support:2, decorative:3 };
 // distinct signature-delta set. Overlay system complete on the atom path.
 export const ATOM_OVERLAYS = { ...ATOM_COMPOSERS, ...ATOM_PRODUCERS, ...ATOM_REMIXERS };
 
+/* RELATIONSHIP LANGUAGE — John, 2026-07-22 (Suno test round 2).
+ * Rewritten from literary to FUNCTIONAL. The standing project rule that
+ * interplay language is mandatory still holds — every voice must say how it sits
+ * against the others — but it now says so in plain, unambiguous terms Suno can
+ * act on. Poetic phrasing ('swelling to meet and resolve it', 'stacking to a
+ * lush peak then receding') gave Suno nothing actionable and burned characters. */
 const REL = {
-  foundation:    { needs:['bass','drums'], render:'locked in a soft, spacious pocket that anchors without intruding' },
-  arc:           { needs:['pad'],          render:'a slow dynamic arc, layers stacking to a lush peak then receding' },
-  harmonyResolve:{ needs:['lead','harmony'],render:'the melody stating a phrase and the chords swelling to meet and resolve it' },
+  foundation:    { needs:['bass','drums'], render:'locked tight together' },
+  arc:           { needs:['pad'],          render:'builds to a peak then thins out' },
+  harmonyResolve:{ needs:['lead','harmony'],render:'chords resolve behind the melody' },
 };
 
 // ---- CONGRUENCE PRE-PASS -------------------------------------------------
@@ -123,14 +129,20 @@ function wt(at){
   return (had?art:'')+adj+' '+s;
 }
 function counterClause(c){
+  // Plain and non-duplicating: instrument, how loud, then ONE statement of how it
+  // answers the lead. The density field already carries frequency, so it replaces
+  // the generic tail rather than stacking a second 'answering' on top of it.
   const bits=[c.instrument];
-  if(c.dynamic) bits.push(c.dynamic);
   if(c.mix) bits.push(c.mix);
-  const tail = c.density ? `${c.density} in a distant call-and-response with the lead`
-                         : 'answering the lead in call-and-response';
+  // density may already read as "answering only occasionally" — fold the lead
+  // reference into it rather than appending a second 'answering'.
+  const tail = !c.density ? 'answering the lead between phrases'
+             : /answer/i.test(c.density) ? c.density.replace(/^answering/i, 'answering the lead')
+             : `${c.density}, answering the lead`;
   return `${bits.join(', ')}, ${tail}`;
 }
-function compose(held, mastering){
+function compose(held, mastering, o){
+  o=o||{};
   const fams=new Set(held.map(a=>a.family).filter(Boolean));
   const has=f=>fams.has(f);
   const A=k=>held.find(a=>a.key===k);
@@ -142,34 +154,45 @@ function compose(held, mastering){
   const sigBass=sig('bass'), sigHarm=sig('harmony');
   if(sigBass) cl.push(sigBass.instrument);
   if(sigHarm) cl.push(sigHarm.text||sigHarm.instrument);
-  // Overlay signature carriers (Lever 1): any non-bass/harmony signature voice
-  // hoists to the front and is suppressed in its normal slot below. Engine-only
-  // characters carry no signature atoms, so this loop is inert for them (parity-safe).
-  const HOIST=['lead','strings','texture','counter','colour'];
-  for(const f of HOIST){ const s=sig(f); if(s) cl.push(s.text||s.instrument); }
+  // SIGNATURE PLACEMENT — John, 2026-07-22 (Suno test round 2).
+  // Lever 1 used to hoist the signature to the FRONT. That was correct when
+  // overlays were delta-only garnish that would otherwise be inaudible. With
+  // gen-2 modifiers carrying a real body it backfired: the tell landed in the
+  // hardest-weighted position and Suno read the exotic instrument as the GENRE
+  // ("modifier instruments dominate... alter Suno's understanding of what music
+  // it is trying to produce"). The signature is now DEFERRED and emitted after
+  // the core body, below — decoration, not identity.
+  const deferredSig=[];
+  const SIG_SLOTS=['lead','strings','texture','counter','colour'];
+  for(const f of SIG_SLOTS){ const x=sig(f); if(x) deferredSig.push(x.text||x.instrument); }
 
   const bass=ownerOf('bass'), groove=A('groove');
   if(groove){
-    if(sigBass) cl.push(`${groove.instrument} locking to the sequence`);
+    if(sigBass) cl.push(`${groove.instrument} locked to the bassline`);
     else if(bass) cl.push(`${wt(bass)} and ${groove.instrument}, ${REL.foundation.render}`);
   } else if(bass && !sigBass){
     // groove-absent (beatless) character: bass still anchors, no drum pocket.
-    cl.push(`${wt(bass)} anchoring the low end, spacious and unhurried`);
+    cl.push(`${wt(bass)} holding the low end, no drums`);
   }
-  const perc=ownerOf('perc'); if(perc) cl.push(`${perc.instrument} threading the groove`);
+  const perc=ownerOf('perc'); if(perc) cl.push(`${perc.instrument} over the groove`);
 
-  const lead=ownerOf('lead'); if(lead && !lead.signature) cl.push(`${wt(lead)} carrying the melody out front`);
+  const lead=ownerOf('lead'); if(lead && !lead.signature) cl.push(`${wt(lead)} on the melody out front`);
 
   const pads=ownerOf('pad'), harm=ownerOf('harmony');
   if(pads||harm){ let h=pads?wt(pads):'';
     if(harm && !sigHarm) h=(h?`${h} moving through `:'')+ (harm.text||harm.instrument);
     if(h) cl.push(h); }
 
-  const strings=ownerOf('strings'); if(strings && !strings.signature) cl.push(`${wt(strings)} beneath the harmony`);
-  const texture=ownerOf('texture'); if(texture && !texture.signature) cl.push(`${texture.instrument} sustaining under the chords`);
+  const strings=ownerOf('strings'); if(strings && !strings.signature) cl.push(`${wt(strings)} under the melody`);
+  const texture=ownerOf('texture'); if(texture && !texture.signature) cl.push(`${texture.instrument} sustained underneath`);
 
   const counter=ownerOf('counter');
   if(counter && lead && !counter.signature) cl.push(counterClause(counter));
+
+  // LIGHT TOUCH (John-approved default): the modifier contributes its body plus
+  // ONE signature statement. Extra signature voices are dropped unless the build
+  // explicitly asks for the full-strength application.
+  if(deferredSig.length) cl.push(...(o.fullModifier ? deferredSig : deferredSig.slice(0,1)));
 
   const colour=ownerOf('colour')||ownerOf('perc-accent');
   if(colour && !colour.signature) cl.push(`${colour.instrument} in the gaps`);
@@ -195,7 +218,7 @@ export function buildAtoms(char, opts){
   const o = opts || {};
   const { held, overlayNote } = collect(char, o.seed >>> 0, o.overlayId || null, o.overlayDef || null);
   const kept = reconcile(held);
-  let style = compose(kept, char.mastering);
+  let style = compose(kept, char.mastering, o);
   const over = style.length > CHAR_LIMIT;
   if (o.maxMode) { /* atom path is already budget-safe; Max is a legacy-only directive */ }
   // overlay-specific negatives merge in only when the overlay actually APPLIED

@@ -352,6 +352,14 @@ export function buildMetatagPlan(dna, opts) {
     plan,
     leanLines: sections.map((label, i) =>
       leanTag(sectionType(label, i, total), v, dna, label, vocalMode, deliveryClass, moodClass)),
+    minimalLines: sections.map((label, i) => {
+      const t = sectionType(label, i, total);
+      if (vocalMode !== 'vocal' || isNonVocalSection(t, label)) return `[${label}]`;
+      const cue = { verse: 'intimate vocal', chorus: 'full vocal, harmonies',
+                    bridge: 'exposed vocal', prechorus: 'vocal lifts',
+                    outro: 'vocal fades' }[t];
+      return cue ? `[${label}] [${cue}]` : `[${label}]`;
+    }),
   };
 }
 
@@ -366,6 +374,13 @@ function energyMap(sections, total) {
  * instrumentals, no lyrics competing). mode 'lean' = one compact bracket per
  * section (budget-safe; default for vocal tracks that also carry lyrics). */
 export function renderMetatagBlock(built, mode) {
+  /* MINIMAL — John's Suno round 2: across T1-T4 Suno placed drums and bass by its
+   * own GENRE PROGRAMMING and ignored the per-section arrangement direction
+   * entirely. Elaborate structural tags are therefore inert: they cost lyric-box
+   * budget and buy nothing. 'minimal' emits the plain section marker plus a short
+   * vocal cue only, which is the part Suno does act on. This is now the default
+   * for vocal tracks; 'lean' and 'full' are kept for A/B. */
+  if (mode === 'minimal') return built.minimalLines.join('\n');
   if (mode === 'lean') return built.leanLines.join('\n');
   const byIdx = new Map();
   for (const item of built.plan) {
@@ -391,6 +406,6 @@ export function metatagList(built) {
  * -> 'full' (whole lyrics box free). Pass renderMode to override. */
 export function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode }) {
   const built = buildMetatagPlan(dna, { cil, answers, lyricResult });
-  const mode = renderMode || (built.vocalMode === 'vocal' ? 'lean' : 'full');
+  const mode = renderMode || (built.vocalMode === 'vocal' ? 'minimal' : 'lean');
   return { ...built, renderMode: mode, block: renderMetatagBlock(built, mode) };
 }

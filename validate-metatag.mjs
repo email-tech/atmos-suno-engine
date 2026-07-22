@@ -40,7 +40,7 @@ for (const cid of charIds) {
       for (const mode of ['instrumental', 'vocal']) {
         const answers = { 'vocal.mode': mode, 'vocal.deliveryClass': mode === 'vocal' ? 'lead-melodic' : null };
 
-        for (const rmode of ['full', 'lean']) {
+        for (const rmode of ['full', 'lean', 'minimal']) {
         const out = runMetatagEngine({ dna, cil, answers, renderMode: rmode });
         n++;
 
@@ -54,14 +54,20 @@ for (const cid of charIds) {
           bad(`block lines ${lines.length} != sections ${out.sections.length} — ${tag}/${mode}/${rmode}`);
         lines.forEach((line, i) => {
           const label = out.sections[i];
-          if (!line.startsWith(`[${label}`) || line.trim() === `[${label}]`)
-            bad(`section[${i}] '${label}' line malformed/empty — ${tag}/${mode}/${rmode}`);
+          if (!line.startsWith(`[${label}`)) bad(`section[${i}] '${label}' line malformed — ${tag}/${mode}/${rmode}`);
+          if (rmode !== 'minimal' && line.trim() === `[${label}]`)
+            bad(`section[${i}] '${label}' line empty — ${tag}/${mode}/${rmode}`);
           if (rmode === 'full') {
             const tags = line.match(/\[[^\]]+\]/g) || [];
             if (new Set(tags).size !== tags.length) bad(`duplicated tag on '${label}' line — ${tag}/${mode}`);
           }
         });
 
+        // minimal must be the shortest of the three
+        if (rmode === 'minimal') {
+          const lean = renderMetatagBlock(buildMetatagPlan(dna, { cil, answers }), 'lean');
+          if (out.block.length >= lean.length) bad(`minimal not shorter than lean — ${tag}/${mode}`);
+        }
         // lean budget — one bracket per line, and a real reduction vs full
         if (rmode === 'lean') {
           lines.forEach((line, i) => {
@@ -76,8 +82,12 @@ for (const cid of charIds) {
 
         }
 
-        // 2. mandatory interplay — a named interaction phrase is present in the block
-        if (!/lock the groove|anchors|holds the groove|call-and-response|answers |converse/.test(out.block))
+        // 2. mandatory interplay — retained in lean/full. 'minimal' deliberately
+        //    carries none: John's tests proved Suno ignores structural direction
+        //    and follows genre programming, so the interplay obligation is met by
+        //    the STYLE prompt, which is where it demonstrably works.
+        if (rmode !== 'minimal' &&
+            !/lock the groove|anchors|holds the groove|call-and-response|answers |converse/.test(out.block))
           bad(`no interplay/interaction phrase in ${rmode} block — ${tag}/${mode}`);
 
         // 3. no artist names
@@ -96,8 +106,9 @@ for (const cid of charIds) {
         if (!out.plan.some(p => p.kind === 'arrangement')) bad(`no arrangement direction — ${tag}/${mode}/${rmode}`);
         if (!out.plan.some(p => p.kind === 'interplay')) bad(`no interplay in plan — ${tag}/${mode}/${rmode}`);
 
-        // 6. verbatim genre-owned families (bass + drums), when present
-        for (const famRole of [['bass', 'bass'], ['rhythm', 'drums']]) {
+        // 6. verbatim genre-owned families (bass + drums), when present.
+        //    Not applicable to 'minimal', which names no instruments at all.
+        if (rmode !== 'minimal') for (const famRole of [['bass', 'bass'], ['rhythm', 'drums']]) {
           const voice = (dna.arrangement.find(a => a.role === famRole[0]) ||
                          dna.arrangement.find(a => a.family === famRole[1]) || {}).voice;
           if (voice && !out.block.includes(voice))
