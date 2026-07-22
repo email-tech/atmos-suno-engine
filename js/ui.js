@@ -6,6 +6,7 @@ import {
 import { syncEngineDefaults, newSeed } from './state.js';
 import { generate } from './generate.js';
 import { overlayList } from '../core/overlays.js';
+import { favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll } from '../core/favourites.js';
 
 // ---- tiny DOM helpers ------------------------------------------------------
 function el(tag, attrs = {}, kids = []) {
@@ -115,7 +116,7 @@ function renderAll() {
     const disabled = e.kind === 'stub';
     return el('button', {
       class: 'tab' + (e.id === S.engineId ? ' active' : '') + (disabled ? ' disabled' : ''),
-      onclick: () => { if (!disabled) { syncEngineDefaults(S, e.id); renderAll(); } },
+      onclick: () => { if (!disabled) { syncEngineDefaults(S, e.id); favRecalled = null; favNotice = ''; renderAll(); } },
     }, [el('span', { text: e.label }), el('span', { class: 'kind', text: e.kind === 'resolver' ? 'resolver' : e.kind === 'legacy' ? 'proven' : e.kind === 'atom' ? 'atom' : 'soon' })]);
   })));
 
@@ -131,8 +132,108 @@ function renderAll() {
   else if (eng.kind === 'legacy') renderLegacyControls(controls, eng);
   else renderStub(controls, eng);
   if (eng.kind !== 'stub' && eng.kind !== 'atom') overlayPanel(controls);
+  if (eng.kind !== 'stub') favouritesPanel(controls);
 
   refreshOutput();
+}
+
+// ---- favourites ------------------------------------------------------------
+// Save the current build (config + the literal prompt text) and recall it later.
+// Recall restores the config so the prompt can be re-rolled around, and warns if
+// the live engine no longer renders what was saved.
+let favNotice = '';
+
+function favouritesPanel(root) {
+  const box = el('div', { class: 'favourites' });
+  box.appendChild(el('h4', { text: 'Favourites' }));
+
+  if (!favStorageAvailable()) {
+    box.appendChild(el('p', { class: 'hint', text: 'Browser storage is unavailable here (this happens on file:// pages). Favourites cannot be saved in this window.' }));
+    root.appendChild(box);
+    return;
+  }
+
+  const nameInput = el('input', { type: 'text', placeholder: 'name this prompt\u2026', class: 'fav-name' });
+  const saveBtn = el('button', {
+    class: 'ghost', text: 'Save current',
+    onclick: () => {
+      const rec = favSave(nameInput.value, S, generate(S));
+      favNotice = rec ? `Saved \u201c${rec.name}\u201d` : 'Could not save \u2014 browser storage is full.';
+      renderAll();
+    },
+  });
+  box.appendChild(el('div', { class: 'fav-save' }, [nameInput, saveBtn]));
+
+  const items = favList();
+  if (!items.length) box.appendChild(el('p', { class: 'hint', text: 'No favourites saved yet.' }));
+
+  items.forEach(r => {
+    const row = el('div', { class: 'fav-row' }, [
+      el('span', { class: 'fav-label', text: r.name, title: `${r.engineId} \u00b7 ${r.savedAt.slice(0, 16).replace('T', ' ')}` }),
+      el('button', {
+        class: 'link', text: 'Load',
+        onclick: () => {
+          const res = favRecall(r.id, S, generate);
+          favNotice = res && res.drifted
+            ? `Loaded \u201c${r.name}\u201d \u2014 the engine has changed since it was saved, so the live render differs from the snapshot. The saved text is below.`
+            : `Loaded \u201c${r.name}\u201d.`;
+          favRecalled = res && res.drifted ? res.record : null;
+          renderAll();
+        },
+      }),
+      el('button', {
+        class: 'link', text: 'Copy',
+        onclick: (e) => { copy(r.snapshot.style); e.target.textContent = 'Copied'; setTimeout(() => e.target.textContent = 'Copy', 1200); },
+      }),
+      el('button', {
+        class: 'link danger', text: 'Delete',
+        onclick: () => { favRemove(r.id); favNotice = `Deleted \u201c${r.name}\u201d.`; renderAll(); },
+      }),
+    ]);
+    box.appendChild(row);
+  });
+
+  box.appendChild(el('div', { class: 'fav-io' }, [
+    el('button', {
+      class: 'link', text: 'Export all',
+      onclick: () => downloadText('atmos-favourites.json', favExportAll()),
+    }),
+    el('button', {
+      class: 'link', text: 'Import',
+      onclick: () => pickJson(txt => {
+        const r = favImportAll(txt, 'merge');
+        favNotice = r.ok ? `Imported ${r.added} favourite${r.added === 1 ? '' : 's'}.` : `Import failed: ${r.error}`;
+        renderAll();
+      }),
+    }),
+  ]));
+
+  if (favNotice) box.appendChild(el('p', { class: 'hint', text: favNotice }));
+  root.appendChild(box);
+}
+
+// Set when a recalled favourite no longer matches the live engine; the saved text
+// is then shown alongside the live output so nothing is silently lost.
+let favRecalled = null;
+
+function downloadText(filename, text) {
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = el('a', { href: url, download: filename });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function pickJson(onload) {
+  const input = el('input', { type: 'file', accept: 'application/json,.json' });
+  input.addEventListener('change', () => {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    const fr = new FileReader();
+    fr.onload = () => onload(String(fr.result || ''));
+    fr.readAsText(f);
+  });
+  input.click();
 }
 
 // ---- atom controls ---------------------------------------------------------
@@ -325,8 +426,8 @@ function buttons() {
   return el('div', { class: 'actions-wrap' }, [
     el('div', { class: 'maxmode' }, toggle('Max Mode', S.maxMode, v => { S.maxMode = v; refreshOutput(); })),
     el('div', { class: 'actions' }, [
-      el('button', { class: 'primary', text: 'Generate', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
-      el('button', { class: 'ghost', text: 'Re-roll instruments', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
+      el('button', { class: 'primary', text: 'Generate', onclick: () => { S.seed = newSeed(); favRecalled = null; refreshOutput(); } }),
+      el('button', { class: 'ghost', text: 'Re-roll instruments', onclick: () => { S.seed = newSeed(); favRecalled = null; refreshOutput(); } }),
     ]),
   ]);
 }
@@ -339,6 +440,11 @@ function refreshOutput() {
   if (eng.kind === 'stub') { host.appendChild(el('p', { class: 'note', text: 'Select a built engine to generate.' })); return; }
 
   const res = generate(S);
+  if (favRecalled) {
+    host.appendChild(outBlock('Saved snapshot \u2014 style prompt', favRecalled.snapshot.style,
+      favRecalled.snapshot.style.length, favRecalled.snapshot.style.length > 1000,
+      'Captured when this favourite was saved. The engine has changed since, so the live render below differs.'));
+  }
   host.appendChild(outBlock('Style prompt', res.style, res.length, res.over));
   if (res.overlayNote) host.appendChild(el('p', { class: 'note', text: `Overlay: ${res.overlayNote}` }));
   host.appendChild(outBlock('Negative prompt', res.negative, null, false));

@@ -65,3 +65,15 @@ select:focus,.txt:focus{outline:none;border-color:var(--accent)}
 /* modifier overlays (Composer / Producer / Remixer) */
 .overlays { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line, #2a2a2a); }
 .overlays h4 { margin: 0 0 10px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; opacity: .7; }
+
+/* ---- favourites ---------------------------------------------------------- */
+.favourites { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line, #2a2a2a); }
+.favourites h4 { margin: 0 0 10px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; opacity: .7; }
+.fav-save { display: flex; gap: 8px; margin-bottom: 10px; }
+.fav-save .fav-name { flex: 1 1 auto; min-width: 0; }
+.fav-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line, #2a2a2a); }
+.fav-row .fav-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.fav-io { display: flex; gap: 12px; margin-top: 10px; }
+button.link { background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: inherit; opacity: .75; text-decoration: underline; }
+button.link:hover { opacity: 1; }
+button.link.danger { color: #e06c6c; }

@@ -7949,6 +7949,181 @@ function buildNegativePrompt(state) {
 Object.assign(window.__ATMOS, { buildLyricsField, buildClusterPrompt, buildClusterNegative, buildStylePrompt, buildNegativePrompt });
 })();
 
+/* core/favourites.js */
+(function(){
+// Favourites — save a generated prompt and recall it later.
+//
+// A favourite stores TWO things deliberately:
+//   1. CONFIG  — engine, character/palette/preset sub-state, overlays, maxMode and
+//                the SEED. Because every path is seeded/deterministic, restoring the
+//                config regenerates the same prompt from the live engine.
+//   2. SNAPSHOT — the literal style / negative / lyrics text at save time.
+//
+// Why both: config alone is not durable. The engines are still being revised, so a
+// config saved today can render differently after a pool or compose change. The
+// snapshot is the guarantee that what John heard in Suno is recoverable verbatim;
+// the config is what lets him re-roll around it. On recall the two are compared and
+// any divergence is reported rather than silently swallowed.
+//
+// Storage is browser-local (localStorage). That is the only option for a static,
+// backend-free app — see exportAll/importAll for the durable off-machine path.
+
+const KEY = 'atmos.favourites.v1';
+const MAX_ITEMS = 500;
+
+function storage() {
+  try {
+    const s = (typeof localStorage !== 'undefined') ? localStorage : null;
+    if (!s) return null;
+    s.setItem('__atmos_probe', '1'); s.removeItem('__atmos_probe');
+    return s;
+  } catch (e) { return null; }   // file:// origin, private mode, or quota-locked
+}
+
+function favStorageAvailable() { return storage() !== null; }
+
+function readRaw() {
+  const s = storage();
+  if (!s) return [];
+  try {
+    const parsed = JSON.parse(s.getItem(KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter(isValidRecord) : [];
+  } catch (e) { return []; }
+}
+
+function writeRaw(list) {
+  const s = storage();
+  if (!s) return false;
+  try { s.setItem(KEY, JSON.stringify(list.slice(0, MAX_ITEMS))); return true; }
+  catch (e) { return false; }    // quota exceeded
+}
+
+function isValidRecord(r) {
+  return !!r && typeof r === 'object'
+    && typeof r.id === 'string'
+    && typeof r.name === 'string'
+    && !!r.config && typeof r.config === 'object'
+    && !!r.snapshot && typeof r.snapshot.style === 'string';
+}
+
+function newId() {
+  return 'fav_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+// Deep clone via JSON — the control sub-states are plain data by design.
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+// The subset of shell state that fully determines a build. Kept explicit rather
+// than cloning S wholesale so a future transient UI field can never leak in.
+function favConfigFromState(S) {
+  return {
+    engineId: S.engineId,
+    seed: S.seed,
+    maxMode: !!S.maxMode,
+    ov: clone(S.ov || {}),
+    res: S.res ? clone(S.res) : null,
+    leg: S.leg ? clone(S.leg) : null,
+    atom: S.atom ? clone(S.atom) : null,
+  };
+}
+
+// Write a config back onto the live shell state, in place.
+function favApplyConfigToState(S, config) {
+  S.engineId = config.engineId;
+  S.seed = config.seed;
+  S.maxMode = !!config.maxMode;
+  S.ov = clone(config.ov || { composer: '', producer: '', remixer: '' });
+  S.res = config.res ? clone(config.res) : null;
+  S.leg = config.leg ? clone(config.leg) : null;
+  S.atom = config.atom ? clone(config.atom) : null;
+  return S;
+}
+
+function favList() {
+  return readRaw().sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+}
+
+function favGet(id) { return readRaw().find(r => r.id === id) || null; }
+
+// out = the generate() result being saved.
+function favSave(name, S, out, now) {
+  const rec = {
+    id: newId(),
+    name: (name || '').trim() || defaultName(S),
+    savedAt: (now || new Date()).toISOString(),
+    engineId: S.engineId,
+    config: favConfigFromState(S),
+    snapshot: {
+      style: out.style || '',
+      negative: out.negative || '',
+      lyrics: out.lyrics || '',
+      metatags: out.metatags || '',
+    },
+  };
+  const next = [rec, ...readRaw().filter(r => r.id !== rec.id)];
+  return writeRaw(next) ? rec : null;
+}
+
+function favRename(id, name) {
+  const list_ = readRaw();
+  const r = list_.find(x => x.id === id);
+  if (!r) return false;
+  r.name = (name || '').trim() || r.name;
+  return writeRaw(list_);
+}
+
+function favRemove(id) {
+  const next = readRaw().filter(r => r.id !== id);
+  return writeRaw(next);
+}
+
+function favClear() { return writeRaw([]); }
+
+function defaultName(S) {
+  const bits = [S.engineId];
+  if (S.atom && S.atom.characterId) bits.push(S.atom.characterId);
+  else if (S.res && S.res.characterId) bits.push(S.res.characterId);
+  else if (S.leg) bits.push(S.leg.preset || S.leg.cluster || 'classic');
+  return bits.filter(Boolean).join(' / ');
+}
+
+// Recall: restore the config, regenerate from the live engine, and report whether
+// the live render still matches the snapshot. `regenerate` is injected so this
+// module stays free of engine imports (and testable without the shell).
+function favRecall(id, S, regenerate) {
+  const rec = favGet(id);
+  if (!rec) return null;
+  favApplyConfigToState(S, rec.config);
+  const live = regenerate ? regenerate(S) : null;
+  const drifted = !!live && live.style !== rec.snapshot.style;
+  return { record: rec, live, drifted };
+}
+
+// ---- portability -----------------------------------------------------------
+// localStorage is per-browser and per-origin, and is unavailable on some file://
+// origins. Export/import is the durable path: it survives a cache clear, a new
+// machine and the download-ZIP build.
+function favExportAll() {
+  return JSON.stringify({ kind: 'atmos-favourites', version: 1, items: readRaw() }, null, 2);
+}
+
+// mode: 'merge' (default, keeps existing) | 'replace'
+function favImportAll(json, mode) {
+  let parsed;
+  try { parsed = JSON.parse(json); } catch (e) { return { ok: false, error: 'Not valid JSON', added: 0 }; }
+  const tagged = !!parsed && parsed.kind === 'atmos-favourites';
+  const items = (tagged && Array.isArray(parsed.items)) ? parsed.items.filter(isValidRecord) : null;
+  if (!items) return { ok: false, error: 'Not an ATMOS favourites file', added: 0 };
+  const existing = (mode === 'replace') ? [] : readRaw();
+  const seen = new Set(existing.map(r => r.id));
+  const added = items.filter(r => !seen.has(r.id));
+  const ok = writeRaw([...added, ...existing]);
+  return { ok, error: ok ? null : 'Could not write to storage', added: ok ? added.length : 0 };
+}
+
+Object.assign(window.__ATMOS, { favStorageAvailable, favConfigFromState, favApplyConfigToState, favList, favGet, favSave, favRename, favRemove, favClear, favRecall, favExportAll, favImportAll });
+})();
+
 /* js/registry.js */
 (function(){
 // Engine registry (Option B): two engine KINDS live in one shell.
@@ -8282,6 +8457,7 @@ const {ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool,
 const {syncEngineDefaults, newSeed} = window.__ATMOS;
 const {generate} = window.__ATMOS;
 const {overlayList} = window.__ATMOS;
+const {favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll} = window.__ATMOS;
 
 // ---- tiny DOM helpers ------------------------------------------------------
 function el(tag, attrs = {}, kids = []) {
@@ -8391,7 +8567,7 @@ function renderAll() {
     const disabled = e.kind === 'stub';
     return el('button', {
       class: 'tab' + (e.id === S.engineId ? ' active' : '') + (disabled ? ' disabled' : ''),
-      onclick: () => { if (!disabled) { syncEngineDefaults(S, e.id); renderAll(); } },
+      onclick: () => { if (!disabled) { syncEngineDefaults(S, e.id); favRecalled = null; favNotice = ''; renderAll(); } },
     }, [el('span', { text: e.label }), el('span', { class: 'kind', text: e.kind === 'resolver' ? 'resolver' : e.kind === 'legacy' ? 'proven' : e.kind === 'atom' ? 'atom' : 'soon' })]);
   })));
 
@@ -8407,8 +8583,108 @@ function renderAll() {
   else if (eng.kind === 'legacy') renderLegacyControls(controls, eng);
   else renderStub(controls, eng);
   if (eng.kind !== 'stub' && eng.kind !== 'atom') overlayPanel(controls);
+  if (eng.kind !== 'stub') favouritesPanel(controls);
 
   refreshOutput();
+}
+
+// ---- favourites ------------------------------------------------------------
+// Save the current build (config + the literal prompt text) and recall it later.
+// Recall restores the config so the prompt can be re-rolled around, and warns if
+// the live engine no longer renders what was saved.
+let favNotice = '';
+
+function favouritesPanel(root) {
+  const box = el('div', { class: 'favourites' });
+  box.appendChild(el('h4', { text: 'Favourites' }));
+
+  if (!favStorageAvailable()) {
+    box.appendChild(el('p', { class: 'hint', text: 'Browser storage is unavailable here (this happens on file:// pages). Favourites cannot be saved in this window.' }));
+    root.appendChild(box);
+    return;
+  }
+
+  const nameInput = el('input', { type: 'text', placeholder: 'name this prompt\u2026', class: 'fav-name' });
+  const saveBtn = el('button', {
+    class: 'ghost', text: 'Save current',
+    onclick: () => {
+      const rec = favSave(nameInput.value, S, generate(S));
+      favNotice = rec ? `Saved \u201c${rec.name}\u201d` : 'Could not save \u2014 browser storage is full.';
+      renderAll();
+    },
+  });
+  box.appendChild(el('div', { class: 'fav-save' }, [nameInput, saveBtn]));
+
+  const items = favList();
+  if (!items.length) box.appendChild(el('p', { class: 'hint', text: 'No favourites saved yet.' }));
+
+  items.forEach(r => {
+    const row = el('div', { class: 'fav-row' }, [
+      el('span', { class: 'fav-label', text: r.name, title: `${r.engineId} \u00b7 ${r.savedAt.slice(0, 16).replace('T', ' ')}` }),
+      el('button', {
+        class: 'link', text: 'Load',
+        onclick: () => {
+          const res = favRecall(r.id, S, generate);
+          favNotice = res && res.drifted
+            ? `Loaded \u201c${r.name}\u201d \u2014 the engine has changed since it was saved, so the live render differs from the snapshot. The saved text is below.`
+            : `Loaded \u201c${r.name}\u201d.`;
+          favRecalled = res && res.drifted ? res.record : null;
+          renderAll();
+        },
+      }),
+      el('button', {
+        class: 'link', text: 'Copy',
+        onclick: (e) => { copy(r.snapshot.style); e.target.textContent = 'Copied'; setTimeout(() => e.target.textContent = 'Copy', 1200); },
+      }),
+      el('button', {
+        class: 'link danger', text: 'Delete',
+        onclick: () => { favRemove(r.id); favNotice = `Deleted \u201c${r.name}\u201d.`; renderAll(); },
+      }),
+    ]);
+    box.appendChild(row);
+  });
+
+  box.appendChild(el('div', { class: 'fav-io' }, [
+    el('button', {
+      class: 'link', text: 'Export all',
+      onclick: () => downloadText('atmos-favourites.json', favExportAll()),
+    }),
+    el('button', {
+      class: 'link', text: 'Import',
+      onclick: () => pickJson(txt => {
+        const r = favImportAll(txt, 'merge');
+        favNotice = r.ok ? `Imported ${r.added} favourite${r.added === 1 ? '' : 's'}.` : `Import failed: ${r.error}`;
+        renderAll();
+      }),
+    }),
+  ]));
+
+  if (favNotice) box.appendChild(el('p', { class: 'hint', text: favNotice }));
+  root.appendChild(box);
+}
+
+// Set when a recalled favourite no longer matches the live engine; the saved text
+// is then shown alongside the live output so nothing is silently lost.
+let favRecalled = null;
+
+function downloadText(filename, text) {
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = el('a', { href: url, download: filename });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function pickJson(onload) {
+  const input = el('input', { type: 'file', accept: 'application/json,.json' });
+  input.addEventListener('change', () => {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    const fr = new FileReader();
+    fr.onload = () => onload(String(fr.result || ''));
+    fr.readAsText(f);
+  });
+  input.click();
 }
 
 // ---- atom controls ---------------------------------------------------------
@@ -8601,8 +8877,8 @@ function buttons() {
   return el('div', { class: 'actions-wrap' }, [
     el('div', { class: 'maxmode' }, toggle('Max Mode', S.maxMode, v => { S.maxMode = v; refreshOutput(); })),
     el('div', { class: 'actions' }, [
-      el('button', { class: 'primary', text: 'Generate', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
-      el('button', { class: 'ghost', text: 'Re-roll instruments', onclick: () => { S.seed = newSeed(); refreshOutput(); } }),
+      el('button', { class: 'primary', text: 'Generate', onclick: () => { S.seed = newSeed(); favRecalled = null; refreshOutput(); } }),
+      el('button', { class: 'ghost', text: 'Re-roll instruments', onclick: () => { S.seed = newSeed(); favRecalled = null; refreshOutput(); } }),
     ]),
   ]);
 }
@@ -8615,6 +8891,11 @@ function refreshOutput() {
   if (eng.kind === 'stub') { host.appendChild(el('p', { class: 'note', text: 'Select a built engine to generate.' })); return; }
 
   const res = generate(S);
+  if (favRecalled) {
+    host.appendChild(outBlock('Saved snapshot \u2014 style prompt', favRecalled.snapshot.style,
+      favRecalled.snapshot.style.length, favRecalled.snapshot.style.length > 1000,
+      'Captured when this favourite was saved. The engine has changed since, so the live render below differs.'));
+  }
   host.appendChild(outBlock('Style prompt', res.style, res.length, res.over));
   if (res.overlayNote) host.appendChild(el('p', { class: 'note', text: `Overlay: ${res.overlayNote}` }));
   host.appendChild(outBlock('Negative prompt', res.negative, null, false));

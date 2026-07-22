@@ -36,6 +36,7 @@ const files = [
   'legacy/data-style-engines.js',
   'legacy/engine-extras.js',
   'legacy/prompt-style-builder.js',
+  'core/favourites.js',
   'js/registry.js',
   'js/state.js',
   'js/generate.js',
