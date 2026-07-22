@@ -73,9 +73,22 @@ function paletteAtoms(cluster, pal) {
   if (cluster.harmony && cluster.harmony.length)
     atoms.harmony = { role:'harmony', family:'harmony', register:'mid', fn:'chord-movement',
                       text: cluster.harmony.slice(), priority:'core' };
-  if (cluster.movement && cluster.movement.length)
+  if (cluster.movement && cluster.movement.length) {
+    // PALETTE-APPROPRIATE MOVEMENT — John, round 3: an ACOUSTIC ambient build
+    // (pipe organ, flute, string ensemble, French horn) was still emitting
+    // "slow granular clouds", which is a synthesis term with no acoustic
+    // meaning ("I've never seen these in an orchestra"). Electronic-only
+    // production vocabulary is suppressed on acoustic palettes; if that would
+    // empty the pool, the acoustic-safe terms are used instead.
+    const ELECTRONIC_ONLY = /granular|filter|sidechain|vocoder|bitcrush|resonan|LFO|synth/i;
+    let mv = cluster.movement.slice();
+    if (pal !== 'electronic') {
+      const safe = mv.filter(t => !ELECTRONIC_ONLY.test(t));
+      mv = safe.length ? safe : ['very long reverb tails', 'wide stereo panning'];
+    }
     atoms.movement = { role:'movement', family:'production', register:'n/a', fn:'movement',
-                       text: cluster.movement.slice(), priority:'support' };
+                       text: mv, priority:'support' };
+  }
   return atoms;
 }
 

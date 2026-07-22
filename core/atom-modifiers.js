@@ -86,7 +86,7 @@ export const ATOM_MODIFIERS = {
                      instrument:'a warm mid-register string section' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core',
                      instrument:'a warm woodwind section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft woodwind bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'sustained woodwinds' },
       }},
       // C2 — the airy pastel body (American Beauty / WALL-E lean).
       airy_pastel: { label: 'Airy woodwind pastel', atoms: {
@@ -94,7 +94,7 @@ export const ATOM_MODIFIERS = {
                      instrument:'thin transparent high strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core',
                      instrument:'a low woodwind section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'an airy celesta and harp bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'sustained celesta and harp, airy' },
       }},
       // C3 — the low sustained body (1917 / Skyfall lean).
       low_sustain: { label: 'Low sustained and muted brass', atoms: {
@@ -102,7 +102,7 @@ export const ATOM_MODIFIERS = {
                      instrument:'sustained low strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core',
                      instrument:'a muted brass section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained muted-brass bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained muted brass section' },
       }},
     },
 
@@ -110,7 +110,7 @@ export const ATOM_MODIFIERS = {
       // S1 — the classic mallet ostinato. NOTE: colour, not motif (ostinato ≠ lead).
       mallet_ostinato: { label: 'Hammered-dulcimer and marimba ostinato', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
-                    instrument:'a hammered-dulcimer and marimba ostinato under the melody' },
+                    instrument:'a hammered-dulcimer and marimba ostinato, low in the mix under the melody' },
         mo_lead:  { role:'motif', family:'lead', fn:'foreground-melody', priority:'core',
                     instrument:'a sparse felt-piano motif' },
         mo_arc:   { role:'arc', fn:'arc', priority:'support',
@@ -119,7 +119,7 @@ export const ATOM_MODIFIERS = {
       // S2 — the prepared/plucked tell.
       prepared_pluck: { label: 'Prepared piano and pizzicato', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
-                    instrument:'prepared-piano and plucked pizzicato ostinato' },
+                    instrument:'prepared-piano and plucked pizzicato ostinato, low in the mix' },
         mo_lead:  { role:'motif', family:'lead', fn:'foreground-melody', priority:'core',
                     instrument:'a spare tack-piano line' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
@@ -219,17 +219,17 @@ export const ATOM_MODIFIERS = {
       full_tutti: { label: 'Full symphonic tutti', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a massed symphonic string section' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a horn section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a full brass chorale bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained brass chorale' },
       }},
       woodwind_adventure: { label: 'Woodwind adventure', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'bright agile upper strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'flute and clarinet runs' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm woodwind ensemble bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained woodwind ensemble' },
       }},
       dark_lowbrass: { label: 'Dark low brass and choir', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'dark tremolo low strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'trombone and tuba' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a massed choir bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained massed choir' },
       }},
     },
     signatures: {
@@ -260,7 +260,7 @@ export const ATOM_MODIFIERS = {
       lowbrass_hybrid: { label: 'Massed low brass and hybrid bed', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'sustained low strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a massed low-brass section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a hybrid synth-orchestra bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a hybrid synth-orchestra pad' },
       }},
       ostinato_perc: { label: 'String ostinato and percussion', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a sixteenth-note string ostinato' },
@@ -270,7 +270,7 @@ export const ATOM_MODIFIERS = {
       solo_cello: { label: 'Solo cello over sustained pad', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a solo cello over a sustained string bed' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a synth-orchestra hybrid layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep sustained synth bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep sustained synth pad' },
       }},
     },
     signatures: {
@@ -301,7 +301,7 @@ export const ATOM_MODIFIERS = {
       high_lyric: { label: 'High string lyricism', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'soaring high strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'French horn' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm harp and celesta bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'sustained harp and celesta' },
       }},
       ethnic_choir: { label: 'Ethnic flute and choir', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'warm mid-register strings' },
@@ -311,7 +311,7 @@ export const ATOM_MODIFIERS = {
       danger_brass: { label: 'Low brass and timpani', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'dark sustained low strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'low brass and timpani' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a dark sustained brass bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained dark brass section' },
       }},
     },
     signatures: {
@@ -347,12 +347,12 @@ export const ATOM_MODIFIERS = {
       chamber_horn: { label: 'Horn and oboe chamber', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a small warm string ensemble' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a double-reed section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm horn section bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained warm horn section' },
       }},
       brass_swagger: { label: 'Brass swagger and twang', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'punchy staccato strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a muted trumpet section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained low brass bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained low brass section' },
       }},
     },
     signatures: {
@@ -384,7 +384,7 @@ export const ATOM_MODIFIERS = {
       angular_brass: { label: 'Angular brass and strings', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'angular staccato strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a stabbing brass section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained string cluster bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'sustained string clusters' },
       }},
       orch_electronics: { label: 'Orchestra and analog electronics', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'sustained string clusters' },
@@ -394,7 +394,7 @@ export const ATOM_MODIFIERS = {
       exotic_woodwind: { label: 'Exotic percussion and woodwind', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'light transparent strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'bass flute and contrabassoon' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a low reed and contrabassoon bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'sustained low reeds and contrabassoon' },
       }},
     },
     signatures: {
@@ -425,17 +425,17 @@ export const ATOM_MODIFIERS = {
       reed_band: { label: 'Amplified reed band', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a string quartet' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'an amplified saxophone section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a massed sustained reed bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'sustained massed reeds' },
       }},
       string_piano: { label: 'String ensemble and piano', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a tight string ensemble' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a percussive piano part' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained string ensemble bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained string ensemble' },
       }},
       baroque_chamber: { label: 'Harpsichord chamber', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a baroque-styled string band' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a baroque continuo section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a chamber organ bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained chamber organ' },
       }},
     },
     signatures: {
@@ -476,7 +476,7 @@ export const ATOM_MODIFIERS = {
       chamber_reed: { label: 'Chamber woodwind', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a small chamber string group' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a chamber woodwind section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft chamber woodwind bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'sustained chamber woodwinds' },
       }},
     },
     signatures: {
@@ -507,17 +507,17 @@ export const ATOM_MODIFIERS = {
       hybrid_bed: { label: 'Hybrid orchestra and synth', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'sustained hybrid strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a distorted brass layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a granular synth-orchestra bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a granular synth-orchestra pad' },
       }},
       tribal_low: { label: 'Tribal percussion and low strings', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'deep low strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'massed tribal drums' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep sustained brass bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained deep brass section' },
       }},
       sparse_solo: { label: 'Sparse solo and pad', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a thin high string line' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a processed cello section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained synth bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained synth pad' },
       }},
     },
     signatures: {
@@ -548,17 +548,17 @@ export const ATOM_MODIFIERS = {
       orch_brass: { label: 'Orchestral strings and brass', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a bright full string section' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a punchy brass section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright sustained brass bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained bright brass section' },
       }},
       chamber_piano: { label: 'Chamber strings and piano', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'an intimate chamber string group' },
-        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a layered piano and string bed' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft celesta and harp bed' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'layered piano and sustained strings' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'sustained celesta and harp' },
       }},
       choir_orch: { label: 'Choir and orchestra', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'warm sustained strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a full mixed choir' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a full mixed choir bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained mixed choir' },
       }},
     },
     signatures: {
@@ -589,17 +589,17 @@ export const ATOM_MODIFIERS = {
       theatrical: { label: 'Theatrical string orchestra', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a sweeping theatrical string orchestra' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a full brass section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a massed brass and choir bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'sustained massed brass and choir' },
       }},
       rock_hybrid: { label: 'Rock band and orchestra', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'urgent staccato strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'overdriven electric guitar' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained organ bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained organ' },
       }},
       ballad_piano: { label: 'Ballad piano and strings', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'warm lush strings' },
-        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a layered piano and string bed' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained string bed' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'layered piano and sustained strings' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained warm string section' },
       }},
     },
     signatures: {
@@ -610,7 +610,7 @@ export const ATOM_MODIFIERS = {
       pipe_organ: { label: 'Dramatic pipe organ', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a dramatic pipe-organ entry' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a bold descending melodic line' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a massed choir bed' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a sustained massed choir' },
       }},
       keychange_lift: { label: 'Key-change lift', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a cascading harp and string run into the lift' },
@@ -630,17 +630,17 @@ export const ATOM_MODIFIERS = {
       brass_strings: { label: 'Brass section and strings', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'bright punchy strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a tight brass section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained horn section bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained horn section' },
       }},
       funk_horns: { label: 'Funky rhythm and horns', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'stabbing rhythmic strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a funk horn section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm electric piano bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained electric piano' },
       }},
       lyric_piano: { label: 'Lyrical strings and piano', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'warm lyrical strings' },
-        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a layered piano and string bed' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft sustained string bed' },
+        mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'layered piano and sustained strings' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained soft string section' },
       }},
     },
     signatures: {
@@ -671,17 +671,17 @@ export const ATOM_MODIFIERS = {
       big_brass: { label: 'Big brass and strings', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'wide cinematic strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a massive brass section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide sustained brass bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained wide brass section' },
       }},
       orch_beats: { label: 'Orchestra and electronic beats', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'urgent staccato strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'an electronic synth layer under the orchestra' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a glossy synth pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a glossy synth pad' },
       }},
       sultry_sax: { label: 'Sultry sax and strings', atoms: {
         mo_strings:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'smoky sustained strings' },
         mo_body:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a saxophone section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a smoky sustained string bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained smoky string section' },
       }},
     },
     signatures: {
@@ -711,12 +711,12 @@ export const ATOM_MODIFIERS = {
       arp_strings: { label: 'Arpeggiated synth and strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a pulsing arpeggiated synth bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'sweeping disco strings' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm analog pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm analog pad' },
       }},
       vocoder_brass: { label: 'Vocoder pad and synth brass', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a vocoder choir pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a punchy synth-brass section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright sustained pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright sustained pad' },
       }},
       analog_filter: { label: 'Analog lead and filtered pads', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'warm filtered analog pads' },
@@ -752,12 +752,12 @@ export const ATOM_MODIFIERS = {
       dark_metal: { label: 'Dark pad and metallic texture', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a dark brooding synth pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a metallic struck-steel layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a cold sustained synth bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a cold sustained synth pad' },
       }},
       low_drone: { label: 'Low drone and sparse synth', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a low sustained drone bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a sparse cold synth line' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep drone pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep drone pad' },
       }},
       choir_pad: { label: 'Synth choir and string pad', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a synthetic choir pad' },
@@ -798,12 +798,12 @@ export const ATOM_MODIFIERS = {
       rock_synth: { label: 'Rock guitar and synth', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a wide chorused synth bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'overdriven electric guitar' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a chorused synth pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a chorused synth pad' },
       }},
       piano_orch: { label: 'Piano and orchestral synth', atoms: {
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a lush orchestral synth pad' },
-        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a layered piano and synth bed' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a lush orchestral synth bed' },
+        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'sustained orchestral strings' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'layered piano and sustained synth' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a lush orchestral synth pad' },
       }},
     },
     signatures: {
@@ -834,17 +834,17 @@ export const ATOM_MODIFIERS = {
       lush_analog: { label: 'Lush analog pad bed', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a vast lush analog pad bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a warm analog string layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep analog choir bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained analog choir' },
       }},
       choir_bells: { label: 'Choir pad and bells', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a soft synthetic choir pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'tuned bells and struck metal' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained pad' },
       }},
       perc_strings: { label: 'Percussive synth and strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a rhythmic percussive synth bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'sweeping synth strings' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a shimmering synth bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a shimmering synth pad' },
       }},
     },
     signatures: {
@@ -875,17 +875,17 @@ export const ATOM_MODIFIERS = {
       pad_perc: { label: 'Synth pad and electronic percussion', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a wide chorused synth pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'crisp electronic percussion layers' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm analog pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm analog pad' },
       }},
       rhodes_keys: { label: 'Electric keys and pad', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm analog pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a bright electric piano' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft chorused synth bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft chorused synth pad' },
       }},
       arp_strings: { label: 'Sequenced arp and synth strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a sequenced synth arpeggio bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a synth string layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide sustained pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide sustained pad' },
       }},
     },
     signatures: {
@@ -916,17 +916,17 @@ export const ATOM_MODIFIERS = {
       stabs_pad: { label: 'Bright synth stabs and pad', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a bright glossy synth pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'stabbing synth chord layers' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained synth bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained synth pad' },
       }},
       brass_gated: { label: 'Synth brass and gated texture', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a big gated reverb pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a stacked synth-brass section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide gated pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide gated pad' },
       }},
       warm_strings: { label: 'Warm pad and synth strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm analog pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'lush synth strings' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft analog pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft analog pad' },
       }},
     },
     signatures: {
@@ -956,17 +956,17 @@ export const ATOM_MODIFIERS = {
       analog_arp: { label: 'Analog arpeggios and pads', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm analog synth pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a running analog arpeggio layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a lush analog pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a lush analog pad' },
       }},
       disco_strings: { label: 'Disco strings and keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a glossy synth string bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a clavinet and electric piano layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained pad' },
       }},
       filtered_house: { label: 'Filtered pads and stabs', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'deep filtered house pads' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a stabbing synth chord layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep filtered pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep filtered pad' },
       }},
     },
     signatures: {
@@ -997,17 +997,17 @@ export const ATOM_MODIFIERS = {
       house_organ: { label: 'House organ and pads', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm house pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a stabbing house organ layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained pad' },
       }},
       sample_loop: { label: 'Sampled loops and keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a filtered sample-loop bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a bright electric piano layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft filtered pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a soft filtered pad' },
       }},
       deep_pad: { label: 'Deep pads and strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a deep sustained pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a synth string layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep sustained synth bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a deep sustained synth pad' },
       }},
     },
     signatures: {
@@ -1038,17 +1038,17 @@ export const ATOM_MODIFIERS = {
       dense_layers: { label: 'Dense atmospheric layers', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a dense layered atmospheric bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a processed guitar layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a dense treated pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a dense treated pad' },
       }},
       processed_gtr: { label: 'Processed guitars', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a wall of processed guitar texture' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a distorted synth layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a saturated sustained pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a saturated sustained pad' },
       }},
       sparse_dark: { label: 'Sparse and dark', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a sparse cold synth bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a treated piano layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a cold sparse pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a cold sparse pad' },
       }},
     },
     signatures: {
@@ -1079,17 +1079,17 @@ export const ATOM_MODIFIERS = {
       bright_stabs: { label: 'Bright synth stabs', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a bright glossy synth pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'stabbing synth chord hits' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright glossy pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright glossy pad' },
       }},
       gated_pop: { label: 'Gated pop production', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a big gated reverb bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a punchy synth-brass layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide gated pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide gated pad' },
       }},
       piano_pop: { label: 'Pop piano and strings', atoms: {
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a lush synth string bed' },
-        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a layered piano and synth bed' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright sustained pad bed' },
+        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a lush synth string pad' },
+        mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'layered piano and sustained synth' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright sustained pad' },
       }},
     },
     signatures: {
@@ -1120,17 +1120,17 @@ export const ATOM_MODIFIERS = {
       polished_keys: { label: 'Polished layered keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a clean polished synth pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a layered electric piano and synth bed' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a clean polished pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a clean polished pad' },
       }},
       wide_strings: { label: 'Wide synth strings', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a wide lush synth string bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a chorused guitar layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide lush pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide lush pad' },
       }},
       crisp_pop: { label: 'Crisp pop bed', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a crisp bright synth bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a clean rhythm guitar layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a crisp bright pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a crisp bright pad' },
       }},
     },
     signatures: {
@@ -1161,17 +1161,17 @@ export const ATOM_MODIFIERS = {
       clean_synthpop: { label: 'Clean synth-pop keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a clean restrained synth pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a precise synth keyboard layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a clean restrained pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a clean restrained pad' },
       }},
       restrained_arr: { label: 'Restrained arrangement', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a sparse controlled synth bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a muted rhythm guitar layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sparse controlled pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sparse controlled pad' },
       }},
       warm_analog: { label: 'Warm analog keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm analog synth pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'an electric piano layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm analog pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm analog pad' },
       }},
     },
     signatures: {
@@ -1200,19 +1200,19 @@ export const ATOM_MODIFIERS = {
     sigSlots:  ['colour', 'motif', 'arc'],
     cores: {
       sampled_orch: { label: 'Sampled orchestral layers', atoms: {
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a huge sampled orchestral bed' },
+        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a sustained sampled orchestral section' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a stacked synth-brass layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a massed sustained brass bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained massed brass section' },
       }},
       layered_wall: { label: 'Layered production wall', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a vast layered production bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a massed choir layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a massed choir and synth bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained massed choir and synth' },
       }},
       digital_sheen: { label: 'Digital sheen and keys', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a glossy digital synth bed' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a bright sampled keyboard layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a glossy digital pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a glossy digital pad' },
       }},
     },
     signatures: {
@@ -1241,19 +1241,19 @@ export const ATOM_MODIFIERS = {
     sigSlots:  ['colour', 'motif', 'arc'],
     cores: {
       horn_funk: { label: 'Horn section and funk keys', atoms: {
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm layered keyboard bed' },
+        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'sustained layered keyboards' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a tight funk horn section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained brass bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained warm brass section' },
       }},
       lush_strings: { label: 'Lush strings and keys', atoms: {
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a lush sweeping string bed' },
+        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a sustained lush string section' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'an electric piano and clavinet layer' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained horn bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a sustained warm horn section' },
       }},
       smooth_jazz: { label: 'Smooth jazz bed', atoms: {
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a smooth warm synth pad' },
         mo_body:{ role:'strings', family:'strings', fn:'sustain-under', priority:'core', instrument:'a saxophone section' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a smooth warm pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a smooth warm pad' },
       }},
     },
     signatures: {
@@ -1325,17 +1325,17 @@ export const ATOM_MODIFIERS = {
       funky_house: { label: 'Funky house body', atoms: {
         mo_perc:{ role:'perc', family:'perc', fn:'groove', priority:'core', instrument:'crisp handclap and shaker layers' },
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a warm analog synth pad' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a warm sustained pad' },
       }},
       electro_body: { label: 'Electro body', atoms: {
         mo_perc:{ role:'perc', family:'perc', fn:'groove', priority:'core', instrument:'punchy electronic percussion layers' },
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a glossy saw-chord bed' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide electro pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a wide electro pad' },
       }},
       summer_house: { label: 'Summer house body', atoms: {
         mo_perc:{ role:'perc', family:'perc', fn:'groove', priority:'core', instrument:'light tambourine and clap layers' },
         mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a bright airy synth pad' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright airy pad bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a bright airy pad' },
       }},
     },
     signatures: {
@@ -1376,7 +1376,7 @@ export const ATOM_MODIFIERS = {
       warm_house: { label: 'Warm house body', atoms: {
         mo_perc:{ role:'perc', family:'perc', fn:'groove', priority:'core', instrument:'soft brushed percussion layers' },
         mo_bass:{ role:'bass', family:'bass', fn:'foundation-weight', priority:'core', foundational:true, instrument:'a round warm synth bassline' },
-        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a soft filtered pad bed' },
+        mo_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'core', instrument:'a soft filtered pad' },
       }},
     },
     signatures: {

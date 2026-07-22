@@ -256,39 +256,61 @@ function pickTemplate(dna, answers, lyricResult) {
  * Suno reads bracketed tags best when short and placed at section changes; long
  * stacked tags dilute adherence and eat the shared 5,000-char lyrics budget. */
 function leanTag(type, v, dna, label, vocalMode, deliveryClass, moodClass) {
-  /* PIPED FORMAT — evidence-based; corrects my round-2 reasoning (John challenged
-   * it and was right). Documented Suno behaviour: metatags are structural
-   * REINFORCEMENT and do NOT override genre — they work when ALIGNED with genre
-   * and lyrics, which is why they were ignored in round 2 (the modifier had
-   * confused the genre read). Elements should be SHORT (1-3 words); PIPE
-   * separators give clearer semantic boundaries than commas; keep to 3-5
-   * elements or Suno stops ranking and averages them into mush.
-   * Round-2 tags had a valid element COUNT (3) but each element was a 9-word
-   * phrase. This emits [Section | short | short | short]. */
+  /* PIPED, AND DERIVED FROM THE ACTUAL ARRANGEMENT — John, round 3.
+   * Round-3 tags were generic templates that CONTRADICTED the style prompt: an
+   * acoustic beatless ambient track (no drums, no pad, no groove) still received
+   * "pads only", "bass and drums locked" and "steady groove". The research is
+   * explicit that tags reinforce only when ALIGNED with genre and lyrics, so a
+   * contradicting tag is worse than no tag. Every cue below is now conditional on
+   * the voice actually being present in the DNA arrangement.
+   *
+   * "PADS" TERMINOLOGY (John was right that this was wrong): the internal slot
+   * had become a generic 'sustaining bed' bucket holding brass chorales, massed
+   * choirs and woodwind beds — none of which are pads. A pad is a sustained
+   * synth/keyboard texture. The word is now only emitted when a genuine
+   * pad-family voice is present; otherwise the tag names what is actually there,
+   * or says 'sustained'.
+   * Format stays [Section | short | short | short], 3-5 elements, 1-3 words each. */
   const vocal = vocalMode === 'vocal';
   const dc = deliveryClass || 'lead-melodic';
-  const beatless = !!(dna.dynamics && dna.dynamics.beatless);
-  const atmos = /ambient|atmos|texture|breath|sunrise|underwater|drift|aria|sacred|abstract|invocation/.test(String(label).toLowerCase());
+  const hasDrums = !!v.rhythm, hasBass = !!v.bass;
+  // Interplay is mandatory in every build. With no drums/bass to name, the
+  // interaction is between the sustaining voices themselves — say that, rather
+  // than claiming a groove the arrangement does not have.
+  const groove = hasDrums && hasBass ? 'bass and drums locked'
+               : hasDrums ? 'drums steady' : hasBass ? 'bass holds' : 'layers interlock';
+  const grooveLite = hasDrums ? 'steady groove' : null;
+
+  // What actually sustains underneath? Only call it a pad if it IS one.
+  const isPad = (t) => /\bpad\b|\bpads\b/i.test(String(t || ''));
+  const bedVoice = v.pads || v.harmonyBed || v.texture || v.strings;
+  const bedWord = isPad(bedVoice) ? 'pads only'
+                : bedVoice ? 'sustained only' : null;
+
   const vVerse = dc === 'spoken/chant' ? 'spoken' : dc === 'wordless/textural' ? 'wordless vowels'
                : dc === 'choir/pad' ? 'solo over choir' : 'intimate vocal';
   const vChorus = dc === 'choir/pad' ? 'choir answers' : 'harmonies lift';
   const pipe = (...els) => `[${[label, ...els.filter(Boolean)].join(' | ')}]`;
 
+  const beatless = !!(dna.dynamics && dna.dynamics.beatless) || !hasDrums;
+  const atmos = /ambient|atmos|texture|breath|sunrise|underwater|drift|aria|sacred|abstract|invocation/.test(String(label).toLowerCase());
+
   switch (type) {
     case 'intro':
-      return (beatless || atmos) ? pipe('no drums', 'pads only', 'slow build')
-                                 : pipe('groove in', 'no lead yet');
+      return (beatless || atmos)
+        ? pipe(hasDrums ? null : 'no drums', bedWord, 'slow build')
+        : pipe('groove in', 'no lead yet');
     case 'verse':
-      return pipe('sparse', vocal ? vVerse : 'lead forward', 'steady groove');
+      return pipe('sparse', vocal ? vVerse : 'lead forward', grooveLite);
     case 'prechorus':
-      return pipe('building', 'drums fill', vocal ? 'vocal lifts' : null);
+      return pipe('building', hasDrums ? 'drums fill' : 'swell', vocal ? 'vocal lifts' : null);
     case 'chorus':
       if (/post-chorus/i.test(String(label))) return pipe('chantable', 'simpler', 'lead back');
-      return pipe('full arrangement', 'bass and drums locked', vocal ? vChorus : 'counter answers');
+      return pipe('full arrangement', groove, vocal ? vChorus : 'counter answers');
     case 'instrumental':
       return pipe('instrumental', 'lead takes theme', 'call and response');
     case 'bridge':
-      return pipe('stripped back', 'drums out', vocal ? 'exposed vocal' : 'sustained');
+      return pipe('stripped back', hasDrums ? 'drums out' : 'thinned', vocal ? 'exposed vocal' : 'sustained');
     case 'outro':
       return pipe('thinning out', 'reverb tail');
     default:

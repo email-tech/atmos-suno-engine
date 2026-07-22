@@ -91,7 +91,7 @@ for (const cid of charIds) {
         //    and follows genre programming, so the interplay obligation is met by
         //    the STYLE prompt, which is where it demonstrably works.
         if (rmode !== 'minimal' &&
-            !/lock the groove|locked|anchors|holds the groove|call and response|call-and-response|answers |converse/.test(out.block))
+            !/lock the groove|locked|anchors|holds|interlock|call and response|call-and-response|answers|converse/.test(out.block))
           bad(`no interplay/interaction phrase in ${rmode} block — ${tag}/${mode}`);
 
         // 3. no artist names
