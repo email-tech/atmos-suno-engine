@@ -219,8 +219,14 @@ function compose(held, mastering, o){
   // explicitly asks for the full-strength application.
   if(deferredSig.length) cl.push(...(o.fullModifier ? deferredSig : deferredSig.slice(0,1)));
 
+  // Phase B: decoration atoms now state their own mix placement, so the blanket
+  // 'in the gaps' suffix would double it ('low in the mix in the gaps'). Only add
+  // it when the atom has not already said where it sits.
   const colour=ownerOf('colour')||ownerOf('perc-accent');
-  if(colour && !colour.signature) cl.push(`${colour.instrument} in the gaps`);
+  if(colour && !colour.signature){
+    const placed=/\b(under|underneath|beneath|behind|below|low\b|in the gaps|between the phrases|quiet|soft|hushed|distant|faint)/i.test(colour.instrument||'');
+    cl.push(placed ? colour.instrument : `${colour.instrument} in the gaps`);
+  }
   const movement=A('movement'); if(movement) cl.push(movement.text);
 
   // Find the overlay's arc by SOURCE+FN, not by a literal key: the two-tier

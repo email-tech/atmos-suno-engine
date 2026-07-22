@@ -267,6 +267,59 @@ for (const entry of modifierList()) {
   if (!fail) console.log(`Bed layer: functional pad test, one bed per core, no stacking, behaviour rendered — ${BED_IDS.length} beds, ${checked} applied builds.`);
 }
 
+/* ---- PHASE B: SIGNATURE = SUBTLE SOLO DECORATION ----------------------------
+ * John's model: 'their signature or fingerprint would then be the SUBTLE USE OF
+ * SOLO INSTRUMENTS either as decoration, harmony or melody.' What was built was
+ * the opposite — prominent ostinatos, stabs, fanfares and hits — and that is a
+ * direct cause of the round-2/round-3 finding that modifiers hijack the genre.
+ *
+ * COMPOSERS are held to the solo rule. PRODUCERS and REMIXERS are not: their
+ * fingerprint genuinely IS a production gesture, not a solo instrument, and
+ * John's statement was explicitly about composers. Both are held to the
+ * subtlety rules below. */
+{
+  // Words that make a voice dominate rather than decorate.
+  const DOMINANT = /\b(massive|huge|wall-of-sound|exploding|hammering|punching|filling|relentless|blasting|pounding|triumphant|heroic|dramatic)\b/i;
+  // A decorating voice must say where it sits.
+  const PLACED = /\b(under|underneath|beneath|behind|below|low\b|in the gaps|between the phrases|quiet|quietly|soft|softly|hushed|distant|faint)/i;
+
+  let solos = 0, decor = 0;
+  for (const [modId, m] of Object.entries(ATOM_MODIFIERS)) {
+    for (const [sigId, set] of Object.entries(m.signatures)) {
+      const atoms = Object.entries(set.atoms);
+      const sig = atoms.find(([, a]) => a.signature);
+      if (!sig) { bad(`${modId}/${sigId}: no signature atom`); continue; }
+      const sigText = sig[1].instrument || sig[1].text || '';
+
+      // COMPOSERS: the fingerprint must be a SOLO voice.
+      if (m.kind === 'composer') {
+        const isSolo = /\b(solo|solo-|lone|single|wordless solo|whistled solo)\b/i.test(sigText) ||
+                       /\bbassline\b/i.test(sigText);   // an electronic composer's sequenced bass IS one voice
+        if (!isSolo) bad(`${modId}/${sigId}: composer signature "${sigText.slice(0, 44)}" is not a solo voice`);
+        else solos++;
+      }
+
+      // Nothing in a signature set may use dominance language.
+      for (const [k, a] of atoms) {
+        const t = a.instrument || a.text || '';
+        if (DOMINANT.test(t)) bad(`${modId}/${sigId}/${k}: dominance language "${t.match(DOMINANT)[0]}"`);
+      }
+
+      // Every DECORATING instrument atom (colour/counter — not the signature, not
+      // the arc, not the lead) must state its placement, so it decorates instead
+      // of competing with the melody.
+      for (const [k, a] of atoms) {
+        if (a.signature || !a.instrument) continue;
+        if (a.role !== 'colour' && a.role !== 'counter') continue;
+        if (!PLACED.test(a.instrument))
+          bad(`${modId}/${sigId}/${k}: decoration "${a.instrument.slice(0, 44)}" states no mix placement`);
+        else decor++;
+      }
+    }
+  }
+  if (!fail) console.log(`Signature layer: composer fingerprints are solo voices (${solos}), decoration is placed (${decor}), no dominance language.`);
+}
+
 if (!fail) console.log(`Two-tier modifiers: shape, slot disjointness, no collision, body-at-core, one signature, slot correctness, no-names, render — across ${n} variants.`);
 console.log(`validate-modifiers: ${n} variants, ${fail} failures.`);
 process.exit(fail ? 1 : 0);
