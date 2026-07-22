@@ -118,6 +118,8 @@ export const ATOM_POOL_CHARACTERS = buildCharacters();
 // Resolve a character's atom table for a palette (generate calls this).
 export function atomCharacterForPalette(char, palette) {
   if (!char.palettes) return char;                       // e.g. the validated ref
-  const atoms = char.palettes[palette] || char.palettes.electronic;
-  return Object.assign({}, char, { atoms });
+  const pal = char.palettes[palette] ? palette : 'electronic';
+  const atoms = char.palettes[pal];
+  // record the resolved palette so downstream (the bed layer) can gate on it
+  return Object.assign({}, char, { atoms, palette: pal });
 }

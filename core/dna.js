@@ -79,6 +79,13 @@ export function buildMusicalDNA(baseChar, palette, opts) {
       signature: !!a.signature,
       priority: a.priority || null,
       origin: a.source === 'overlay' ? 'overlay' : 'engine',
+      // BED FIELDS (Phase A). The metatag engine's pad cue previously keyed off
+      // the family LABEL ('pads only' whenever a pad-family voice existed), which
+      // is why it announced pads over arrangements that had none. Carrying bedId
+      // and behaviour lets it key off the FUNCTIONAL test instead: a voice is a
+      // pad because it sustains, swells slowly and sits behind the lead.
+      bedId: a.bedId || null,
+      behaviour: a.behaviour || null,
     }));
 
   return {

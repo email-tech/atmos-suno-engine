@@ -264,12 +264,17 @@ function leanTag(type, v, dna, label, vocalMode, deliveryClass, moodClass) {
    * contradicting tag is worse than no tag. Every cue below is now conditional on
    * the voice actually being present in the DNA arrangement.
    *
-   * "PADS" TERMINOLOGY (John was right that this was wrong): the internal slot
-   * had become a generic 'sustaining bed' bucket holding brass chorales, massed
-   * choirs and woodwind beds — none of which are pads. A pad is a sustained
-   * synth/keyboard texture. The word is now only emitted when a genuine
-   * pad-family voice is present; otherwise the tag names what is actually there,
-   * or says 'sustained'.
+   * "PADS" TERMINOLOGY — CORRECTED TWICE, NOW FUNCTIONAL (John, 2026-07-23).
+   * First error: the internal slot was a generic 'sustaining bed' bucket and the
+   * word 'pads' was emitted regardless of what occupied it. Second error: the fix
+   * OVERCORRECTED, assuming a pad must be a synth and stripping the word from
+   * string and choir beds. By John's canonical definition a pad is defined by
+   * FUNCTION, not sound source — sustained, slow attack and release, background
+   * placement, rich chords — so a sustained string section IS a string pad and a
+   * sustained choir IS a vocal pad. The test below is now the functional one: a
+   * voice counts as a pad if it came from the shared bed library (bedId), or if
+   * it is literally named as a pad. Anything else that merely sustains is called
+   * 'sustained', not a pad.
    * Format stays [Section | short | short | short], 3-5 elements, 1-3 words each. */
   const vocal = vocalMode === 'vocal';
   const dc = deliveryClass || 'lead-melodic';
@@ -282,9 +287,10 @@ function leanTag(type, v, dna, label, vocalMode, deliveryClass, moodClass) {
   const grooveLite = hasDrums ? 'steady groove' : null;
 
   // What actually sustains underneath? Only call it a pad if it IS one.
+  const bedAtomInArr = (dna.arrangement || []).find(a => a && a.bedId);
   const isPad = (t) => /\bpad\b|\bpads\b/i.test(String(t || ''));
   const bedVoice = v.pads || v.harmonyBed || v.texture || v.strings;
-  const bedWord = isPad(bedVoice) ? 'pads only'
+  const bedWord = (bedAtomInArr || isPad(bedVoice)) ? 'pads only'
                 : bedVoice ? 'sustained only' : null;
 
   const vVerse = dc === 'spoken/chant' ? 'spoken' : dc === 'wordless/textural' ? 'wordless vowels'

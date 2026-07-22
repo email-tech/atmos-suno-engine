@@ -22,6 +22,7 @@
  * ========================================================================*/
 import { CHAR_LIMIT, ALWAYS_BAN } from './constants.js';
 import { evaluateCongruence } from './rules.js';
+import { bedAtom, bedAllowed } from './beds.js';
 import { modifierList } from './atom-modifiers.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
 import { ATOM_PRODUCERS } from './atom-producers.js';
@@ -72,13 +73,29 @@ function collect(char, seed, overlayId, overlayDef){
       priority:a.priority||'support', instrument:a.instrument?pick(a.instrument):null, text:a.text?pick(a.text):null,
       timbre:(a.timbre||[]).slice(), prominence:a.prominence||'foreground', mix:a.mix||null,
       dynamic:a.dynamic||null, density:a.density||null,
-      foundational:!!a.foundational, signature:!!a.signature });
+      foundational:!!a.foundational, signature:!!a.signature,
+      // bed fields (Phase A): behaviour is how the pad MOVES and where it sits —
+      // compose states it explicitly because naming a pad does not make Suno
+      // render one. bedId is carried so DNA and the metatag engine can key off
+      // the functional pad test rather than a family label.
+      behaviour:a.behaviour||null, bedId:a.bedId||null });
   };
   for (const [k,a] of Object.entries(char.atoms)) push(k,a,'engine');
   let overlayNote = null;
   // A resolved TWO-TIER modifier (core + signature) may be passed directly as
   // overlayDef; otherwise fall back to a gen-1 overlay looked up by id.
-  const ov = overlayDef || (overlayId ? ATOM_OVERLAYS[overlayId] : null);
+  let ov = overlayDef || (overlayId ? ATOM_OVERLAYS[overlayId] : null);
+  // BED PALETTE GATE. A bed authored for the wrong palette would leak synthesis
+  // vocabulary onto an acoustic build (or an orchestral section onto a synth
+  // one) — the round-3 leak, applied to the pad layer. Swap to the palette-
+  // neutral hybrid rather than dropping it: a core with no bed has no body.
+  if (ov && char.palette) {
+    const bedKey = Object.keys(ov.atoms || {}).find(k => ov.atoms[k] && ov.atoms[k].bedId);
+    if (bedKey && !bedAllowed(ov.atoms[bedKey].bedId, char.palette)) {
+      const swap = bedAtom('hybrid_pad');
+      ov = Object.assign({}, ov, { atoms: Object.assign({}, ov.atoms, { [bedKey]: swap }) });
+    }
+  }
   if (ov){
     const gate = congruenceGate(ov, char);
     overlayNote = gate.reason;
@@ -178,9 +195,17 @@ function compose(held, mastering, o){
 
   const lead=ownerOf('lead'); if(lead && !lead.signature) cl.push(`${wt(lead)} on the melody out front`);
 
+  // THE BED. Round 3 showed that NAMING a pad does not make Suno render one —
+  // John's own definition is behavioural (sustained, slow attack and release,
+  // background placement, rich chords), so the behaviour is stated explicitly
+  // here rather than left implied by the instrument name. Mix placement stays
+  // LOW on purpose: sitting behind the lead is correct pad behaviour, and the
+  // answer to 'I could not tell what the pad comprised' is richer harmonic
+  // content and an audible swell, not more level.
   const pads=ownerOf('pad'), harm=ownerOf('harmony');
-  if(pads||harm){ let h=pads?wt(pads):'';
-    if(harm && !sigHarm) h=(h?`${h} moving through `:'')+ (harm.text||harm.instrument);
+  if(pads||harm){ let h='';
+    if(pads) h = pads.behaviour ? `${wt(pads)} ${pads.behaviour}` : wt(pads);
+    if(harm && !sigHarm) h=(h?`${h}, moving through `:'')+ (harm.text||harm.instrument);
     if(h) cl.push(h); }
 
   const strings=ownerOf('strings'); if(strings && !strings.signature) cl.push(`${wt(strings)} under the melody`);

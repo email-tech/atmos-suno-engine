@@ -32,8 +32,12 @@ for (const [modId, m] of Object.entries(ATOM_MODIFIERS)) {
   if (cores.length !== 3) bad(`${modId}: ${cores.length} cores, expected 3`);
   if (sigs.length !== 3) bad(`${modId}: ${sigs.length} signatures, expected 3`);
   for (const c of cores) {
-    if (Object.keys(m.cores[c].atoms).length < 2)
-      bad(`${modId}/core ${c}: single-atom core (must be multi-atom)`);
+    // PHASE A: a core is no longer required to be multi-atom. John's model is
+    // core == pad — the sustained ensemble BED is the body, and a composer whose
+    // body is purely sustained legitimately contributes the bed and nothing else.
+    // What is required is that the core has a body AT ALL.
+    if (!m.cores[c].bed && Object.keys(m.cores[c].atoms).length === 0)
+      bad(`${modId}/core ${c}: empty core (no bed and no atoms)`);
     // PURE-NAME RULE: core instrument atoms carry names only — compose owns all
     // function/interaction language. (Signature atoms are exempt: they hoist to
     // the front and must read complete there.)
@@ -121,8 +125,13 @@ for (const [modId, m] of Object.entries(ATOM_MODIFIERS)) {
       // Harmony/arc text atoms are exempt: takeover.harmony is false by design, so
       // the CHARACTER's harmonic identity deliberately wins and the modifier's
       // harmony only surfaces on characters that have none of their own.
-      const bodyAtoms = coreAtoms.filter(a => a.instrument && a.role !== 'harmony');
-      if (!bodyAtoms.length) bad(`${modId}/${v.coreId}: core has no instrument body`);
+      // The BED atom is exempt from the literal-text check: the palette gate may
+      // legitimately swap a palette-mismatched bed for the neutral hybrid at build
+      // time. Its presence is asserted separately (a pad must exist, and it must
+      // come from the library and carry behaviour) further down.
+      const bodyAtoms = coreAtoms.filter(a => a.instrument && a.role !== 'harmony' && !a.bedId);
+      const bedAtoms  = coreAtoms.filter(a => a.bedId);
+      if (!bodyAtoms.length && !bedAtoms.length) bad(`${modId}/${v.coreId}: core has no body at all`);
       for (const a of bodyAtoms) if (!style.includes(textOf(a)))
         bad(`${modId}/${v.coreId} on ${cid}: core body "${textOf(a).slice(0, 40)}" did not reach the style`);
       // a takeover bass must actually displace the character's bass
@@ -186,7 +195,7 @@ for (const entry of modifierList()) {
     const viaLive = buildMusicalDNA(ATOM_POOL_CHARACTERS[cid], 'electronic',
       { seed: 404, characterId: cid, modifierId: modId, coreId: c, signatureId: sg });
     const viaDef = buildMusicalDNA(ATOM_POOL_CHARACTERS[cid], 'electronic',
-      { seed: 404, characterId: cid, overlayDef: resolveModifier(modId, c, sg) });
+      { seed: 404, characterId: cid, overlayDef: resolveModifier(modId, c, sg, 'electronic') });
     if (viaLive.render.style !== viaDef.render.style) bad(`${modId}: live path != resolved-def path`);
     // unknown ids must degrade, not throw
     const viaBad = buildMusicalDNA(ATOM_POOL_CHARACTERS[cid], 'electronic',
@@ -194,6 +203,68 @@ for (const entry of modifierList()) {
     if (!viaBad || !viaBad.render.style) bad(`${modId}: unknown core/signature did not degrade safely`);
   }
   console.log('Lock-in contract: UI list is gen-2, live path matches, unknown ids degrade safely.');
+}
+
+/* ---- PHASE A: THE BED LAYER -------------------------------------------------
+ * John's canonical test: a pad is SUSTAINED + SLOW ATTACK/RELEASE + BACKGROUND +
+ * CHORDAL, whatever its source. And core == pad: one core, ONE shared bed.
+ * These checks exist because the gen-2 build failed all three ideas at once —
+ * 86 of 96 cores stacked two or three simultaneous beds, 29 named the same
+ * family twice, and 5 pad slots held struck/plucked decaying instruments. */
+{
+  const { BEDS, BED_IDS } = await import('./core/beds.js');
+  // Instruments that physically cannot sustain. Prefixing them with the word
+  // 'sustained' does not make them sustain — that was the original error.
+  const DECAYING = /celesta|harp\b|vibraphone|marimba|glockenspiel|pizzicato|dulcimer|electric piano|xylophone|plucked|struck/i;
+
+  for (const id of BED_IDS) {
+    const b = BEDS[id];
+    if (DECAYING.test(b.instrument)) bad(`bed ${id}: "${b.instrument}" cannot sustain — fails the functional pad test`);
+    if (!b.behaviour) bad(`bed ${id}: no behaviour authored — naming a pad does not make Suno render one`);
+    if (!/behind|under|beneath|low in the mix|back in the mix/i.test(b.behaviour))
+      bad(`bed ${id}: behaviour does not state background placement`);
+    if (!/slow|swell|fad|hold|held|building|opening|rising/i.test(b.behaviour))
+      bad(`bed ${id}: behaviour does not state a slow attack or sustain`);
+    if (!['acoustic', 'electronic', 'any'].includes(b.palette)) bad(`bed ${id}: bad palette`);
+  }
+
+  for (const modId of Object.keys(ATOM_MODIFIERS)) {
+    const m = ATOM_MODIFIERS[modId];
+    for (const [coreId, core] of Object.entries(m.cores)) {
+      if (!core.bed) bad(`${modId}/${coreId}: no bed declared`);
+      else if (!BEDS[core.bed]) bad(`${modId}/${coreId}: unknown bed "${core.bed}"`);
+      // ONE bed per core. Any further sustaining voice inside the same core is
+      // the stacking defect this phase removed.
+      const extra = Object.values(core.atoms).filter(a =>
+        /sustain|\bpad\b|\bbed\b|drone|chorale|legato|lush|sweeping|wash/i.test(a.instrument || a.text || ''));
+      if (extra.length) bad(`${modId}/${coreId}: ${extra.length} extra sustaining voice(s) alongside the bed`);
+      // No duplicate family inside one core.
+      const fams = Object.values(core.atoms).map(a => a.family).filter(Boolean);
+      if (new Set(fams).size !== fams.length) bad(`${modId}/${coreId}: duplicate family inside one core`);
+    }
+  }
+
+  // End to end: an applied modifier must put a library bed in the pad slot, and
+  // that bed's BEHAVIOUR must reach the rendered style string.
+  let checked = 0;
+  for (const modId of Object.keys(ATOM_MODIFIERS)) {
+    for (const coreId of Object.keys(ATOM_MODIFIERS[modId].cores)) {
+      for (const pal of ['acoustic', 'electronic']) {
+        const cid = CHARS[0];
+        const dna = buildMusicalDNA(ATOM_POOL_CHARACTERS[cid], pal,
+          { seed: 404, characterId: cid, modifierId: modId, coreId, signatureId: null });
+        if (!dna.meta.overlayApplied) continue;
+        const pad = (dna.arrangement || []).find(a => a.family === 'pad');
+        if (!pad) { bad(`${modId}/${coreId} [${pal}]: applied but no pad in the arrangement`); continue; }
+        if (!pad.bedId) bad(`${modId}/${coreId} [${pal}]: pad slot is not a library bed`);
+        if (!dna.render.style.includes(pad.behaviour || '\u0000'))
+          bad(`${modId}/${coreId} [${pal}]: bed behaviour absent from the style string`);
+        checked++;
+      }
+    }
+  }
+  if (!checked) bad('bed end-to-end check never ran');
+  if (!fail) console.log(`Bed layer: functional pad test, one bed per core, no stacking, behaviour rendered — ${BED_IDS.length} beds, ${checked} applied builds.`);
 }
 
 if (!fail) console.log(`Two-tier modifiers: shape, slot disjointness, no collision, body-at-core, one signature, slot correctness, no-names, render — across ${n} variants.`);
