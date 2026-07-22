@@ -59,6 +59,20 @@ for (const [modId, m] of Object.entries(ATOM_MODIFIERS)) {
     n++;
     const atoms = Object.values(v.atoms);
 
+    // 3a. NO DUPLICATE TEXT within a variant — a core and a signature must not
+    //     declare the same instrument, or it renders twice in one prompt.
+    const texts = atoms.map(textOf).filter(Boolean);
+    if (new Set(texts).size !== texts.length)
+      bad(`${modId}/${v.coreId}+${v.signatureId}: same text declared twice in one variant`);
+
+    // 3b. PROMOTED MOTIF atoms render through compose's lead clause, so they must
+    //     be pure noun phrases — a trailing action clause doubles the language.
+    for (const a of atoms) {
+      if (a.role !== 'motif' || a.signature) continue;
+      if (/\b(?:carried on|stated|sung|left to|repeated with|doubled by|over the|between phrases|across the)\b/i.test(textOf(a)))
+        bad(`${modId}/${v.signatureId}: action clause on a composed motif — "${textOf(a).slice(0,45)}"`);
+    }
+
     // 3. no slot collision
     const roles = atoms.map(a => a.role).filter(Boolean);
     if (new Set(roles).size !== roles.length) bad(`${modId}/${v.coreId}+${v.signatureId}: duplicate role slot`);
@@ -128,6 +142,29 @@ for (const entry of modifierList()) {
   if (entry.cores.length !== 3 || entry.signatures.length !== 3)
     bad(`modifierList(): ${entry.id} missing cores/signatures for the UI panel`);
   if (!entry.label) bad(`modifierList(): ${entry.id} has no UI label`);
+}
+
+// 9. NO DEAD ATOMS — every declared atom must reach the style string on at least
+// one character. A dead atom is invisible to the user but shown in the review
+// document, so it silently misrepresents what a modifier does. (Found 92 of them
+// via John's harmony question: composer harmony atoms could never win the
+// character-owned harmony slot, overlay arc lines were dropped by a stale key
+// lookup, and secondary melodic atoms lost the lead slot on a priority tie.)
+{
+  let deadN = 0;
+  for (const modId of Object.keys(ATOM_MODIFIERS)) for (const v of modifierVariants(modId))
+    for (const a of Object.values(v.atoms)) {
+      const t = textOf(a); if (!t) continue;
+      let landed = 0, tried = 0;
+      for (const cid of CHARS) for (const pal of PALETTES) {
+        const dna = buildMusicalDNA(ATOM_POOL_CHARACTERS[cid], pal,
+          { seed: 404, characterId: cid, overlayDef: v });
+        if (!dna.meta.overlayApplied) continue;
+        tried++; if (dna.render.style.includes(t)) landed++;
+      }
+      if (tried && landed === 0) { deadN++; bad(`${modId}: DEAD atom never renders — "${t.slice(0, 45)}"`); }
+    }
+  if (!deadN) console.log('No dead atoms: every declared atom renders on at least one character.');
 }
 
 if (!fail) console.log(`Two-tier modifiers: shape, slot disjointness, no collision, body-at-core, one signature, slot correctness, no-names, render — across ${n} variants.`);

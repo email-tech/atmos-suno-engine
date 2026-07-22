@@ -93,7 +93,14 @@ function reconcile(held){
     const outranks = RANK[at.priority] < RANK[cur ? cur.priority : 'decorative'];
     const displaces = cur && at.foundational && !cur.foundational &&
                       RANK[at.priority] <= RANK[cur.priority];
-    if (!cur || outranks || displaces) survivor.set(at.family, at);
+    // OVERLAY WINS TIES outside the genre-owned families. The user picked the
+    // modifier deliberately, so its body should occupy the slot rather than lose
+    // an insertion-order tie to the character. bass/drums/harmony stay protected
+    // — those carry the genre identity and are governed by the takeover policy.
+    const PROTECTED = at.family==='bass'||at.family==='drums'||at.family==='harmony';
+    const overlayTie = cur && at.source==='overlay' && cur.source!=='overlay' &&
+                       !PROTECTED && RANK[at.priority] <= RANK[cur.priority];
+    if (!cur || outranks || displaces || overlayTie) survivor.set(at.family, at);
   }
   let kept = held.filter(at => !at.family || survivor.get(at.family)===at);
   const used=new Set();
@@ -167,7 +174,10 @@ function compose(held, mastering){
   if(colour && !colour.signature) cl.push(`${colour.instrument} in the gaps`);
   const movement=A('movement'); if(movement) cl.push(movement.text);
 
-  const ovArc=A('ov_arc');
+  // Find the overlay's arc by SOURCE+FN, not by a literal key: the two-tier
+  // resolver namespaces atom keys (core_/sig_), so the old A('ov_arc') lookup
+  // silently missed and every overlay arc line was dropped.
+  const ovArc=A('ov_arc')||held.find(a=>a.source==='overlay'&&a.fn==='arc');
   if(ovArc) cl.push(ovArc.text);
   else { if(REL.harmonyResolve.needs.every(has)) cl.push(REL.harmonyResolve.render);
          if(REL.arc.needs.every(has)) cl.push(REL.arc.render); }
