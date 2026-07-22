@@ -15,6 +15,7 @@
  * ========================================================================*/
 
 import { resolveModifier } from './atom-modifiers.js';
+import { applyAnchor, anchorCongruent } from './anchors.js';
 import { buildAtoms, ATOM_OVERLAYS } from './atoms.js';
 import { atomCharacterForPalette } from '../engines/atom-characters.js';
 
@@ -124,7 +125,14 @@ export function buildMusicalDNA(baseChar, palette, opts) {
       affect: 'unknown',
     },
     consumers: DNA_CONSUMERS,
-    render: { style: r.style, negative: r.negative, length: r.length },  // reference only
+    // ANCHOR IDENTITY (opt-in, default OFF so existing output is byte-identical):
+    // a scene/compilation anchor is inserted directly AFTER the genre anchor,
+    // never in place of it. Non-congruent anchors are ignored, not forced.
+    render: (() => {
+      const st = applyAnchor(r.style, o.anchorId || null, palette);
+      return { style: st, negative: r.negative, length: st.length };  // reference only
+    })(),
+    anchor: o.anchorId && anchorCongruent(o.anchorId, palette) ? o.anchorId : null,
   };
 }
 
