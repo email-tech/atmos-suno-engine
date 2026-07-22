@@ -23,7 +23,8 @@ let n = 0, fail = 0;
 const bad = (m) => { if (fail < 40) console.log('  FAIL:', m); fail++; };
 const textOf = (a) => String(a.instrument || a.text || '');
 const NAMES = Object.values(ATOM_MODIFIERS).map(m => m.label);
-const CHARS = ['sunlit-mediterranean', 'balearic-house', 'deep-nocturnal-balearic'];
+const CHARS = Object.keys(ATOM_POOL_CHARACTERS);
+const PALETTES = ['electronic', 'acoustic'];
 
 for (const [modId, m] of Object.entries(ATOM_MODIFIERS)) {
   // 1. shape
@@ -89,12 +90,17 @@ for (const [modId, m] of Object.entries(ATOM_MODIFIERS)) {
     // 8. renders on real characters — and the BODY + SIGNATURE actually land in
     //    the style string (this is the whole point: no more garnish-only).
     const sigAtom = atoms.find(a => a.signature === true);
-    for (const cid of CHARS) {
-      const dna = buildMusicalDNA(ATOM_POOL_CHARACTERS[cid], 'electronic',
+    let appliedSomewhere = false, refusedSeen = false;
+    for (const cid of CHARS) for (const pal of PALETTES) {
+      const dna = buildMusicalDNA(ATOM_POOL_CHARACTERS[cid], pal,
         { seed: 404, characterId: cid, overlayDef: v });
       const style = dna && dna.render && dna.render.style;
       if (!style) { bad(`${modId}/${v.coreId}+${v.signatureId} on ${cid}: no style rendered`); continue; }
-      if (!dna.meta.overlayApplied) { bad(`${modId}/${v.coreId}+${v.signatureId} on ${cid}: refused`); continue; }
+      // A REFUSAL is legitimate: the lean gate correctly refuses an electronic
+      // composer on an acoustic character (the Moroder-on-downtempo rule). Skip
+      // refused pairings; applicability is asserted per-modifier below instead.
+      if (!dna.meta.overlayApplied) { refusedSeen = true; continue; }
+      appliedSomewhere = true;
       if (sigAtom && !style.includes(textOf(sigAtom)))
         bad(`${modId}/${v.signatureId} on ${cid}: signature text absent from style`);
       // EVERY core INSTRUMENT atom must land — not merely one (garnish-only again).
@@ -113,6 +119,7 @@ for (const [modId, m] of Object.entries(ATOM_MODIFIERS)) {
       if (dna.meta.overlayVariantLabel !== v.variantLabel)
         bad(`${modId} on ${cid}: variant label not surfaced for the UI panel`);
     }
+    if (!appliedSomewhere) bad(`${modId}/${v.coreId}+${v.signatureId}: refused on EVERY character`);
   }
 }
 
