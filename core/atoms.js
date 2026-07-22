@@ -187,7 +187,16 @@ export function buildAtoms(char, opts){
            arrangement:kept, overlayNote };
 }
 
+/* OVERLAY REVIEW LOCK — John, 2026-07-22: the overlay atom sets are SIGNATURE-
+ * DELTA ONLY (outlier traits, no common body), which promotes an outlier to the
+ * front via signature hoisting and yields quirky arrangements. Modifiers are
+ * withheld from the UI until a two-tier (body + signature) set is authored and
+ * signed off. Engine/validation paths are UNCHANGED so harnesses still exercise
+ * overlays; this gate is UI-facing only. Set false to re-expose. */
+export const OVERLAYS_REVIEW_LOCKED = true;
+
 export function atomOverlayList(){
+  if (OVERLAYS_REVIEW_LOCKED) return [];
   return Object.keys(ATOM_OVERLAYS).map(id => ({ id, label:ATOM_OVERLAYS[id].label, kind:ATOM_OVERLAYS[id].kind }));
 }
 
