@@ -91,7 +91,7 @@ export function buildMusicalDNA(baseChar, palette, opts) {
       palette,
       seed,
       overlayId: o.modifierId || o.overlayId || (o.overlayDef ? o.overlayDef.label : null),
-      overlayApplied: !!(o.overlayId || o.overlayDef) && !refused,
+      overlayApplied: !!(o.modifierId || o.overlayId || o.overlayDef) && !refused,
       overlayCoreId: (o.overlayDef && o.overlayDef.coreId) || null,
       overlaySignatureId: (o.overlayDef && o.overlayDef.signatureId) || null,
       overlayVariantLabel: (o.overlayDef && o.overlayDef.variantLabel) || null,

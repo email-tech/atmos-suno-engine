@@ -94,7 +94,7 @@ export const ATOM_MODIFIERS = {
                      instrument:'thin transparent high strings' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core',
                      instrument:'alto flute and bass clarinet' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a airy celesta and harp bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'an airy celesta and harp bed' },
       }},
       // C3 — the low sustained body (1917 / Skyfall lean).
       low_sustain: { label: 'Low sustained and muted brass', atoms: {

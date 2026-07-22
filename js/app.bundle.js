@@ -2256,7 +2256,7 @@ function buildMusicalDNA(baseChar, palette, opts) {
       palette,
       seed,
       overlayId: o.modifierId || o.overlayId || (o.overlayDef ? o.overlayDef.label : null),
-      overlayApplied: !!(o.overlayId || o.overlayDef) && !refused,
+      overlayApplied: !!(o.modifierId || o.overlayId || o.overlayDef) && !refused,
       overlayCoreId: (o.overlayDef && o.overlayDef.coreId) || null,
       overlaySignatureId: (o.overlayDef && o.overlayDef.signatureId) || null,
       overlayVariantLabel: (o.overlayDef && o.overlayDef.variantLabel) || null,
@@ -2795,7 +2795,7 @@ const ATOM_MODIFIERS = {
                      instrument:'thin transparent high strings' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'core',
                      instrument:'alto flute and bass clarinet' },
-        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'a airy celesta and harp bed' },
+        mo_pads:{ role:'pads', family:'pad', fn:'sustain-under', priority:'core', instrument:'an airy celesta and harp bed' },
       }},
       // C3 — the low sustained body (1917 / Skyfall lean).
       low_sustain: { label: 'Low sustained and muted brass', atoms: {
@@ -4919,7 +4919,9 @@ function renderMetatagBlock(built, mode) {
     byIdx.get(k).push(item.tag);
   }
   return built.sections.map((s, i) => {
-    const tags = byIdx.get(i) || [];
+    // The line already opens with [Section]; strip a duplicate label from the
+    // arrangement tag so it reads "[Verse 1] [sparse and dry, ...]".
+    const tags = (byIdx.get(i) || []).map(t => t.startsWith(`[${s}: `) ? `[${t.slice(s.length + 3)}` : t);
     return `[${s}] ${tags.join(' ')}`.trim();
   }).join('\n');
 }

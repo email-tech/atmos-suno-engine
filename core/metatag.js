@@ -374,7 +374,9 @@ export function renderMetatagBlock(built, mode) {
     byIdx.get(k).push(item.tag);
   }
   return built.sections.map((s, i) => {
-    const tags = byIdx.get(i) || [];
+    // The line already opens with [Section]; strip a duplicate label from the
+    // arrangement tag so it reads "[Verse 1] [sparse and dry, ...]".
+    const tags = (byIdx.get(i) || []).map(t => t.startsWith(`[${s}: `) ? `[${t.slice(s.length + 3)}` : t);
     return `[${s}] ${tags.join(' ')}`.trim();
   }).join('\n');
 }

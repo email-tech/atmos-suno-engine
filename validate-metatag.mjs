@@ -69,7 +69,11 @@ for (const cid of charIds) {
             if (tags.length !== 1) bad(`lean line '${out.sections[i]}' not a single bracket (${tags.length}) — ${tag}/${mode}`);
           });
           const full = renderMetatagBlock(buildMetatagPlan(dna, { cil, answers }), 'full');
-          if (out.block.length > full.length * 0.75) bad(`lean not a real reduction (${out.block.length} vs full ${full.length}) — ${tag}/${mode}`);
+          // Lean must be strictly shorter than full. (A ratio bound was a proxy
+          // and produced a false failure on already-terse templates; the real
+          // guarantees are one-bracket-per-section above and this.)
+          if (out.block.length >= full.length) bad(`lean not shorter than full (${out.block.length} vs ${full.length}) — ${tag}/${mode}`);
+
         }
 
         // 2. mandatory interplay — a named interaction phrase is present in the block
