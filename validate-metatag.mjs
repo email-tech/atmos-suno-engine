@@ -73,6 +73,10 @@ for (const cid of charIds) {
           lines.forEach((line, i) => {
             const tags = line.match(/\[[^\]]+\]/g) || [];
             if (tags.length !== 1) bad(`lean line '${out.sections[i]}' not a single bracket (${tags.length}) — ${tag}/${mode}`);
+            // 3-5 element rule: beyond this Suno stops ranking and averages.
+            const els = line.replace(/^\[|\]$/g, '').split('|').length;
+            if (els > 5) bad(`lean line '${out.sections[i]}' has ${els} elements (>5) — ${tag}/${mode}`);
+            if (line.includes(',')) bad(`lean line '${out.sections[i]}' uses commas, not pipes — ${tag}/${mode}`);
           });
           const full = renderMetatagBlock(buildMetatagPlan(dna, { cil, answers }), 'full');
           // Lean must be strictly shorter than full. (A ratio bound was a proxy
@@ -87,7 +91,7 @@ for (const cid of charIds) {
         //    and follows genre programming, so the interplay obligation is met by
         //    the STYLE prompt, which is where it demonstrably works.
         if (rmode !== 'minimal' &&
-            !/lock the groove|anchors|holds the groove|call-and-response|answers |converse/.test(out.block))
+            !/lock the groove|locked|anchors|holds the groove|call and response|call-and-response|answers |converse/.test(out.block))
           bad(`no interplay/interaction phrase in ${rmode} block — ${tag}/${mode}`);
 
         // 3. no artist names
@@ -108,7 +112,9 @@ for (const cid of charIds) {
 
         // 6. verbatim genre-owned families (bass + drums), when present.
         //    Not applicable to 'minimal', which names no instruments at all.
-        if (rmode !== 'minimal') for (const famRole of [['bass', 'bass'], ['rhythm', 'drums']]) {
+        // Only 'full' names instruments verbatim; 'lean' is deliberately piped
+        // short-element format and 'minimal' names none.
+        if (rmode === 'full') for (const famRole of [['bass', 'bass'], ['rhythm', 'drums']]) {
           const voice = (dna.arrangement.find(a => a.role === famRole[0]) ||
                          dna.arrangement.find(a => a.family === famRole[1]) || {}).voice;
           if (voice && !out.block.includes(voice))

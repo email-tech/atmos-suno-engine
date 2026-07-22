@@ -256,44 +256,43 @@ function pickTemplate(dna, answers, lyricResult) {
  * Suno reads bracketed tags best when short and placed at section changes; long
  * stacked tags dilute adherence and eat the shared 5,000-char lyrics budget. */
 function leanTag(type, v, dna, label, vocalMode, deliveryClass, moodClass) {
-  const L = cap(label);
-  const lead = v.lead || 'lead';
+  /* PIPED FORMAT — evidence-based; corrects my round-2 reasoning (John challenged
+   * it and was right). Documented Suno behaviour: metatags are structural
+   * REINFORCEMENT and do NOT override genre — they work when ALIGNED with genre
+   * and lyrics, which is why they were ignored in round 2 (the modifier had
+   * confused the genre read). Elements should be SHORT (1-3 words); PIPE
+   * separators give clearer semantic boundaries than commas; keep to 3-5
+   * elements or Suno stops ranking and averages them into mush.
+   * Round-2 tags had a valid element COUNT (3) but each element was a 9-word
+   * phrase. This emits [Section | short | short | short]. */
+  const vocal = vocalMode === 'vocal';
+  const dc = deliveryClass || 'lead-melodic';
   const beatless = !!(dna.dynamics && dna.dynamics.beatless);
   const atmos = /ambient|atmos|texture|breath|sunrise|underwater|drift|aria|sacred|abstract|invocation/.test(String(label).toLowerCase());
-  const groove = (v.bass && v.rhythm) ? `${v.bass} + ${v.rhythm} lock the groove`
-               : v.bass ? `${v.bass} anchors` : v.rhythm ? `${v.rhythm} holds the groove`
-               : (v.answerVoice && v.answerVoice !== lead) ? `${v.answerVoice} answers ${lead}`
-               : `${lead} carries, voices converse`;
-  const vocal = vocalMode === 'vocal';
-  const shade = ({ brooding: 'shadowed', nocturnal: 'hushed', euphoric: 'lifted', ethereal: 'airy',
-                   wistful: 'aching', warm: 'warm', driving: 'urgent', hypnotic: 'trance-like',
-                   contemplative: 'unhurried' }[moodClass]) || 'close';
-  const dc = deliveryClass || 'lead-melodic';
-  const vVerse = dc === 'spoken/chant' ? 'spoken and low' : dc === 'wordless/textural' ? 'wordless vowels'
-               : dc === 'choir/pad' ? 'solo over choir bed' : `${shade} intimate vocal`;
-  const vChorus = dc === 'choir/pad' ? 'choir answers the hook' : 'lead + stacked harmonies lift';
-  const body = (b) => `[${L}: ${b}]`;
+  const vVerse = dc === 'spoken/chant' ? 'spoken' : dc === 'wordless/textural' ? 'wordless vowels'
+               : dc === 'choir/pad' ? 'solo over choir' : 'intimate vocal';
+  const vChorus = dc === 'choir/pad' ? 'choir answers' : 'harmonies lift';
+  const pipe = (...els) => `[${[label, ...els.filter(Boolean)].join(' | ')}]`;
 
   switch (type) {
     case 'intro':
-      return (beatless || atmos)
-        ? body(`${v.harmonyBed || v.pads || 'pads'} from near silence, no pulse`)
-        : body(`${groove}, ${lead} withheld`);
+      return (beatless || atmos) ? pipe('no drums', 'pads only', 'slow build')
+                                 : pipe('groove in', 'no lead yet');
     case 'verse':
-      return body(`sparse and dry, ${vocal ? vVerse : lead + ' forward'}, steady groove`);
+      return pipe('sparse', vocal ? vVerse : 'lead forward', 'steady groove');
     case 'prechorus':
-      return body('rising tension, drums build into the hook');
+      return pipe('building', 'drums fill', vocal ? 'vocal lifts' : null);
     case 'chorus':
-      if (/post-chorus/i.test(String(label))) return body('hook restated simpler, chantable, lead steps back');
-      return body(`full arrangement, ${groove}, ${vocal ? vChorus : (v.answerVoice || v.counter || 'counter') + ' answers ' + lead}`);
+      if (/post-chorus/i.test(String(label))) return pipe('chantable', 'simpler', 'lead back');
+      return pipe('full arrangement', 'bass and drums locked', vocal ? vChorus : 'counter answers');
     case 'instrumental':
-      return body(`${v.feature || lead} leads, call-and-response, groove simplifies`);
+      return pipe('instrumental', 'lead takes theme', 'call and response');
     case 'bridge':
-      return body(`stripped back, drums out, ${cadenceHint(dna)}${vocal ? ', exposed vocal' : ''}`);
+      return pipe('stripped back', 'drums out', vocal ? 'exposed vocal' : 'sustained');
     case 'outro':
-      return body(`${lead} thins out, ${tailHint(dna)}`);
+      return pipe('thinning out', 'reverb tail');
     default:
-      return `[${L}]`;
+      return `[${label}]`;
   }
 }
 
@@ -406,6 +405,9 @@ export function metatagList(built) {
  * -> 'full' (whole lyrics box free). Pass renderMode to override. */
 export function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode }) {
   const built = buildMetatagPlan(dna, { cil, answers, lyricResult });
-  const mode = renderMode || (built.vocalMode === 'vocal' ? 'minimal' : 'lean');
+  // Evidence-based default: metatags DO work when aligned with genre and lyrics,
+  // so always emit them — in the piped short-element format. 'minimal' (bare
+  // section markers) and 'full' remain available for A/B.
+  const mode = renderMode || 'lean';
   return { ...built, renderMode: mode, block: renderMetatagBlock(built, mode) };
 }
