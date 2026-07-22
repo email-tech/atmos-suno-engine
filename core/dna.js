@@ -46,11 +46,11 @@ export function buildMusicalDNA(baseChar, palette, opts) {
   const o = opts || {};
   const seed = o.seed >>> 0;
   const char = atomCharacterForPalette(baseChar, palette);
-  const r = buildAtoms(char, { seed, overlayId: o.overlayId || null });
+  const r = buildAtoms(char, { seed, overlayId: o.overlayId || null, overlayDef: o.overlayDef || null });
 
   const arr = r.arrangement;
   const refused = !!r.overlayNote;
-  const overlayDef = o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null;
+  const overlayDef = o.overlayDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null);
 
   const genreAnchor = (byRole(arr, 'genre') || {}).text || null;
   const tempoSpec   = (byRole(arr, 'tempo') || {}).text || null;
@@ -82,8 +82,11 @@ export function buildMusicalDNA(baseChar, palette, opts) {
       label: char.label || null,
       palette,
       seed,
-      overlayId: o.overlayId || null,
-      overlayApplied: !!o.overlayId && !refused,
+      overlayId: o.overlayId || (o.overlayDef ? o.overlayDef.label : null),
+      overlayApplied: !!(o.overlayId || o.overlayDef) && !refused,
+      overlayCoreId: (o.overlayDef && o.overlayDef.coreId) || null,
+      overlaySignatureId: (o.overlayDef && o.overlayDef.signatureId) || null,
+      overlayVariantLabel: (o.overlayDef && o.overlayDef.variantLabel) || null,
       overlayRefused: refused ? r.overlayNote : null,
     },
     identity: { genreFamily: char.source || null, subgenre: char.label || null, genreAnchor },

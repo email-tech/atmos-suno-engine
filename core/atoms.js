@@ -55,7 +55,7 @@ function congruenceGate(ov, char){
 }
 
 // ---- HOLDING AREA --------------------------------------------------------
-function collect(char, seed, overlayId){
+function collect(char, seed, overlayId, overlayDef){
   const roll = mulberry32(seed);
   const pick = a => Array.isArray(a) ? a[Math.floor(roll()*a.length)] : a;
   const held = [];
@@ -69,8 +69,11 @@ function collect(char, seed, overlayId){
   };
   for (const [k,a] of Object.entries(char.atoms)) push(k,a,'engine');
   let overlayNote = null;
-  if (overlayId && ATOM_OVERLAYS[overlayId]){
-    const gate = congruenceGate(ATOM_OVERLAYS[overlayId], char);
+  // A resolved TWO-TIER modifier (core + signature) may be passed directly as
+  // overlayDef; otherwise fall back to a gen-1 overlay looked up by id.
+  const ov = overlayDef || (overlayId ? ATOM_OVERLAYS[overlayId] : null);
+  if (ov){
+    const gate = congruenceGate(ov, char);
     overlayNote = gate.reason;
     for (const [k,a] of Object.entries(gate.atoms)) push(k,a,'overlay');
   }
@@ -83,7 +86,14 @@ function reconcile(held){
   for (const at of held){
     if (!at.family) continue;
     const cur = survivor.get(at.family);
-    if (!cur || RANK[at.priority] < RANK[cur.priority]) survivor.set(at.family, at);
+    // Higher priority wins. A FOUNDATIONAL overlay atom (e.g. a remixer's
+    // re-played bassline, where the bass IS the remix craft) also displaces an
+    // equal-ranked incumbent — the behaviour this file's header has always
+    // documented but which was never implemented, so overlay bass silently lost.
+    const outranks = RANK[at.priority] < RANK[cur ? cur.priority : 'decorative'];
+    const displaces = cur && at.foundational && !cur.foundational &&
+                      RANK[at.priority] <= RANK[cur.priority];
+    if (!cur || outranks || displaces) survivor.set(at.family, at);
   }
   let kept = held.filter(at => !at.family || survivor.get(at.family)===at);
   const used=new Set();
@@ -172,7 +182,7 @@ function compose(held, mastering){
 // atom list — the structured layer the Lyric/Metatag engine will read.
 export function buildAtoms(char, opts){
   const o = opts || {};
-  const { held, overlayNote } = collect(char, o.seed >>> 0, o.overlayId || null);
+  const { held, overlayNote } = collect(char, o.seed >>> 0, o.overlayId || null, o.overlayDef || null);
   const kept = reconcile(held);
   let style = compose(kept, char.mastering);
   const over = style.length > CHAR_LIMIT;
@@ -180,7 +190,7 @@ export function buildAtoms(char, opts){
   // overlay-specific negatives merge in only when the overlay actually APPLIED
   // (not refused). Engine-only + composer paths carry none, so their negative
   // field is unchanged — ALWAYS_BAN only (parity-safe).
-  const ovDef = (o.overlayId && !overlayNote) ? ATOM_OVERLAYS[o.overlayId] : null;
+  const ovDef = !overlayNote ? (o.overlayDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null)) : null;
   const ovNeg = (ovDef && ovDef.negative) ? ovDef.negative : [];
   const negative = [...ALWAYS_BAN, ...ovNeg].join(', ') + '.';
   return { style, negative, lyrics:'', length:style.length, over,

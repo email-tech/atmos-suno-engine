@@ -24,6 +24,7 @@ const files = [
   'core/dna.js',
   'core/profiles.js',
   'core/cil.js',
+  'core/atom-modifiers.js',
   'core/lyric-controls.js',
   'core/lyric.js',
   'core/metatag.js',
