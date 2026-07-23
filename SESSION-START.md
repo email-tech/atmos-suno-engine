@@ -26,9 +26,14 @@ Retention is not memory and not prose. Work through this list in order.
 3. **Run `node validate-knowledge.mjs` and `node validate-linking.mjs`.** If it fails, something regressed since
    the last session — fix that before anything else.
 
-4. **Query the Notion decision log** for state and open questions.
+4. **Check `docs/knowledge/` for any `TODO-*.md`.** If one exists it is an
+   outstanding research task assigned by John and it is the first substantive
+   work of the session. `validate-linking.mjs` also prints a loud warning while
+   one is present.
 
-5. **Confirm HEAD matches origin** before proposing work.
+5. **Query the Notion decision log** for state and open questions.
+
+6. **Confirm HEAD matches origin** before proposing work.
 
 ## The rule that keeps this from happening again
 

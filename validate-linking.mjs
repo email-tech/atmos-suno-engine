@@ -130,5 +130,21 @@ const guide = fs.readFileSync(GUIDE_PATH, 'utf8')
   console.log(`  placement: ${back} modifier beds in the background plane, ${mid} characters using the middle plane.`);
 }
 
+/* 7. OUTSTANDING GAP — printed loudly every run so no session can start work
+ *    unaware that the electronic side is still ungrounded. Removing the TODO
+ *    file is the signal that the research was done and filed. */
+{
+  const TODO = 'docs/knowledge/TODO-electronic-linking-guide.md';
+  if (fs.existsSync(TODO)) {
+    console.log('');
+    console.log('  ** OUTSTANDING: the electronic/synth linking guide does not exist yet.');
+    console.log('  ** Synths, drum machines and electric instruments have NO grounded');
+    console.log('  ** linking language — classifyInstrument() returns null for them by');
+    console.log('  ** design. Do not invent phrases for them.');
+    console.log(`  ** Brief: ${TODO}`);
+    console.log('');
+  }
+}
+
 console.log(`validate-linking: ${checks} checks, ${fails} failures.`);
 if (fails) process.exit(1);
