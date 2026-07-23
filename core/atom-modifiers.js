@@ -118,7 +118,7 @@ export const ATOM_MODIFIERS = {
         mo_lead:  { role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
                     instrument:'a sparse solo felt-piano melody' },
         mo_arc:   { role:'arc', fn:'arc', priority:'support',
-                    text:'the ostinato drops out then returns alone' },
+                    text:'the repeating figure drops out then returns alone' },
       }},
       // S2 — the prepared/plucked tell.
       prepared_pluck: { label: 'Prepared piano and pizzicato', atoms: {
@@ -183,14 +183,14 @@ export const ATOM_MODIFIERS = {
       // S1 — the scratch/transformer tell.
       scratch_cut: { label: 'Scratch and transformer cuts', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
-                    instrument:'scratch-style stabs and transformer cuts across the beat, low in the mix' },
+                    instrument:'scratch-style cuts and transformer edits across the beat, low in the mix' },
         mo_arc:   { role:'arc', fn:'arc', priority:'support',
-                    text:'the arrangement cuts to one stab then rebuilds' },
+                    text:'the arrangement cuts to one chord then rebuilds' },
       }},
       // S2 — the dramatic sampled fanfare tell.
       fanfare_intro: { label: 'Dramatic sampled fanfare', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
-                    instrument:'a sampled orchestral-hit fanfare opening the bars' },
+                    instrument:'a sampled orchestral swell opening the bars' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
                     instrument:'a synth-brass counter-line answering under the hook' },
         mo_arc:   { role:'arc', fn:'arc', priority:'support',
@@ -199,7 +199,7 @@ export const ATOM_MODIFIERS = {
       // S3 — the extended re-edit tell.
       reedit_break: { label: 'Extended re-edit breakdown', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true,
-                    instrument:'chopped re-triggered vocal stabs low in the mix' },
+                    instrument:'chopped re-triggered vocal shots low in the mix' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
                     instrument:'a filtered synth line rising quietly through the breakdown' },
         mo_arc:   { role:'arc', fn:'arc', priority:'support',
@@ -227,7 +227,7 @@ export const ATOM_MODIFIERS = {
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the theme returns transformed at the peak' },
       }},
       brass_fanfare: { label: 'Heroic brass fanfare', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'a brass fanfare figure answering behind the melody' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'a bold brass call answering behind the melody' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a broad noble solo horn melody' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a rising build into a full brass statement' },
       }},
@@ -256,8 +256,8 @@ export const ATOM_MODIFIERS = {
     signatures: {
       accumulation: { label: 'Layered accumulation', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
-                  instrument:'a solo cello line over the ostinato' },
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'stacked ostinato layers building quietly bar by bar under the melody' },
+                  instrument:'a solo cello line over the repeating figure' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'stacked repeating figures building quietly bar by bar under the melody' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'builds to a unison then one resolving chord' },
       }},
       brass_swell: { label: 'Low-brass swell', atoms: {
@@ -355,9 +355,9 @@ export const ATOM_MODIFIERS = {
     signatures: {
       asym_ostinato: { label: 'Driving asymmetric ostinato', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
-                  instrument:'a stark solo horn motif over the ostinato' },
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'an asymmetric ostinato running quietly across the bar' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the ostinato tightens as layers stack' },
+                  instrument:'a stark solo horn motif over the repeating figure' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'an asymmetric repeating figure running quietly across the bar' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the repeating figure tightens as layers stack' },
       }},
       shimmer_colour: { label: 'Shimmering electronic colour', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'a shimmering metallic sweep low behind the melody' },
@@ -490,8 +490,8 @@ export const ATOM_MODIFIERS = {
       sampled_stabs: { label: 'Sampled orchestral stabs', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
                   instrument:'a light solo oboe melody' },
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'sampled orchestral stabs punctuating quietly across the beat' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the stabs break the arrangement into blocks' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'short sampled orchestral chords punctuating quietly across the beat' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the short chords break the arrangement into blocks' },
       }},
       pizz_playful: { label: 'Playful pizzicato', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'playful pizzicato figures low through the bars' },
@@ -556,7 +556,7 @@ export const ATOM_MODIFIERS = {
       trumpet_fanfare: { label: 'Triumphant trumpet fanfare', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
                   instrument:'a bold solo trumpet melody' },
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'a trumpet fanfare figure answering behind the melody' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'a bold trumpet call answering behind the melody' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a build from one line to a full brass statement' },
       }},
       horn_riff: { label: 'Driving horn riff', atoms: {
@@ -590,8 +590,8 @@ export const ATOM_MODIFIERS = {
       bond_stabs: { label: 'Sharp brass stabs', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
                   instrument:'a suave muted solo trumpet melody' },
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'syncopated brass stabs punctuating quietly across the groove' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'stabs on every turnaround' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'short syncopated brass chords punctuating quietly across the groove' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'short brass chords on every turnaround' },
       }},
       surf_guitar: { label: 'Twangy surf guitar', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'a twanging tremolo surf-guitar line low under the melody' },
@@ -654,10 +654,10 @@ export const ATOM_MODIFIERS = {
     signatures: {
       industrial_bass: { label: 'Industrial pounding bass', atoms: {
         mo_bass:{ role:'bass', family:'bass', fn:'foundation-weight', priority:'signature', signature:true, foundational:true, instrument:'an industrial solo synth bassline, one repeating figure' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the ostinato stays unchanged underneath' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the repeating figure stays unchanged underneath' },
       }},
       anvil_hits: { label: 'Metallic anvil hits', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'metallic anvil hits low on the downbeat' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'struck metal accents low on the downbeat' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a stark descending solo synth motif' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a build of stacking metallic layers' },
       }},
@@ -755,12 +755,12 @@ export const ATOM_MODIFIERS = {
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the lead answers itself across the empty bars' },
       }},
       bass_riff: { label: 'Punchy synth-bass riff', atoms: {
-        mo_bass:{ role:'bass', family:'bass', fn:'foundation-weight', priority:'signature', foundational:true, instrument:'a punchy syncopated synth-bass riff' },
+        mo_bass:{ role:'bass', family:'bass', fn:'foundation-weight', priority:'signature', foundational:true, instrument:'a tight syncopated synth-bass riff' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a bright cutting solo synth melody' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a tight vamp opening into a full-energy chorus' },
       }},
       stab_chords: { label: 'Bright stab chords', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'bright synth stab chords low on the offbeat' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', instrument:'short bright synth chords low on the offbeat' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'a fast agile solo synth line' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a driving build of stacking synth layers' },
       }},
@@ -795,7 +795,7 @@ export const ATOM_MODIFIERS = {
       }},
       anthem_guitar: { label: 'Anthemic guitar-synth lead', atoms: {
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true, instrument:'an anthemic soaring solo guitar-synth lead' },
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'support', instrument:'bright bell stabs quiet on the phrase ends' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'support', instrument:'short bell accents quiet on the phrase ends' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a final chorus with every layer in' },
       }},
     },
@@ -848,8 +848,8 @@ export const ATOM_MODIFIERS = {
     },
     signatures: {
       chopped_stabs: { label: 'Chopped vocal stabs', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'chopped vocal stabs across the beat, low in the mix' },
-        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the stabs re-trigger harder in the breakdown' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'chopped vocal shots across the beat, low in the mix' },
+        mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'the vocal shots re-trigger harder in the breakdown' },
       }},
       organ_riff: { label: 'Driving organ riff', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a house organ riff under the groove' },
@@ -921,7 +921,7 @@ export const ATOM_MODIFIERS = {
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a key-change lift into the final chorus' },
       }},
       orch_hit: { label: 'Orchestral hit punctuation', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'sampled orchestral hits on the turnarounds, low in the mix' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'short sampled orchestral chords on the turnarounds, low in the mix' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a simple insistent synth hook' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a short sharp build straight into the hook' },
       }},
@@ -1008,11 +1008,11 @@ export const ATOM_MODIFIERS = {
     },
     signatures: {
       wall_fanfare: { label: 'Wall-of-sound fanfare', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a sampled brass fanfare answering behind the arrangement' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a sampled brass call answering behind the arrangement' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a build to a full wall of sound' },
       }},
       sampled_stab: { label: 'Sampled stab punctuation', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'sampled orchestral stabs through the arrangement, low in the mix' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'short sampled orchestral chords through the arrangement, low in the mix' },
         mo_motif:{ role:'motif', family:'lead', fn:'foreground-melody', priority:'core', instrument:'a bold anthemic melodic line' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a full stop then full re-entry' },
       }},
@@ -1069,7 +1069,7 @@ export const ATOM_MODIFIERS = {
       }},
       electro_pop: { label: 'Electro-pop body', bed: 'warm_analog_pad', atoms: {
         mo_perc:{ role:'perc', family:'perc', fn:'groove', priority:'core', instrument:'crisp electronic percussion layers' },
-        mo_bass:{ role:'bass', family:'bass', fn:'foundation-weight', priority:'core', foundational:true, instrument:'a punchy electro synth bass' },
+        mo_bass:{ role:'bass', family:'bass', fn:'foundation-weight', priority:'core', foundational:true, instrument:'a tight electro synth bass' },
       }},
       progressive: { label: 'Progressive build body', bed: 'filtered_pad', atoms: {
         mo_perc:{ role:'perc', family:'perc', fn:'groove', priority:'core', instrument:'rolling tom and shaker layers' },
@@ -1087,7 +1087,7 @@ export const ATOM_MODIFIERS = {
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a stripped build then a full-energy drop' },
       }},
       piano_house: { label: 'Piano house lift', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'house piano chords stabbing on the offbeat under the groove' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'clipped house piano chords on the offbeat under the groove' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a synth line rising quietly through the build' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a lift into the final chorus' },
       }},
@@ -1105,7 +1105,7 @@ export const ATOM_MODIFIERS = {
         mo_perc:{ role:'perc', family:'perc', fn:'groove', priority:'core', instrument:'crisp handclap and shaker layers' },
       }},
       electro_body: { label: 'Electro body', bed: 'filtered_pad', atoms: {
-        mo_perc:{ role:'perc', family:'perc', fn:'groove', priority:'core', instrument:'punchy electronic percussion layers' },
+        mo_perc:{ role:'perc', family:'perc', fn:'groove', priority:'core', instrument:'crisp electronic percussion layers' },
       }},
       summer_house: { label: 'Summer house body', bed: 'bright_synth_pad', atoms: {
         mo_perc:{ role:'perc', family:'perc', fn:'groove', priority:'core', instrument:'light tambourine and clap layers' },
@@ -1118,12 +1118,12 @@ export const ATOM_MODIFIERS = {
       }},
       pluck_hook: { label: 'Plucked synth hook', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a bright plucked synth hook under the melody' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a filtered chord stab answering under the hook' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a short filtered chord answering under the hook' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a clean build into an open drop' },
       }},
       filtered_disco: { label: 'Filtered disco loop', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a filtered disco guitar loop cycling under the beat' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a brass-synth stab layer low in the mix' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'short brass-synth chords low in the mix' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a long filter opening into the chorus' },
       }},
     },
@@ -1161,7 +1161,7 @@ export const ATOM_MODIFIERS = {
       }},
       sunset_lead: { label: 'Sunset synth lead', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a warm singing synth lead over the groove' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a brass-synth stab layer soft under the groove' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'short brass-synth chords soft under the groove' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a lift into a wide final chorus' },
       }},
     },
@@ -1189,17 +1189,17 @@ export const ATOM_MODIFIERS = {
     },
     signatures: {
       echo_stabs: { label: 'Echo-drenched vocal stabs', atoms: {
-        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'looped echo-drenched vocal stabs low in the mix' },
+        mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'looped echo-drenched vocal shots low in the mix' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'an extended dub breakdown, percussion and echo only' },
       }},
       dub_delay: { label: 'Dub delay throws', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'dub delay throws trailing off every phrase end' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a filtered organ stab layer low in the mix' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'short filtered organ chords low in the mix' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a long breakdown, one layer at a time' },
       }},
       piano_riff: { label: 'House piano riff', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature', signature:true, instrument:'a rolling house piano riff under the groove' },
-        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'a string-synth stab layer low under the groove' },
+        mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support', instrument:'short string-synth chords low under the groove' },
         mo_arc:{ role:'arc', fn:'arc', priority:'support', text:'a percussive build into a full open chorus' },
       }},
     },

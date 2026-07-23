@@ -23,6 +23,7 @@
 import { CHAR_LIMIT, ALWAYS_BAN } from './constants.js';
 import { evaluateCongruence } from './rules.js';
 import { bedAtom, bedAllowed } from './beds.js';
+import { selectNegatives } from './knowledge.js';
 import { modifierList } from './atom-modifiers.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
 import { ATOM_PRODUCERS } from './atom-producers.js';
@@ -291,7 +292,12 @@ export function buildAtoms(char, opts){
   // field is unchanged — ALWAYS_BAN only (parity-safe).
   const ovDef = !overlayNote ? (o.overlayDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null)) : null;
   const ovNeg = (ovDef && ovDef.negative) ? ovDef.negative : [];
-  const negative = [...ALWAYS_BAN, ...ovNeg].join(', ') + '.';
+  // NEGATIVE CAP (John, round 4): the negative field loses effectiveness beyond
+  // about five elements, so an unranked list of 23 silently discarded the ones
+  // that mattered and John had to front-load them by hand. Negatives are now
+  // ranked by observed harm and truncated — genre-breaking bans first, cosmetic
+  // non-musical bans only if slots remain.
+  const negative = selectNegatives([...ovNeg, ...ALWAYS_BAN]).join(', ') + '.';
   return { style, negative, lyrics:'', length:style.length, over,
            arrangement:kept, overlayNote };
 }

@@ -18,6 +18,7 @@ const files = [
   'core/atom-producers.js',
   'core/atom-remixers.js',
   'core/beds.js',
+  'core/knowledge.js',
   'core/rules.js',
   'core/atoms.js',
   'engines/atom-pools.js',
