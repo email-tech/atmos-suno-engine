@@ -24,6 +24,7 @@ import { CHAR_LIMIT, ALWAYS_BAN } from './constants.js';
 import { evaluateCongruence } from './rules.js';
 import { bedAtom, bedAllowed } from './beds.js';
 import { selectNegatives } from './knowledge.js';
+import { classifyInstrument, planePhrase, pairLink } from './linking.js';
 import { modifierList } from './atom-modifiers.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
 import { ATOM_PRODUCERS } from './atom-producers.js';
@@ -230,6 +231,17 @@ function compose(held, mastering, o){
 
   const lead=ownerOf('lead'); if(lead && !lead.signature) cl.push(`${wt(lead)} on the melody out front`);
 
+  // FAMILY-PAIR LINKING (guide §3-§9). When the lead and the bed belong to two
+  // different orchestral families the guide has TESTED wording for how they sit
+  // together — e.g. 'string melody in the foreground with quiet brass harmonies
+  // in the background'. Using it replaces language that was previously invented.
+  const bedForLink=ownerOf('pad');
+  if(lead && bedForLink && !lead.signature){
+    const link=pairLink(classifyInstrument(lead.instrument),
+                        classifyInstrument(bedForLink.instrument), o.seed||0);
+    if(link) cl.push(link);
+  }
+
   // THE BED. Round 3 showed that NAMING a pad does not make Suno render one —
   // John's own definition is behavioural (sustained, slow attack and release,
   // background placement, rich chords), so the behaviour is stated explicitly
@@ -239,11 +251,47 @@ function compose(held, mastering, o){
   // content and an audible swell, not more level.
   const pads=ownerOf('pad'), harm=ownerOf('harmony');
   if(pads||harm){ let h='';
-    if(pads) h = pads.behaviour ? `${wt(pads)} ${pads.behaviour}` : wt(pads);
+    if(pads){
+      h = pads.behaviour ? `${wt(pads)} ${pads.behaviour}` : wt(pads);
+      // PLANE OF TONE (docs/knowledge/instrument-family-linking-guide.md §13).
+      // John, round 4: a MODIFIER's bed came through 'too front and centre in
+      // the arrangement in volume'. Its own behaviour string says it sits low,
+      // but that was not enough against orchestral instrument names, which drag
+      // a cinematic front-and-centre mix with them. The guide's background-plane
+      // wording states the placement in the vocabulary Suno was trained on.
+      // Only modifier beds are pushed back; a character's own pad IS the genre
+      // and must not be buried.
+      if(pads.source==='overlay'){
+        const fam=classifyInstrument(pads.instrument);
+        if(fam){
+          // Replace the behaviour's own placement tail rather than stacking a
+          // second one — the bed already said 'well behind the melody' in round 4
+          // and still came through too front, so this swaps that wording for the
+          // guide's orchestration vocabulary instead of repeating it. The SWELL
+          // half of the behaviour is kept: slow attack is part of John's pad
+          // definition and carries no placement claim.
+          const swell=(pads.behaviour||'').split(/,?\s*(?:well )?(?:behind|under|underneath|beneath|low in the mix|far behind|back in the mix)\b/)[0].trim();
+          h = `${wt(pads)}${swell?' '+swell:''}, ${planePhrase('background','blend',fam)}`;
+        }
+      }
+    }
     if(harm && !sigHarm) h=(h?`${h}, moving through `:'')+ (harm.text||harm.instrument);
     if(h) cl.push(h); }
 
-  const strings=ownerOf('strings'); if(strings && !strings.signature) cl.push(`${wt(strings)} under the melody`);
+  // MIDDLE PLANE (guide §13). John, round 4 A1: 'Couldn't hear the marimba, cello
+  // nor the French Horn (Might be too deep in the prompt)'. These are the
+  // character's own supporting voices — the genre's identity — and 'under the
+  // melody' alone left them inaudible. The middle-plane wording places them
+  // between the lead and the bed instead of merely below everything.
+  const strings=ownerOf('strings');
+  if(strings && !strings.signature){
+    // The guide writes '[Family] in the middle plane'; an instrument is a member
+    // of its family and reads naturally in the same slot, so the specific name is
+    // used rather than collapsing a cello into the word 'strings'.
+    const fam=classifyInstrument(strings.instrument);
+    cl.push(fam ? planePhrase('middle','support', wt(strings))
+                : `${wt(strings)} under the melody`);
+  }
   const texture=ownerOf('texture'); if(texture && !texture.signature) cl.push(`${texture.instrument} sustained underneath`);
 
   const counter=ownerOf('counter');

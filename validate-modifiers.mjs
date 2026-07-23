@@ -257,8 +257,17 @@ for (const entry of modifierList()) {
         const pad = (dna.arrangement || []).find(a => a.family === 'pad');
         if (!pad) { bad(`${modId}/${coreId} [${pal}]: applied but no pad in the arrangement`); continue; }
         if (!pad.bedId) bad(`${modId}/${coreId} [${pal}]: pad slot is not a library bed`);
-        if (!dna.render.style.includes(pad.behaviour || '\u0000'))
-          bad(`${modId}/${coreId} [${pal}]: bed behaviour absent from the style string`);
+        // The bed states its behaviour EITHER in full, OR — when the linking
+        // layer places a modifier bed in the guide's background plane — as its
+        // swell half plus that plane phrase. Placement is then carried by the
+        // orchestration vocabulary instead of being said twice. Either form
+        // satisfies John's requirement that a pad announce how it moves.
+        const beh = pad.behaviour || '\u0000';
+        const swell = beh.split(/,?\s*(?:well )?(?:behind|under|underneath|beneath|low in the mix|far behind|back in the mix)\b/)[0].trim();
+        const full = dna.render.style.includes(beh);
+        const planed = swell && dna.render.style.includes(swell) && /background plane/.test(dna.render.style);
+        if (!full && !planed)
+          bad(`${modId}/${coreId} [${pal}]: bed states neither its behaviour nor a plane placement`);
         checked++;
       }
     }

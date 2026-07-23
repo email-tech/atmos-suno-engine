@@ -15,12 +15,15 @@ Retention is not memory and not prose. Work through this list in order.
    knowledgebase, vendored into the repo so it is always present:
    - `instrument-family-linking-guide.md` — tested wording for how orchestral
      families interact. **Use these phrases; do not invent interaction language.**
+     Already encoded in `core/linking.js`, whose validator reads this file from
+     disk and fails on any paraphrase. If a phrase is needed that the guide does
+     not contain, ASK JOHN — do not write one.
    - `music-knowledge.md` — index to the discipline skill files
    - `arrange-skill.md`, `prod-mix-skill.md`, `music-theory-skill.md`,
      `songwriting-skill.md`, `ai-music-skill.md`, `hardware-studio.md`
    - `balearic-influence-trait-library-v1.md`
 
-3. **Run `node validate-knowledge.mjs`.** If it fails, something regressed since
+3. **Run `node validate-knowledge.mjs` and `node validate-linking.mjs`.** If it fails, something regressed since
    the last session — fix that before anything else.
 
 4. **Query the Notion decision log** for state and open questions.
