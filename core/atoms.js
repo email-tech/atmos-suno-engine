@@ -147,7 +147,7 @@ function reconcile(held){
   // '<instrument> <behaviour>', so cut at the first behaviour/placement marker —
   // otherwise trailing fragments like 'the melody' or 'the groove' get treated as
   // instruments and every atom collides with every other one.
-  const STOP = /\b(answering|swelling|holding|held|ticking|sitting|building|opening|fading|rising|running|cycling|driving|punctuating|threading|floating|entering|carried|low|under|underneath|beneath|behind|below|quiet|quietly|soft|softly|hushed|distant|faint|through|across|over|in the|on the|between)\b/;
+  const STOP = /\b(answering|swelling|holding|ticking|sitting|building|opening|fading|rising|running|cycling|driving|punctuating|threading|floating|entering|carried|low|under|underneath|beneath|behind|below|quiet|quietly|soft|softly|hushed|distant|faint|through|across|over|in the|on the|between)\b/;
   const heads = (txt) => {
     let t = String(txt||'').toLowerCase().replace(/^(a|an|the) /,'');
     const m = t.match(STOP);
