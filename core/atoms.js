@@ -127,13 +127,47 @@ function reconcile(held){
     if (!cur || outranks || displaces || overlayTie) survivor.set(at.family, at);
   }
   let kept = held.filter(at => !at.family || survivor.get(at.family)===at);
-  const used=new Set();
-  for (const at of kept){
-    at.timbre = at.timbre.filter(w=>{ const k=w.toLowerCase();
-      if(used.has(k)) return false;
-      if(at.instrument && at.instrument.toLowerCase().includes(k)){ used.add(k); return false; }
-      used.add(k); return true; });
+
+  /* CROSS-FAMILY INSTRUMENT DE-DUPE (John, Suno test round 4).
+   * Family-based reconcile cannot see one voice named twice under DIFFERENT
+   * families. John heard 'French horn mentioned on 3 occasions': the strings-and-
+   * horns BED (family pad), the composer's body texture (family texture) and the
+   * character's counter line (family counter) all named the same horn, and
+   * reported the horn parts 'at odds with one another'. Three mentions of one
+   * instrument tells Suno to render three of them.
+   *
+   * PRECEDENCE, not array order: the SIGNATURE claims first (it is the
+   * fingerprint and must always survive), then the OVERLAY body (the modifier is
+   * the user's deliberate choice), then the character. A voice naming an
+   * instrument an earlier claimant already took is dropped. bass and drums are
+   * exempt — they carry the genre identity and must never vanish silently.
+   */
+  const claimed = new Set();
+  // Only the INSTRUMENT part of an atom counts. Atoms are authored as
+  // '<instrument> <behaviour>', so cut at the first behaviour/placement marker —
+  // otherwise trailing fragments like 'the melody' or 'the groove' get treated as
+  // instruments and every atom collides with every other one.
+  const STOP = /\b(answering|swelling|holding|held|ticking|sitting|building|opening|fading|rising|running|cycling|driving|punctuating|threading|floating|entering|carried|low|under|underneath|beneath|behind|below|quiet|quietly|soft|softly|hushed|distant|faint|through|across|over|in the|on the|between)\b/;
+  const heads = (txt) => {
+    let t = String(txt||'').toLowerCase().replace(/^(a|an|the) /,'');
+    const m = t.match(STOP);
+    if (m && m.index > 0) t = t.slice(0, m.index);
+    return t.split(/\s*(?:,| and | with )\s*/)
+      .map(x => x.replace(/[^a-z- ]/g,'').trim())
+      .filter(x => x && x.length > 3);
+  };
+  const rank = (at) => at.signature ? 0 : (at.source==='overlay' ? 1 : 2);
+  const doomed = new Set();
+  for (const at of [...kept].sort((a,b) => rank(a)-rank(b))) {
+    if (!at.instrument) continue;
+    if (at.family==='bass' || at.family==='drums') continue;
+    const h = heads(at.instrument);
+    if (!h.length) continue;
+    const clash = h.some(x => [...claimed].some(c => c.includes(x) || x.includes(c)));
+    if (clash && !at.signature) { doomed.add(at); continue; }
+    h.forEach(x => claimed.add(x));
   }
+  kept = kept.filter(at => !doomed.has(at));
   return kept;
 }
 
