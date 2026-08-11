@@ -19,6 +19,7 @@ const files = [
   'core/atom-remixers.js',
   'core/beds.js',
   'core/knowledge.js',
+  'core/composer-layers.js',
   'core/linking.js',
   'core/rules.js',
   'core/atoms.js',

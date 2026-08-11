@@ -1667,6 +1667,358 @@ const INTERACTION_LANGUAGE_MANDATORY = true;
 Object.assign(window.__ATMOS, { selectNegatives, NEGATIVE_CAP, NEGATIVE_RANKS, BANNED_ARTICULATION, BANNED_ARTICULATION_RE, POSITION_IS_PROMINENCE, CONVENTION_BLEED, ONE_VOICE_ONE_MENTION, INTERACTION_LANGUAGE_MANDATORY });
 })();
 
+/* core/composer-layers.js */
+(function(){
+/* ==========================================================================
+ * composer-layers.js — THE COMPOSER MODIFIER, SIMPLIFIED (John, 2026-07-23).
+ *
+ * John's decision after round 4: stop building the song AROUND a composer
+ * fingerprint. Instead treat the composer as a SECONDARY ARRANGEMENT LAYER that
+ * decorates a song already defined by its own genre, character, tempo and
+ * sections. The hierarchy is:
+ *
+ *     existing song -> genre/style/mood/tempo -> section instruction -> fingerprint
+ *
+ * not the previous "fingerprint -> song built around it". This sidesteps every
+ * problem round 4 surfaced: the composer never competes with the genre anchor,
+ * never displaces the genre's lead, and never front-weights, because it lives in
+ * a secondary clause and in the per-section metatags rather than in the primary
+ * style body.
+ *
+ * EACH COMPOSER PROVIDES TWO THINGS:
+ *   1. `style`   — one secondary-layer sentence appended after the character's
+ *                  own style prompt. Names the composer's instruments and their
+ *                  role, explicitly subordinate ("kept beneath the existing lead
+ *                  except at transitions and hook reinforcement").
+ *   2. `sections`— what each composer instrument does at each structural point,
+ *                  merged into the metatag engine's per-section output in the
+ *                  proven piped [Section | short | short] format.
+ *
+ * THE CONSISTENCY CONTRACT (John, explicit):
+ *   "any instrument that the composer layer states in the prompt must at some
+ *    point be stated in the meta tags."
+ *   Every member of `instruments` MUST appear in `style` AND in at least one
+ *   `sections` entry. validate-composer-layers.mjs fails the build otherwise.
+ *
+ * BANNED LANGUAGE:
+ *   John: "Anything that was banned originally still keep that banned." The
+ *   round-4 ban (ostinato, staccato, stab/stabs, fanfare, orchestral hits) is
+ *   global and still applies here. The reference document he supplied used
+ *   'low-string ostinato', 'orchestral stabs' etc.; those are translated to the
+ *   neutral forms the ban already uses — 'repeating figure/cell', 'short chords',
+ *   'sampled orchestral chords'. core/knowledge.js BANNED_ARTICULATION_RE is
+ *   enforced across every string in this file.
+ *
+ * Section keys are the metatag engine's canonical types: intro, verse,
+ * prechorus, chorus, bridge, outro.
+ * ========================================================================*/
+
+// A composer's instruments as short metatag tokens. Kept as an explicit list so
+// the consistency validator has a canonical set to check `style` and `sections`
+// against, rather than trying to parse instruments back out of prose.
+const COMPOSER_LAYERS = {
+
+  composer_zimmer: {
+    label: 'Hans Zimmer',
+    instruments: ['low strings', 'French horns', 'trombones', 'deep synth bass', 'analog synth pulse', 'large low toms'],
+    style: 'secondary arrangement layer of low strings, French horns, trombones, deep synth bass, analog synth pulse and large low toms in short repeating cells and pedal tones, building gradually and kept beneath the existing lead except at transitions and hook reinforcement',
+    sections: {
+      intro:     ['analog synth pulse', 'sparse low strings'],
+      verse:     ['low strings', 'light large low toms'],
+      prechorus: ['thicker low strings', 'short French horns'],
+      chorus:    ['French horns reinforce hook', 'trombones', 'deep synth bass', 'large low toms'],
+      bridge:    ['analog synth pulse', 'deep synth bass', 'reduced low strings'],
+      outro:     ['low strings', 'final French horns'],
+    },
+  },
+
+  composer_williams: {
+    label: 'John Williams',
+    instruments: ['trumpets', 'French horns', 'string ensemble', 'flutes', 'clarinets', 'harp', 'timpani', 'snare drum', 'glockenspiel'],
+    style: 'secondary arrangement layer of trumpets, French horns, string ensemble, flutes, clarinets, harp, timpani, snare drum and glockenspiel in short answering motifs, woodwind counterlines and brass punctuation woven around the existing lead',
+    sections: {
+      intro:     ['trumpets and French horns motif', 'snare drum pickup', 'harp'],
+      verse:     ['string ensemble', 'flutes and clarinets answer', 'glockenspiel'],
+      prechorus: ['harp movement', 'rising French horns'],
+      chorus:    ['trumpets and French horns reinforce hook', 'timpani', 'glockenspiel'],
+      bridge:    ['flutes and clarinets motif', 'harp', 'string ensemble'],
+      outro:     ['short trumpets reprise', 'string ensemble', 'timpani'],
+    },
+  },
+
+  composer_arnold: {
+    label: 'David Arnold',
+    instruments: ['brass section', 'string ensemble', 'electric guitar', 'synth bass', 'electronic drum kit', 'piano'],
+    style: 'secondary arrangement layer of brass section, string ensemble, electric guitar, synth bass, electronic drum kit and piano in syncopated accents and short brass hooks around the existing song',
+    sections: {
+      intro:     ['piano figure', 'synth bass pulse'],
+      verse:     ['string ensemble', 'restrained electronic drum kit', 'electric guitar'],
+      prechorus: ['denser string ensemble', 'rising brass section'],
+      chorus:    ['brass section reinforces hook', 'synth bass', 'electronic drum kit', 'electric guitar'],
+      bridge:    ['piano figure', 'reduced string ensemble'],
+      outro:     ['short brass section reprise', 'synth bass', 'electronic drum kit'],
+    },
+  },
+
+  composer_newman: {
+    label: 'Thomas Newman',
+    instruments: ['piano', 'marimba', 'xylophone', 'string ensemble', 'acoustic guitar', 'flute', 'frame drum'],
+    style: 'secondary arrangement layer of piano, marimba, xylophone, string ensemble, acoustic guitar, flute and frame drum in short repeating cells, isolated notes and interlocking mallet figures with deliberate gaps around the existing melody',
+    sections: {
+      intro:     ['isolated piano notes', 'single marimba', 'flute'],
+      verse:     ['marimba and xylophone interlock', 'acoustic guitar replies', 'frame drum'],
+      prechorus: ['brief string ensemble swells', 'flute', 'light frame drum'],
+      chorus:    ['piano motif', 'marimba', 'string ensemble'],
+      bridge:    ['acoustic guitar', 'flute', 'frame drum accents'],
+      outro:     ['reduced piano cell', 'single marimba', 'final string ensemble swell'],
+    },
+  },
+
+  composer_goransson: {
+    label: 'Ludwig Goransson',
+    instruments: ['bass recorder', 'talking drum', '808 bass', 'acoustic guitar', 'piano', 'Mellotron', 'string ensemble'],
+    style: 'secondary arrangement layer of bass recorder, talking drum, 808 bass, acoustic guitar, piano, Mellotron and string ensemble where a short bass-recorder cell seeds the rhythm and the others interlock around the existing lead',
+    sections: {
+      intro:     ['short bass recorder cell', 'isolated piano', 'Mellotron'],
+      verse:     ['talking drum', '808 bass', 'acoustic guitar'],
+      prechorus: ['bass recorder cell', 'acoustic guitar', 'Mellotron'],
+      chorus:    ['string ensemble over bass recorder cell', 'talking drum', '808 bass'],
+      bridge:    ['piano', 'Mellotron', 'bass recorder'],
+      outro:     ['bass recorder cell', 'acoustic guitar', 'reduced 808 bass', 'piano'],
+    },
+  },
+
+  composer_horner: {
+    label: 'James Horner',
+    instruments: ['piano', 'string ensemble', 'French horns', 'solo flute', 'low whistle', 'mixed choir', 'timpani'],
+    style: 'secondary arrangement layer of piano, string ensemble, French horns, solo flute, low whistle, mixed choir and timpani in piano fragments, long string support and horn counterlines around the existing lead',
+    sections: {
+      intro:     ['short piano figure', 'low whistle', 'solo flute'],
+      verse:     ['sustained string ensemble', 'piano fragments', 'French horns'],
+      prechorus: ['solo flute reply', 'expanding string ensemble', 'light timpani'],
+      chorus:    ['string ensemble', 'French horns', 'restrained mixed choir', 'timpani'],
+      bridge:    ['piano to solo flute', 'low whistle'],
+      outro:     ['piano and string ensemble', 'final French horns', 'solo flute'],
+    },
+  },
+
+  composer_goldsmith: {
+    label: 'Jerry Goldsmith',
+    instruments: ['string ensemble', 'French horn', 'trumpets', 'piano', 'synthesizer', 'snare drum', 'bass drum', 'guiro'],
+    style: 'secondary arrangement layer of string ensemble, French horn, trumpets, piano, synthesizer, snare drum, bass drum and guiro in short odd-meter repeating cells with offset accents and orchestral-electronic hand-offs around the existing lead',
+    sections: {
+      intro:     ['synthesizer cell', 'guiro', 'isolated piano notes'],
+      verse:     ['string ensemble', 'snare drum offsets', 'short French horn'],
+      prechorus: ['bass drum', 'trumpets'],
+      chorus:    ['French horn over string ensemble', 'synthesizer', 'trumpets'],
+      bridge:    ['piano', 'guiro', 'synthesizer'],
+      outro:     ['reduced string ensemble', 'French horn', 'single bass drum', 'piano'],
+    },
+  },
+
+  composer_nyman: {
+    label: 'Michael Nyman',
+    instruments: ['piano arpeggios', 'string quartet', 'soprano saxophone', 'alto saxophone', 'tenor saxophone', 'bass trombone', 'bass guitar'],
+    style: 'secondary arrangement layer of piano arpeggios, string quartet, soprano saxophone, alto saxophone, tenor saxophone, bass trombone and bass guitar repeating short cells with minimal variation while the existing melody stays primary',
+    sections: {
+      intro:     ['repeated piano arpeggios', 'bass trombone'],
+      verse:     ['string quartet', 'piano arpeggios', 'bass guitar'],
+      prechorus: ['soprano saxophone', 'alto saxophone', 'tenor saxophone'],
+      chorus:    ['piano arpeggios', 'string quartet', 'soprano saxophone', 'alto saxophone', 'tenor saxophone'],
+      bridge:    ['bass trombone', 'bass guitar'],
+      outro:     ['piano arpeggios', 'string quartet', 'bass guitar'],
+    },
+  },
+
+  composer_dudley: {
+    label: 'Anne Dudley',
+    instruments: ['grand piano', 'string ensemble', 'sampled orchestral chords', 'synth bass', 'electronic drum kit', 'sampled metal strikes'],
+    style: 'secondary arrangement layer of grand piano, string ensemble, sampled orchestral chords, synth bass, electronic drum kit and sampled metal strikes in short sampled punctuation and precise string voicings around the existing song',
+    sections: {
+      intro:     ['grand piano figure', 'sampled orchestral chords'],
+      verse:     ['electronic drum kit', 'synth bass', 'sampled metal strikes'],
+      prechorus: ['grand piano', 'string ensemble', 'sampled orchestral chords'],
+      chorus:    ['string ensemble reinforces hook', 'electronic drum kit', 'synth bass'],
+      bridge:    ['grand piano', 'sampled orchestral chords'],
+      outro:     ['grand piano', 'string ensemble', 'sampled metal strikes'],
+    },
+  },
+
+  composer_barry: {
+    label: 'John Barry',
+    instruments: ['violin section', 'French horns', 'muted trumpets', 'electric guitar', 'cimbalom', 'analog synthesizer', 'drum kit'],
+    style: 'secondary arrangement layer of violin section, French horns, muted trumpets, electric guitar, cimbalom, analog synthesizer and drum kit in short recurring motifs, sustained string lines and brass punctuation around the existing lead',
+    sections: {
+      intro:     ['electric guitar motif', 'cimbalom'],
+      verse:     ['sustained violin section', 'analog synthesizer', 'electric guitar', 'drum kit'],
+      prechorus: ['French horns', 'restrained drum kit'],
+      chorus:    ['French horns and muted trumpets reinforce hook', 'violin section', 'muted trumpets'],
+      bridge:    ['cimbalom', 'analog synthesizer', 'reduced violin section'],
+      outro:     ['violin section', 'French horns', 'electric guitar motif'],
+    },
+  },
+
+  composer_conti: {
+    label: 'Bill Conti',
+    instruments: ['piano', 'string ensemble', 'trumpets', 'French horns', 'electric guitar', 'bass guitar', 'drum kit'],
+    style: 'secondary arrangement layer of piano, string ensemble, trumpets, French horns, electric guitar, bass guitar and drum kit starting from a small piano motif with brass responses around the existing hook',
+    sections: {
+      intro:     ['short piano motif', 'single trumpets'],
+      verse:     ['piano motif', 'bass guitar', 'restrained drum kit', 'light string ensemble'],
+      prechorus: ['French horns', 'stronger bass guitar and drum kit'],
+      chorus:    ['trumpets and French horns reinforce hook', 'electric guitar', 'bass guitar', 'drum kit'],
+      bridge:    ['piano motif', 'reduced string ensemble'],
+      outro:     ['short trumpets reprise', 'electric guitar', 'final piano motif'],
+    },
+  },
+
+  composer_morricone: {
+    label: 'Ennio Morricone',
+    instruments: ['ocarina', 'wordless soprano', 'twanging electric guitar', 'trumpet', 'string ensemble', 'jews-harp', 'hand percussion'],
+    style: 'secondary arrangement layer of ocarina, wordless soprano, twanging electric guitar, trumpet, string ensemble, jews-harp and hand percussion in lone solo lines threaded around the existing melody',
+    sections: {
+      intro:     ['ocarina', 'hand percussion', 'jews-harp'],
+      verse:     ['twanging electric guitar', 'string ensemble'],
+      prechorus: ['wordless soprano', 'rising string ensemble'],
+      chorus:    ['trumpet', 'wordless soprano over string ensemble'],
+      bridge:    ['jews-harp', 'hand percussion'],
+      outro:     ['ocarina', 'reduced string ensemble', 'wordless soprano'],
+    },
+  },
+
+  composer_lloydwebber: {
+    label: 'Andrew Lloyd Webber',
+    instruments: ['string ensemble', 'solo violin', 'trumpet', 'pipe organ', 'harp', 'piano', 'electric guitar'],
+    style: 'secondary arrangement layer of string ensemble, solo violin, trumpet, pipe organ, harp, piano and electric guitar in soaring theatrical lines around the existing lead',
+    sections: {
+      intro:     ['piano', 'soft string ensemble', 'harp'],
+      verse:     ['solo violin', 'string ensemble', 'electric guitar'],
+      prechorus: ['harp', 'rising string ensemble'],
+      chorus:    ['solo violin and trumpet reinforce hook', 'pipe organ'],
+      bridge:    ['piano', 'electric guitar', 'reduced string ensemble'],
+      outro:     ['solo violin', 'string ensemble', 'pipe organ'],
+    },
+  },
+
+  // ---- ELECTRONIC / SYNTH-ERA COMPOSERS -------------------------------------
+  composer_moroder: {
+    label: 'Giorgio Moroder',
+    instruments: ['sequenced synth bass', 'analog synth lead', 'synth brass', 'filtered arpeggio', 'vocoder', 'drum machine'],
+    style: 'secondary arrangement layer of sequenced synth bass, analog synth lead, synth brass, filtered arpeggio, vocoder and drum machine in a relentless sequence around the existing lead',
+    sections: {
+      intro:     ['filtered arpeggio', 'sequenced synth bass', 'vocoder'],
+      verse:     ['sequenced synth bass', 'drum machine'],
+      prechorus: ['filtered arpeggio opens', 'synth brass'],
+      chorus:    ['analog synth lead', 'synth brass', 'sequenced synth bass', 'vocoder'],
+      bridge:    ['vocoder', 'filtered arpeggio'],
+      outro:     ['sequenced synth bass', 'reduced drum machine'],
+    },
+  },
+
+  composer_fidel: {
+    label: 'Brad Fidel',
+    instruments: ['industrial synth bass', 'metallic synth', 'struck steel', 'synth choir', 'drum machine'],
+    style: 'secondary arrangement layer of industrial synth bass, metallic synth, struck steel, synth choir and drum machine in a cold repeating figure around the existing lead',
+    sections: {
+      intro:     ['struck steel', 'industrial synth bass'],
+      verse:     ['industrial synth bass', 'drum machine'],
+      prechorus: ['metallic synth', 'struck steel'],
+      chorus:    ['metallic synth', 'industrial synth bass', 'drum machine', 'synth choir'],
+      bridge:    ['synth choir', 'metallic synth'],
+      outro:     ['industrial synth bass', 'struck steel', 'synth choir'],
+    },
+  },
+
+  composer_dicola: {
+    label: 'Vince DiCola',
+    instruments: ['synth brass', 'analog synth lead', 'piano', 'gated toms', 'drum machine'],
+    style: 'secondary arrangement layer of synth brass, analog synth lead, piano, gated toms and drum machine in bright anthemic lines around the existing lead',
+    sections: {
+      intro:     ['piano', 'drum machine'],
+      verse:     ['synth brass', 'drum machine'],
+      prechorus: ['rising synth brass', 'gated toms'],
+      chorus:    ['analog synth lead', 'synth brass', 'gated toms'],
+      bridge:    ['piano', 'reduced drum machine'],
+      outro:     ['analog synth lead', 'drum machine'],
+    },
+  },
+
+  composer_vangelis: {
+    label: 'Vangelis',
+    instruments: ['analog synth lead', 'analog synth brass', 'bell arpeggio', 'synth choir', 'deep filter sweep'],
+    style: 'secondary arrangement layer of analog synth lead, analog synth brass, bell arpeggio, synth choir and a deep filter sweep in slow singing lines around the existing lead',
+    sections: {
+      intro:     ['bell arpeggio', 'deep filter sweep'],
+      verse:     ['analog synth brass', 'bell arpeggio'],
+      prechorus: ['synth choir', 'rising analog synth brass'],
+      chorus:    ['analog synth lead', 'synth choir'],
+      bridge:    ['deep filter sweep', 'bell arpeggio'],
+      outro:     ['analog synth lead', 'synth choir'],
+    },
+  },
+
+  composer_hammer: {
+    label: 'Jan Hammer',
+    instruments: ['guitar-style synth lead', 'analog synth bass', 'electric piano', 'synth brass', 'drum machine'],
+    style: 'secondary arrangement layer of a guitar-style synth lead, analog synth bass, electric piano, synth brass and drum machine in bright cutting lines around the existing lead',
+    sections: {
+      intro:     ['electric piano', 'analog synth bass'],
+      verse:     ['analog synth bass', 'drum machine'],
+      prechorus: ['synth brass', 'rising electric piano'],
+      chorus:    ['guitar-style synth lead', 'synth brass', 'analog synth bass'],
+      bridge:    ['electric piano', 'reduced drum machine'],
+      outro:     ['guitar-style synth lead', 'analog synth bass'],
+    },
+  },
+
+  composer_faltermeyer: {
+    label: 'Harold Faltermeyer',
+    instruments: ['marimba-toned synth', 'analog synth lead', 'analog synth bass', 'synth brass', 'gated drum machine'],
+    style: 'secondary arrangement layer of a marimba-toned synth, analog synth lead, analog synth bass, synth brass and gated drum machine in a bright confident hook around the existing lead',
+    sections: {
+      intro:     ['marimba-toned synth', 'analog synth bass'],
+      verse:     ['analog synth bass', 'gated drum machine'],
+      prechorus: ['synth brass', 'marimba-toned synth'],
+      chorus:    ['analog synth lead', 'synth brass', 'analog synth bass'],
+      bridge:    ['marimba-toned synth', 'reduced gated drum machine'],
+      outro:     ['analog synth lead', 'analog synth bass'],
+    },
+  },
+};
+
+const COMPOSER_LAYER_IDS = Object.keys(COMPOSER_LAYERS);
+
+// A composer's list for the dropdown.
+function composerLayerList() {
+  return COMPOSER_LAYER_IDS.map((id) => ({ id, label: COMPOSER_LAYERS[id].label }));
+}
+
+// The secondary-layer style clause for a composer, appended to the character's
+// own style prompt. Returns '' for an unknown id so a stale selection degrades
+// to no layer rather than throwing.
+function composerStyleLayer(layerId) {
+  const layer = COMPOSER_LAYERS[layerId];
+  return layer ? layer.style : '';
+}
+
+// Merge a composer's section tokens into an existing metatag section line.
+// The engine emits '[Section | a | b | c]'; we append the composer tokens after a
+// separator so the original song section is preserved and the composer decorates
+// it. `sectionType` is the canonical type (intro/verse/prechorus/chorus/bridge/
+// outro); `existingLine` is the engine's already-built line for that section.
+function decorateSection(existingLine, layerId, sectionType) {
+  const layer = COMPOSER_LAYERS[layerId];
+  if (!layer) return existingLine;
+  const tokens = layer.sections[sectionType];
+  if (!tokens || !tokens.length) return existingLine;
+  // strip the trailing ] , add the composer tokens, re-close.
+  const base = existingLine.replace(/\]\s*$/, '');
+  return `${base} | ${tokens.join(' | ')}]`;
+}
+
+Object.assign(window.__ATMOS, { composerLayerList, composerStyleLayer, decorateSection, COMPOSER_LAYERS, COMPOSER_LAYER_IDS });
+})();
+
 /* core/linking.js */
 (function(){
 /* ==========================================================================
@@ -5078,6 +5430,7 @@ Object.assign(window.__ATMOS, { runLyricEngine, lyricResidue, assembleLyricBrief
 
 const {STRUCTURE_TEMPLATES, TEMPLATE_FOR_SUBGENRE, templateById} = window.__ATMOS;
 const {DNA_CONSUMERS} = window.__ATMOS;
+const {decorateSection, COMPOSER_LAYERS} = window.__ATMOS;
 
 const METATAG_VERSION = '1.0';
 
@@ -5364,6 +5717,10 @@ function leanTag(type, v, dna, label, vocalMode, deliveryClass, moodClass) {
 function buildMetatagPlan(dna, opts) {
   const o = opts || {};
   const cil = o.cil || null;
+  // COMPOSER LAYER (John, 2026-07-23): a composer modifier decorates the song's
+  // OWN section metatags at structural points, rather than defining the song.
+  // Its per-section tokens are merged into the lean lines below.
+  const composerLayerId = o.composerLayerId && COMPOSER_LAYERS[o.composerLayerId] ? o.composerLayerId : null;
   const { vocalMode, deliveryClass, moodClass } = resolveVocal(dna, cil, o.answers, o.lyricResult);
   const template = pickTemplate(dna, o.answers, o.lyricResult);
   const v = voiceSet(dna);
@@ -5414,8 +5771,11 @@ function buildMetatagPlan(dna, opts) {
     sections: sections.slice(),
     energyMap: energyMap(sections, total),
     plan,
-    leanLines: sections.map((label, i) =>
-      leanTag(sectionType(label, i, total), v, dna, label, vocalMode, deliveryClass, moodClass)),
+    leanLines: sections.map((label, i) => {
+      const t = sectionType(label, i, total);
+      const base = leanTag(t, v, dna, label, vocalMode, deliveryClass, moodClass);
+      return composerLayerId ? decorateSection(base, composerLayerId, t) : base;
+    }),
     minimalLines: sections.map((label, i) => {
       const t = sectionType(label, i, total);
       if (vocalMode !== 'vocal' || isNonVocalSection(t, label)) return `[${label}]`;
@@ -5468,8 +5828,8 @@ function metatagList(built) {
 /* ---- runtime driver (no model call — deterministic assembly) ---------------
  * renderMode default: vocal -> 'lean' (share the lyrics budget), instrumental
  * -> 'full' (whole lyrics box free). Pass renderMode to override. */
-function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode }) {
-  const built = buildMetatagPlan(dna, { cil, answers, lyricResult });
+function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode, composerLayerId }) {
+  const built = buildMetatagPlan(dna, { cil, answers, lyricResult, composerLayerId });
   // Evidence-based default: metatags DO work when aligned with genre and lyrics,
   // so always emit them — in the piped short-element format. 'minimal' (bare
   // section markers) and 'full' remain available for A/B.
@@ -8712,7 +9072,7 @@ function syncEngineDefaults(S, engineId) {
     const chars = atomCharacterList(eng.module);
     // palette is an axis on the atom path (electronic | acoustic); characters
     // without palettes (e.g. a validated ref) simply ignore it at generate.
-    S.atom = { characterId: chars[0].id, palette: 'electronic', overlayId: '' };
+    S.atom = { characterId: chars[0].id, palette: 'electronic', overlayId: '', composerLayerId: '' };
     S.res = null; S.leg = null;
   } else if (eng.kind === 'resolver') {
     const chars = resolverCharacters(eng.module);
@@ -8768,6 +9128,9 @@ Object.assign(window.__ATMOS, { newSeed, initState, syncEngineDefaults });
 //   - resolver engines get it here in the router
 const {getEngine, legacyClassic} = window.__ATMOS;
 const {buildAtoms} = window.__ATMOS;
+const {buildMusicalDNA} = window.__ATMOS;
+const {runMetatagEngine} = window.__ATMOS;
+const {COMPOSER_LAYERS, composerStyleLayer} = window.__ATMOS;
 const {atomCharacterForPalette} = window.__ATMOS;
 const {build} = window.__ATMOS;
 const {CHAR_LIMIT, rng} = window.__ATMOS;
@@ -8795,11 +9158,35 @@ function generate(S) {
 
   if (eng.kind === 'atom') {
     const a = S.atom;
-    const char = atomCharacterForPalette(eng.module[a.characterId], a.palette || 'electronic');
+    const palette = a.palette || 'electronic';
+    const baseChar = eng.module[a.characterId];
+    const char = atomCharacterForPalette(baseChar, palette);
+
+    // COMPOSER LAYER (John, 2026-07-23): a composer modifier is no longer an atom
+    // overlay injected into the style body. It is a SECONDARY layer — one clause
+    // appended to the style prompt plus per-section metatag decoration — applied
+    // over the song the character already defines. The character build is
+    // untouched; the composer only decorates it.
+    const composerLayerId = (a.composerLayerId && COMPOSER_LAYERS[a.composerLayerId]) ? a.composerLayerId : null;
+
     const out = buildAtoms(char, { seed: S.seed, overlayId: a.overlayId || null, maxMode: S.maxMode });
-    const style = applyMax(out.style, S.maxMode);
+    let style = out.style;
+    if (composerLayerId) style = `${style}, ${composerStyleLayer(composerLayerId)}`;
+    style = applyMax(style, S.maxMode);
+
+    // Metatags: the character's own section plan, decorated at structural points
+    // by the composer layer. This is also the first time the atom path surfaces
+    // metatags to the app at all.
+    let metatags = '';
+    try {
+      const dna = buildMusicalDNA(baseChar, palette, {
+        seed: S.seed, characterId: a.characterId, overlayId: a.overlayId || null,
+      });
+      metatags = runMetatagEngine({ dna, renderMode: 'lean', composerLayerId }).block;
+    } catch (e) { metatags = ''; }
+
     return {
-      style, negative: out.negative, lyrics: '',
+      style, negative: out.negative, lyrics: '', metatags,
       length: style.length, over: style.length > CHAR_LIMIT,
       arrangement: out.arrangement, overlayNote: out.overlayNote,
     };
@@ -8920,6 +9307,7 @@ const {syncEngineDefaults, newSeed} = window.__ATMOS;
 const {generate} = window.__ATMOS;
 const {overlayList} = window.__ATMOS;
 const {favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll} = window.__ATMOS;
+const {composerLayerList} = window.__ATMOS;
 
 // ---- tiny DOM helpers ------------------------------------------------------
 function el(tag, attrs = {}, kids = []) {
@@ -9168,6 +9556,13 @@ function renderAtomControls(root, eng) {
     .concat(atomOverlays().map(o => ({ value: o.id, label: `${o.label} (${o.kind})` })));
   root.appendChild(field('Overlay', select(ovOpts, a.overlayId || '', v => { a.overlayId = v; refreshOutput(); })));
 
+  // Composer modifier (John's simplified model): a secondary arrangement layer
+  // that decorates the song at structural points via style + metatags, rather
+  // than an atom overlay competing in the style body. Simple dropdown select.
+  const compOpts = [{ value: '', label: 'none' }].concat(
+    composerLayerList().map(c => ({ value: c.id, label: c.label })));
+  root.appendChild(field('Composer', select(compOpts, a.composerLayerId || '', v => { a.composerLayerId = v; refreshOutput(); })));
+
   root.appendChild(el('p', { class: 'note', text: 'Atom assembly path. Overlays are congruent-by-default \u2014 an incongruent one is refused (shown below the prompt).' }));
   root.appendChild(buttons());
 }
@@ -9363,6 +9758,7 @@ function refreshOutput() {
   host.appendChild(outBlock('Negative prompt', res.negative, null, false));
   const lyr = res.lyrics || '[Instrumental]';
   host.appendChild(outBlock('Lyrics field', lyr, null, false, 'Paste into Suno\u2019s lyrics box; use Suno\u2019s Instrumental toggle for reliable vocal suppression.'));
+  if (res.metatags) host.appendChild(outBlock('Metatags', res.metatags, null, false, 'Paste into the lyrics box at the section markers. Composer selections decorate these at structural points.'));
 }
 
 function outBlock(title, text, length, over, hint) {

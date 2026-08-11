@@ -5,6 +5,9 @@
 //   - resolver engines get it here in the router
 import { getEngine, legacyClassic } from './registry.js';
 import { buildAtoms } from '../core/atoms.js';
+import { buildMusicalDNA } from '../core/dna.js';
+import { runMetatagEngine } from '../core/metatag.js';
+import { COMPOSER_LAYERS, composerStyleLayer } from '../core/composer-layers.js';
 import { atomCharacterForPalette } from '../engines/atom-characters.js';
 import { build } from '../core/resolver.js';
 import { CHAR_LIMIT, rng } from '../core/constants.js';
@@ -32,11 +35,35 @@ export function generate(S) {
 
   if (eng.kind === 'atom') {
     const a = S.atom;
-    const char = atomCharacterForPalette(eng.module[a.characterId], a.palette || 'electronic');
+    const palette = a.palette || 'electronic';
+    const baseChar = eng.module[a.characterId];
+    const char = atomCharacterForPalette(baseChar, palette);
+
+    // COMPOSER LAYER (John, 2026-07-23): a composer modifier is no longer an atom
+    // overlay injected into the style body. It is a SECONDARY layer — one clause
+    // appended to the style prompt plus per-section metatag decoration — applied
+    // over the song the character already defines. The character build is
+    // untouched; the composer only decorates it.
+    const composerLayerId = (a.composerLayerId && COMPOSER_LAYERS[a.composerLayerId]) ? a.composerLayerId : null;
+
     const out = buildAtoms(char, { seed: S.seed, overlayId: a.overlayId || null, maxMode: S.maxMode });
-    const style = applyMax(out.style, S.maxMode);
+    let style = out.style;
+    if (composerLayerId) style = `${style}, ${composerStyleLayer(composerLayerId)}`;
+    style = applyMax(style, S.maxMode);
+
+    // Metatags: the character's own section plan, decorated at structural points
+    // by the composer layer. This is also the first time the atom path surfaces
+    // metatags to the app at all.
+    let metatags = '';
+    try {
+      const dna = buildMusicalDNA(baseChar, palette, {
+        seed: S.seed, characterId: a.characterId, overlayId: a.overlayId || null,
+      });
+      metatags = runMetatagEngine({ dna, renderMode: 'lean', composerLayerId }).block;
+    } catch (e) { metatags = ''; }
+
     return {
-      style, negative: out.negative, lyrics: '',
+      style, negative: out.negative, lyrics: '', metatags,
       length: style.length, over: style.length > CHAR_LIMIT,
       arrangement: out.arrangement, overlayNote: out.overlayNote,
     };

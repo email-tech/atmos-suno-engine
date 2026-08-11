@@ -41,6 +41,7 @@
 
 import { STRUCTURE_TEMPLATES, TEMPLATE_FOR_SUBGENRE, templateById } from './lyric-controls.js';
 import { DNA_CONSUMERS } from './dna.js';
+import { decorateSection, COMPOSER_LAYERS } from './composer-layers.js';
 
 export const METATAG_VERSION = '1.0';
 
@@ -327,6 +328,10 @@ function leanTag(type, v, dna, label, vocalMode, deliveryClass, moodClass) {
 export function buildMetatagPlan(dna, opts) {
   const o = opts || {};
   const cil = o.cil || null;
+  // COMPOSER LAYER (John, 2026-07-23): a composer modifier decorates the song's
+  // OWN section metatags at structural points, rather than defining the song.
+  // Its per-section tokens are merged into the lean lines below.
+  const composerLayerId = o.composerLayerId && COMPOSER_LAYERS[o.composerLayerId] ? o.composerLayerId : null;
   const { vocalMode, deliveryClass, moodClass } = resolveVocal(dna, cil, o.answers, o.lyricResult);
   const template = pickTemplate(dna, o.answers, o.lyricResult);
   const v = voiceSet(dna);
@@ -377,8 +382,11 @@ export function buildMetatagPlan(dna, opts) {
     sections: sections.slice(),
     energyMap: energyMap(sections, total),
     plan,
-    leanLines: sections.map((label, i) =>
-      leanTag(sectionType(label, i, total), v, dna, label, vocalMode, deliveryClass, moodClass)),
+    leanLines: sections.map((label, i) => {
+      const t = sectionType(label, i, total);
+      const base = leanTag(t, v, dna, label, vocalMode, deliveryClass, moodClass);
+      return composerLayerId ? decorateSection(base, composerLayerId, t) : base;
+    }),
     minimalLines: sections.map((label, i) => {
       const t = sectionType(label, i, total);
       if (vocalMode !== 'vocal' || isNonVocalSection(t, label)) return `[${label}]`;
@@ -431,8 +439,8 @@ export function metatagList(built) {
 /* ---- runtime driver (no model call — deterministic assembly) ---------------
  * renderMode default: vocal -> 'lean' (share the lyrics budget), instrumental
  * -> 'full' (whole lyrics box free). Pass renderMode to override. */
-export function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode }) {
-  const built = buildMetatagPlan(dna, { cil, answers, lyricResult });
+export function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode, composerLayerId }) {
+  const built = buildMetatagPlan(dna, { cil, answers, lyricResult, composerLayerId });
   // Evidence-based default: metatags DO work when aligned with genre and lyrics,
   // so always emit them — in the piped short-element format. 'minimal' (bare
   // section markers) and 'full' remain available for A/B.

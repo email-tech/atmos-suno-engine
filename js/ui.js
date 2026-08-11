@@ -7,6 +7,7 @@ import { syncEngineDefaults, newSeed } from './state.js';
 import { generate } from './generate.js';
 import { overlayList } from '../core/overlays.js';
 import { favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll } from '../core/favourites.js';
+import { composerLayerList } from '../core/composer-layers.js';
 
 // ---- tiny DOM helpers ------------------------------------------------------
 function el(tag, attrs = {}, kids = []) {
@@ -255,6 +256,13 @@ function renderAtomControls(root, eng) {
     .concat(atomOverlays().map(o => ({ value: o.id, label: `${o.label} (${o.kind})` })));
   root.appendChild(field('Overlay', select(ovOpts, a.overlayId || '', v => { a.overlayId = v; refreshOutput(); })));
 
+  // Composer modifier (John's simplified model): a secondary arrangement layer
+  // that decorates the song at structural points via style + metatags, rather
+  // than an atom overlay competing in the style body. Simple dropdown select.
+  const compOpts = [{ value: '', label: 'none' }].concat(
+    composerLayerList().map(c => ({ value: c.id, label: c.label })));
+  root.appendChild(field('Composer', select(compOpts, a.composerLayerId || '', v => { a.composerLayerId = v; refreshOutput(); })));
+
   root.appendChild(el('p', { class: 'note', text: 'Atom assembly path. Overlays are congruent-by-default \u2014 an incongruent one is refused (shown below the prompt).' }));
   root.appendChild(buttons());
 }
@@ -450,6 +458,7 @@ function refreshOutput() {
   host.appendChild(outBlock('Negative prompt', res.negative, null, false));
   const lyr = res.lyrics || '[Instrumental]';
   host.appendChild(outBlock('Lyrics field', lyr, null, false, 'Paste into Suno\u2019s lyrics box; use Suno\u2019s Instrumental toggle for reliable vocal suppression.'));
+  if (res.metatags) host.appendChild(outBlock('Metatags', res.metatags, null, false, 'Paste into the lyrics box at the section markers. Composer selections decorate these at structural points.'));
 }
 
 function outBlock(title, text, length, over, hint) {
