@@ -15,6 +15,7 @@ import { resolveOverlays } from '../core/overlays.js';
 import { EngineExtras } from '../legacy/engine-extras.js';
 import { MAX_MODE_STR } from '../legacy/data-style-engines.js';
 import { buildStylePrompt, buildNegativePrompt, buildLyricsField } from '../legacy/prompt-style-builder.js';
+import { resolveStructure } from '../core/structure.js';
 
 function applyMax(style, on) {
   if (!on) return style;
@@ -33,6 +34,20 @@ function applyMax(style, on) {
 // user's own choice.
 function songTypeLyrics(S, fallback) {
   return S.songType === 'instrumental' ? '[Instrumental]' : fallback;
+}
+
+// Phase 3/4 (approved by John 2026-08-12, "names and positions only" — no
+// energy data): the resolved structure preset's section names and order,
+// shaped for core/lyric.js's assembleLyricBrief(dna, cil, answers, structure)
+// fourth argument. Exposed on generate()'s return value so that whenever the
+// (currently unwired) async lyric-engine call is made, the structure the user
+// picked is already sitting there rather than needing to be re-derived from
+// S. John: "so long as the structure is available in the lyric prompt that
+// will be enough" — this is what makes it available.
+function lyricStructure(S) {
+  const structure = resolveStructure(S.structurePresetId);
+  if (!structure) return null;
+  return { songType: structure.type, sections: structure.sections, presetLabel: structure.label };
 }
 
 // A beatless character cannot take a club/rhythm-derived overlay trait.
@@ -79,6 +94,7 @@ export function generate(S) {
       style, negative: out.negative, lyrics: songTypeLyrics(S, ''), metatags,
       length: style.length, over: style.length > CHAR_LIMIT,
       arrangement: out.arrangement, overlayNote: out.overlayNote,
+      structure: lyricStructure(S),
     };
   }
 
@@ -94,6 +110,7 @@ export function generate(S) {
     return {
       style, negative: out.negative, lyrics: songTypeLyrics(S, ''),
       length: style.length, over: style.length > CHAR_LIMIT, arrangement: out.arrangement,
+      structure: lyricStructure(S),
     };
   }
 
@@ -106,6 +123,7 @@ export function generate(S) {
       lyrics: buildLyricsField(state),
       length: style.length,
       over: style.length > CHAR_LIMIT,
+      structure: lyricStructure(S),
     };
   }
 

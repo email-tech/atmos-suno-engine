@@ -5847,10 +5847,23 @@ function writingTraits(moodClass, languageStyle) {
 }
 
 // --- brief: merge DNA (lyric-readable only) + CIL + user answers ------------
-function assembleLyricBrief(dna, cil, answers) {
+// STRUCTURE-FIRST PIPELINE, Phase 3 (docs/architecture/structure-first-pipeline-plan.md,
+// approved by John 2026-08-12; scope confirmed as "names and positions only" —
+// no energy/bar data passed to this engine). `structure`, when supplied, is
+// {songType: 'vocal'|'instrumental', sections: [string, ...]} resolved from
+// core/structure.js's STRUCTURE_PRESETS via resolveStructure(). Song type is
+// decision #1 in John's ordering and OVERRIDES any vocal.mode inferred by CIL
+// or given in answers — by the time a structure preset has been picked, song
+// type was already decided upstream and the lyric brief must not re-derive or
+// contradict it. structure.sections (names + order only) becomes the
+// authoritative section list for the prompt, replacing the legacy
+// STRUCTURE_TEMPLATES pick when present. Omitting `structure` preserves prior
+// behaviour exactly (backward compatible with every existing caller/test).
+function assembleLyricBrief(dna, cil, answers, structure) {
   const a = answers || {};
   const cilf = cil.fields || {};
-  const vocalMode = a['vocal.mode'] || (cilf['vocal.mode'] && cilf['vocal.mode'].value) || 'instrumental';
+  const vocalMode = (structure && structure.songType)
+    || a['vocal.mode'] || (cilf['vocal.mode'] && cilf['vocal.mode'].value) || 'instrumental';
   const moodClass = a['affect.moodClass'] || (cilf['affect.moodClass'] && cilf['affect.moodClass'].value) || null;
   const characterId = dna.meta && dna.meta.characterId;
 
@@ -5884,6 +5897,12 @@ function assembleLyricBrief(dna, cil, answers) {
     languageStyle:a['song.languageStyle']|| 'Poetic',
     titleSeed:    a['song.title'] || null,
     template,
+    // structure-first pipeline section list (names + positions only). Null
+    // when no structure was supplied — buildLyricPrompt() falls back to
+    // template.sections in that case, unchanged from pre-Phase-3 behaviour.
+    structureSections: (structure && Array.isArray(structure.sections) && structure.sections.length)
+      ? structure.sections.slice() : null,
+    structurePresetLabel: (structure && structure.presetLabel) || null,
     deliveryClass: a['vocal.deliveryClass'] || (cilf['vocal.deliveryClass'] && cilf['vocal.deliveryClass'].value) || null,
   };
 }
@@ -5895,7 +5914,12 @@ function buildLyricPrompt(brief) {
     return { instrumental: true, lyrics: '[Instrumental]', prompt: null };
   }
   const t = brief.template;
-  const labels = t.sections.map(s => `[${s}]`);
+  // STRUCTURE-FIRST: brief.structureSections (names + positions only) wins
+  // when present — it's the preset the user picked upstream in the pipeline,
+  // not a subgenre-inferred guess. Falls back to the legacy per-subgenre
+  // template when no structure was supplied (pre-Phase-3 behaviour).
+  const sectionNames = brief.structureSections || t.sections;
+  const labels = sectionNames.map(s => `[${s}]`);
   const prompt = [
     'You are writing Suno-compatible ORIGINAL lyrics for a local music prompt tool.',
     'Return valid JSON only. Do not wrap in markdown fences. Do not include explanations outside JSON.',
@@ -5915,7 +5939,8 @@ function buildLyricPrompt(brief) {
 }
 
 function buildRepairPrompt(brief, initialResult) {
-  const labels = brief.template.sections.map(s => `[${s}]`);
+  const sectionNames = brief.structureSections || brief.template.sections;
+  const labels = sectionNames.map(s => `[${s}]`);
   return [
     'You generated lyrics that failed validation. Rewrite only where needed; improve the score to 80+.',
     `Validation score: ${initialResult.validation ? initialResult.validation.score : 'n/a'}`,
@@ -5929,16 +5954,19 @@ function buildRepairPrompt(brief, initialResult) {
 }
 
 // batch-of-10: one brief+prompt per answers entry (caller varies subject/etc.)
-function buildLyricBatch(dna, cil, answersList) {
+// structure (names+positions only, see assembleLyricBrief) is shared across
+// the whole batch — every variation in a batch belongs to the same arrangement
+// and must honour the same picked structure preset.
+function buildLyricBatch(dna, cil, answersList, structure) {
   return (answersList || []).map(answers => {
-    const brief = assembleLyricBrief(dna, cil, answers);
+    const brief = assembleLyricBrief(dna, cil, answers, structure);
     return { brief, ...buildLyricPrompt(brief) };
   });
 }
 
 // --- runtime driver (transport injected; never called in headless tests) ----
-async function runLyricEngine({ dna, cil, answers, transport, model, temperature, maxTokens, repair }) {
-  const brief = assembleLyricBrief(dna, cil, answers);
+async function runLyricEngine({ dna, cil, answers, structure, transport, model, temperature, maxTokens, repair }) {
+  const brief = assembleLyricBrief(dna, cil, answers, structure);
   const built = buildLyricPrompt(brief);
   if (built.instrumental) {
     return { instrumental: true, title: brief.titleSeed || null, lyrics: '[Instrumental]', brief };
@@ -5971,6 +5999,7 @@ function lyricSchema() {
 }`;
 }
 function contextBlock(brief, labels) {
+  const structureLabel = brief.structurePresetLabel || brief.template.label;
   return `Musical context (from the finished arrangement's DNA):
 Genre anchor: ${brief.genreAnchor || 'n/a'}
 Subgenre: ${brief.subgenre || 'n/a'}
@@ -5988,7 +6017,7 @@ Perspective: ${brief.perspective}
 Language style: ${brief.languageStyle}
 Optional title seed: ${brief.titleSeed || 'none - create a suitable title from the subject/topic'}
 Vocal delivery: ${brief.deliveryClass || 'lead-melodic'}
-Structure: ${brief.template.label}
+Structure: ${structureLabel}
 Required sections in order: ${labels.join(', ')}`;
 }
 function conceptRules() {
@@ -9788,6 +9817,7 @@ const {resolveOverlays} = window.__ATMOS;
 const {EngineExtras} = window.__ATMOS;
 const {MAX_MODE_STR} = window.__ATMOS;
 const {buildStylePrompt, buildNegativePrompt, buildLyricsField} = window.__ATMOS;
+const {resolveStructure} = window.__ATMOS;
 
 function applyMax(style, on) {
   if (!on) return style;
@@ -9806,6 +9836,20 @@ function applyMax(style, on) {
 // user's own choice.
 function songTypeLyrics(S, fallback) {
   return S.songType === 'instrumental' ? '[Instrumental]' : fallback;
+}
+
+// Phase 3/4 (approved by John 2026-08-12, "names and positions only" — no
+// energy data): the resolved structure preset's section names and order,
+// shaped for core/lyric.js's assembleLyricBrief(dna, cil, answers, structure)
+// fourth argument. Exposed on generate()'s return value so that whenever the
+// (currently unwired) async lyric-engine call is made, the structure the user
+// picked is already sitting there rather than needing to be re-derived from
+// S. John: "so long as the structure is available in the lyric prompt that
+// will be enough" — this is what makes it available.
+function lyricStructure(S) {
+  const structure = resolveStructure(S.structurePresetId);
+  if (!structure) return null;
+  return { songType: structure.type, sections: structure.sections, presetLabel: structure.label };
 }
 
 // A beatless character cannot take a club/rhythm-derived overlay trait.
@@ -9852,6 +9896,7 @@ function generate(S) {
       style, negative: out.negative, lyrics: songTypeLyrics(S, ''), metatags,
       length: style.length, over: style.length > CHAR_LIMIT,
       arrangement: out.arrangement, overlayNote: out.overlayNote,
+      structure: lyricStructure(S),
     };
   }
 
@@ -9867,6 +9912,7 @@ function generate(S) {
     return {
       style, negative: out.negative, lyrics: songTypeLyrics(S, ''),
       length: style.length, over: style.length > CHAR_LIMIT, arrangement: out.arrangement,
+      structure: lyricStructure(S),
     };
   }
 
@@ -9879,6 +9925,7 @@ function generate(S) {
       lyrics: buildLyricsField(state),
       length: style.length,
       over: style.length > CHAR_LIMIT,
+      structure: lyricStructure(S),
     };
   }
 
