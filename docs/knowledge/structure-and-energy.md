@@ -134,6 +134,16 @@ tags (see §6).
    standard, classic pop, folk.
 5. **Anthemic (double final chorus)** — Intro, Verse, Pre-Chorus, Chorus, Verse,
    Pre-Chorus, Chorus, Bridge, Chorus, Chorus, Outro. Ends on the earned double.
+10. **Full Pop (John)** — Intro, Verse 1, Verse 2, Pre-Chorus, Chorus,
+    Instrumental Break, Verse 3, Pre-Chorus, Chorus, Bridge, Chorus, Outro.
+    Curve: 2,3,3,4,5,3,3,4,5,2,5,2. Coherent vs R1-R7 (verified).
+11. **Three-Verse (John)** — Intro, Verse 1, Verse 2, Chorus, Verse 3, Chorus,
+    Bridge, Chorus, Outro. Curve: 2,3,3,5,3,5,2,5,2. Coherent (verse->chorus is a
+    valid 3->5, not the forbidden 2->5 leap).
+12. **Three-Verse + Break (John)** — Intro, Verse 1, Verse 2, Chorus,
+    Instrumental Break, Verse 3, Chorus, Bridge, Outro. Curve: 2,3,3,5,3,3,5,2,2.
+    Coherent. Note: ends bridge->outro (a softer, reflective close) rather than a
+    final chorus — confirmed intentional by John.
 
 ### Instrumental presets
 6. **Club / Two-Drop EDM** — Intro, Build, Drop, Breakdown, Build, Drop, Outro.
@@ -171,21 +181,31 @@ extended, and any addition is validated against R1–R7 before it ships.
   hint, not precise control. Our piped `[Section | short | short]` format already
   aligns with "short, comma/pipe-separated cues render better than prose."
 
+## 6a. LLM CALL CONTRACT (John, 2026-07-23)
+
+When the pipeline makes an API call to an LLM (the lyric engine, and any future
+generative stage), it MUST pass the SELECTED SONG STRUCTURE as part of the call,
+so the LLM writes to that structure rather than inventing its own. The chosen
+preset (its ordered section list and per-section energy) is a required input to
+every generative stage, not an afterthought. This is the concrete mechanism by
+which 'structure comes first' reaches the lyric writing.
+
 ---
 
 ## 7. GAPS — what I still need, and from where
 
 Stated plainly rather than filled by guessing (John's standing instruction).
 
-**Need from JOHN (product decisions, not researchable):**
-- **G1.** Confirm the preset menu in §5 — which to ship, which to cut, which to
-  add. He said he may add a structure or two after seeing these.
-- **G2.** Does he want the preset to be *fixed* (user picks one, engine fills it)
-  or *editable* (user picks one, then can add/remove sections with the engine
-  refusing incoherent edits)? Earlier discussion pointed at fixed; confirm.
-- **G3.** For instrumental presets, how should the Balearic engine's existing
-  beatless clusters map — always Downtempo/Ambient (#8), or can a beatless
-  cluster still take a Club structure? (Musically it should not; confirm.)
+**RESOLVED by John (2026-07-23):**
+- **G1.** Menu confirmed. John added presets 10, 11, 12 above (all verified
+  against R1-R7). He may still add more later; the menu stays extensible.
+- **G2.** FIXED PRESETS. The user picks one and the engine fills it. No editable/
+  add-remove mode. Simpler and safer; coherence guaranteed by construction.
+- **G3.** Beatless Balearic clusters map ONLY to the Downtempo/Ambient instrumental
+  preset (#8). They must NEVER take a Club/drop structure. Enforce in the engine.
+
+**Need from JOHN when the time comes (he will answer during the lyric-engine plan):**
+- Lyric-engine specifics — deferred to that planning pass; ask questions then.
 
 **Need to RESEARCH FURTHER before building (not yet grounded enough):**
 - **G4.** Genre-specific section *lengths* in bars (intro 8/16/32, drop at bar 32
@@ -201,3 +221,19 @@ Stated plainly rather than filled by guessing (John's standing instruction).
 **Confirmed NON-gaps (researched, don't re-open):**
 - The section list, the energy levels, the coherence rules, and the Suno tag set
   are grounded above and should not be re-derived from memory next session.
+
+## 8. LYRIC ENGINE — TO PLAN NEXT (John, 2026-07-23)
+
+John: "We still need to flesh out the Lyric engine as well so plan for that too.
+Ask questions when the time comes." Deferred to a dedicated planning pass. What
+is already fixed and feeds into it:
+- The lyric engine is an LLM call and MUST receive the selected structure preset
+  (section order + energy) as input (see §6a).
+- Song type (instrumental vs vocal) gates it: instrumental short-circuits to
+  `[Instrumental]`; vocal writes lyrics under the preset's section tags.
+- A `core/lyric.js` and `core/lyric-controls.js` already exist (P4, shipped) and
+  short-circuit to `[Instrumental]` when vocal mode resolves instrumental — the
+  reordering must make song-type the FIRST decision rather than a resolved one.
+Open questions to raise with John at that planning pass (do not answer now):
+theme/subject input, era/style bias, rhyme and prosody controls, how much the
+user writes vs the LLM, and how per-section energy shapes lyric intensity.
