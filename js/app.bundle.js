@@ -9795,6 +9795,19 @@ function applyMax(style, on) {
   return out.length <= CHAR_LIMIT ? out : out.slice(0, CHAR_LIMIT - 3).trimEnd() + '...';
 }
 
+// SONG-TYPE GATE (structure-first pipeline, Phase 2 — docs/architecture/
+// structure-first-pipeline-plan.md, approved by John 2026-08-12; guide §2:
+// "Lyrics field = [Instrumental] ... with the structural markers only" when
+// song type is instrumental). Song type is decision #1 and OVERRIDES any
+// per-engine vocal control — an instrumental song type always resolves to
+// [Instrumental], regardless of what a legacy engine's own Vocal control is
+// set to. This does not touch the per-engine control's stored value, only
+// what generate() actually returns, so switching back to Vocal restores the
+// user's own choice.
+function songTypeLyrics(S, fallback) {
+  return S.songType === 'instrumental' ? '[Instrumental]' : fallback;
+}
+
 // A beatless character cannot take a club/rhythm-derived overlay trait.
 const BEATLESS_BAN_TAGS = ['four-on-floor', 'club', 'house'];
 
@@ -9836,7 +9849,7 @@ function generate(S) {
     } catch (e) { metatags = ''; }
 
     return {
-      style, negative: out.negative, lyrics: '', metatags,
+      style, negative: out.negative, lyrics: songTypeLyrics(S, ''), metatags,
       length: style.length, over: style.length > CHAR_LIMIT,
       arrangement: out.arrangement, overlayNote: out.overlayNote,
     };
@@ -9852,7 +9865,7 @@ function generate(S) {
     });
     const style = applyMax(out.style, S.maxMode);
     return {
-      style, negative: out.negative, lyrics: '',
+      style, negative: out.negative, lyrics: songTypeLyrics(S, ''),
       length: style.length, over: style.length > CHAR_LIMIT, arrangement: out.arrangement,
     };
   }
@@ -9902,9 +9915,14 @@ function legacyBeatless(S) {
 }
 
 // Map the shell's legacy sub-state onto the nested shape the proven builder reads.
+// SONG-TYPE GATE: when S.songType is 'instrumental', vocalMode is forced to
+// 'Instrumental' for THIS BUILD ONLY — S.leg.vocalMode itself is left
+// untouched, so switching songType back to 'vocal' restores whatever vocal
+// control the user had selected.
 function toLegacyState(S) {
   const l = S.leg;
   const ov = overlayFor(S, legacyBeatless(S));
+  const effectiveVocalMode = S.songType === 'instrumental' ? 'Instrumental' : l.vocalMode;
 
   // Classic slot path with the 3-level control: Enigma 'Manual mix' OR Balearic 'Classic mix'.
   const classicManual = (l.presetDriven && l.engineMode === 'manual') || (!l.presetDriven && l.buildMode === 'classic');
@@ -9918,7 +9936,7 @@ function toLegacyState(S) {
         phase: l.phase,
         pad: s.pad, harmony: s.harmony, bass: s.bass, rhythm: s.rhythm,
         percussion: s.percussion, motif: s.motif, movement: s.movement,
-        vocalMode: l.vocalMode, vocalDescriptor: '', vocalPersona: '',
+        vocalMode: effectiveVocalMode, vocalDescriptor: '', vocalPersona: '',
         maxMode: S.maxMode, negativePrompt: '', ov,
       },
     };
@@ -9941,7 +9959,7 @@ function toLegacyState(S) {
       phase: l.phase,
       pad: l.slots.pad, bass: l.slots.bass, rhythm: l.slots.rhythm,
       percussion: l.slots.percussion, motif: l.slots.motif, movement: l.slots.movement,
-      vocalMode: l.vocalMode, vocalDescriptor: '', vocalPersona: '',
+      vocalMode: effectiveVocalMode, vocalDescriptor: '', vocalPersona: '',
       maxMode: S.maxMode, negativePrompt: '', ov,
     },
   };
