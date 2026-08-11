@@ -3,11 +3,12 @@ import {
   atomCharacterList, atomOverlays,
   legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,
 } from './registry.js';
-import { syncEngineDefaults, newSeed } from './state.js';
+import { syncEngineDefaults, newSeed, setSongType, setStructurePreset } from './state.js';
 import { generate } from './generate.js';
 import { overlayList } from '../core/overlays.js';
 import { favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll } from '../core/favourites.js';
 import { composerLayerList } from '../core/composer-layers.js';
+import { SONG_TYPES, presetsForType, resolveStructure } from '../core/structure.js';
 
 // ---- tiny DOM helpers ------------------------------------------------------
 function el(tag, attrs = {}, kids = []) {
@@ -113,6 +114,14 @@ export function mount(state, root) { S = state; rootEl = root; renderAll(); }
 
 function renderAll() {
   rootEl.innerHTML = '';
+
+  // STRUCTURE-FIRST PANEL (Phase 1, docs/architecture/structure-first-pipeline-plan.md).
+  // Song type + structure preset are surfaced here, ahead of the engine tabs,
+  // matching John's confirmed decision order: song type -> structure -> style
+  // -> metatags. NOT YET WIRED into generate() (Phase 2/3) — selecting here
+  // stores the choice on state for the pipeline reorder to consume later.
+  structurePanel(rootEl);
+
   rootEl.appendChild(el('div', { class: 'tabs' }, ENGINES.map(e => {
     const disabled = e.kind === 'stub';
     return el('button', {
@@ -136,6 +145,40 @@ function renderAll() {
   if (eng.kind !== 'stub') favouritesPanel(controls);
 
   refreshOutput();
+}
+
+// ---- structure-first panel (song type + structure preset) ------------------
+// Decision #1 in John's pipeline ordering. Song type gates which structure
+// presets are offered (vocal vs instrumental vocabularies never mix, R7).
+// Changing song type resets the preset to the first valid option for the new
+// type (see state.js setSongType).
+function structurePanel(root) {
+  const box = el('div', { class: 'structure-panel' });
+  box.appendChild(el('h4', { text: 'Song structure' }));
+
+  const typeOptions = Object.values(SONG_TYPES).map(t => ({ value: t.id, label: t.label }));
+  box.appendChild(field('Song type', segmented(typeOptions, S.songType, v => {
+    setSongType(S, v);
+    renderAll();
+  })));
+
+  const presets = presetsForType(S.songType);
+  const presetOptions = presets.map(p => ({ value: p.id, label: p.label }));
+  box.appendChild(field('Structure preset', select(presetOptions, S.structurePresetId, v => {
+    setStructurePreset(S, v);
+    renderAll();
+  })));
+
+  const structure = resolveStructure(S.structurePresetId);
+  if (structure) {
+    const sectionsText = structure.sections
+      .map((s, i) => `${s} (${structure.energyShape[i]})`)
+      .join(' \u2192 ');
+    box.appendChild(el('p', { class: 'hint structure-preview', text: sectionsText }));
+    if (structure.description) box.appendChild(el('p', { class: 'hint', text: structure.description }));
+  }
+
+  root.appendChild(box);
 }
 
 // ---- favourites ------------------------------------------------------------

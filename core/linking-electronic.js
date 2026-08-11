@@ -4,7 +4,7 @@
  * Source of truth: docs/knowledge/electronic-family-linking-guide.md
  */
 
-const ELECTRONIC_FAMILIES = {
+export const ELECTRONIC_FAMILIES = {
   'synthpad': {
     name: 'Synth Pad',
     type: 'sustained',
@@ -70,7 +70,7 @@ const ELECTRONIC_FAMILIES = {
   }
 };
 
-const ELECTRONIC_PATTERNS = {
+export const ELECTRONIC_PATTERNS = {
   'synthpad': /\b(pad|synth pad|pad synth|padded|atmospheric pad)\b/i,
   'synthlead': /\b(synth lead|lead synth|lead|bright lead|lead voice|synth melody|supersaw)\b(?=\s)/i,
   'arpeggio': /\b(arpegg|arp|broken chord|repeating figure|rhythmic figure)\b/i,
@@ -82,7 +82,7 @@ const ELECTRONIC_PATTERNS = {
   'vocalsynthesis': /\b(vocoder|vocal pad|vocal chop|vocal synth|choir pad|vocal synthesis)\b|\bvoice\b/i
 };
 
-function classifyElectronic(name) {
+export function classifyElectronic(name) {
   if (!name) return null;
   
   for (const [family, pattern] of Object.entries(ELECTRONIC_PATTERNS)) {
@@ -94,7 +94,7 @@ function classifyElectronic(name) {
   return null;
 }
 
-const ELECTRONIC_PLANES = {
+export const ELECTRONIC_PLANES = {
   background: {
     pad: [
       'pad floats beneath the mix, underpinning the full arrangement',
@@ -135,7 +135,7 @@ const ELECTRONIC_PLANES = {
   }
 };
 
-function electronicPlanePhrase(plane, variant = 'default') {
+export function electronicPlanePhrase(plane, variant = 'default') {
   const planeData = ELECTRONIC_PLANES[plane];
   if (!planeData) return null;
   
@@ -149,7 +149,7 @@ function electronicPlanePhrase(plane, variant = 'default') {
   return phrases && phrases.length > 0 ? phrases[0] : null;
 }
 
-const ELECTRONIC_PAIR_LINKS = {
+export const ELECTRONIC_PAIR_LINKS = {
   'pad_lead': [
     'synth lead carries the melody while a slow pad underpins the harmony',
     'lead synth sings above a soft, sustained pad foundation',
@@ -192,7 +192,7 @@ const ELECTRONIC_PAIR_LINKS = {
   ]
 };
 
-const ELECTRONIC_MOVEMENT = {
+export const ELECTRONIC_MOVEMENT = {
   'filter': {
     name: 'Filter Motion',
     examples: ['filter opens', 'filter sweep', 'brightens', 'darkens', 'tone opens'],
@@ -255,13 +255,13 @@ const ELECTRONIC_MOVEMENT = {
   }
 };
 
-function movementPhrase(technique) {
+export function movementPhrase(technique) {
   const movement = ELECTRONIC_MOVEMENT[technique];
   if (!movement || !movement.phrases || movement.phrases.length === 0) return null;
   return movement.phrases[0];
 }
 
-const HYBRID_PAIR_LINKS = {
+export const HYBRID_PAIR_LINKS = {
   'strings_pad': [
     'string pad floats above a soft electronic pad foundation',
     'strings add classical warmth to a cool synth bed',
@@ -294,7 +294,7 @@ const HYBRID_PAIR_LINKS = {
   ]
 };
 
-function allElectronicPhrases() {
+export function allElectronicPhrases() {
   const phrases = new Set();
   
   // Plane phrases
@@ -321,16 +321,3 @@ function allElectronicPhrases() {
   
   return Array.from(phrases);
 }
-
-module.exports = {
-  ELECTRONIC_FAMILIES,
-  ELECTRONIC_PATTERNS,
-  classifyElectronic,
-  ELECTRONIC_PLANES,
-  electronicPlanePhrase,
-  ELECTRONIC_PAIR_LINKS,
-  ELECTRONIC_MOVEMENT,
-  movementPhrase,
-  HYBRID_PAIR_LINKS,
-  allElectronicPhrases
-};

@@ -2019,14 +2019,343 @@ function decorateSection(existingLine, layerId, sectionType) {
 Object.assign(window.__ATMOS, { composerLayerList, composerStyleLayer, decorateSection, COMPOSER_LAYERS, COMPOSER_LAYER_IDS });
 })();
 
+/* core/linking-electronic.js */
+(function(){
+/**
+ * Electronic/Synth Family Linking Data
+ * Mirrors core/linking.js structure for orchestral families
+ * Source of truth: docs/knowledge/electronic-family-linking-guide.md
+ */
+
+const ELECTRONIC_FAMILIES = {
+  'synthpad': {
+    name: 'Synth Pad',
+    type: 'sustained',
+    role: 'harmonic bed',
+    plane: 'background',
+    typical: 'continuous oscillators, filters, sustains indefinitely'
+  },
+  'synthlead': {
+    name: 'Synth Lead',
+    type: 'melodic',
+    role: 'melody, foreground hook',
+    plane: 'foreground',
+    typical: 'pitched synth with articulate envelope, solo line'
+  },
+  'arpeggio': {
+    name: 'Arpeggio',
+    type: 'plucked',
+    role: 'rhythmic texture',
+    plane: 'middle',
+    typical: 'gate-triggered or modulated repeating rhythmic shape'
+  },
+  'electricbass': {
+    name: 'Electric Bass',
+    type: 'sustained+percussive',
+    role: 'rhythmic/harmonic foundation',
+    plane: 'background',
+    typical: 'sub, analog, acid, FM; distinct attack and sustain'
+  },
+  'drummachine': {
+    name: 'Drum Machine',
+    type: 'percussive',
+    role: 'rhythmic drive',
+    plane: 'background',
+    typical: 'programmed kick, snare, hi-hat; short decay'
+  },
+  'electricpiano': {
+    name: 'Electric Piano',
+    type: 'plucked',
+    role: 'harmonic punctuation',
+    plane: 'middle',
+    typical: 'struck strings with resonance, rhythmic color'
+  },
+  'organ': {
+    name: 'Organ',
+    type: 'sustained',
+    role: 'harmonic bed, color warmth',
+    plane: 'background',
+    typical: 'continuous tone, filter sweep, drawbar or preset'
+  },
+  'sampledloop': {
+    name: 'Sampled/Chopped Source',
+    type: 'varies',
+    role: 'textural color',
+    plane: 'middle',
+    typical: 'recorded loops, grains, one-shots; groove pocket'
+  },
+  'vocalsynthesis': {
+    name: 'Vocal Synthesis',
+    type: 'pitched',
+    role: 'textural color, lead line',
+    plane: 'middle',
+    typical: 'vocoded voice, synth-modelled voice, glitch chops'
+  }
+};
+
+const ELECTRONIC_PATTERNS = {
+  'synthpad': /\b(pad|synth pad|pad synth|padded|atmospheric pad)\b/i,
+  'synthlead': /\b(synth lead|lead synth|lead|bright lead|lead voice|synth melody|supersaw)\b(?=\s)/i,
+  'arpeggio': /\b(arpegg|arp|broken chord|repeating figure|rhythmic figure)\b/i,
+  'electricbass': /\b(electric bass|sub bass|analog bass|acid bass|fm bass)\b|bass(?!\s*(?:drum|instrument|guitar))/i,
+  'drummachine': /\b(drum machine|drum kit|programmed beat|808|909)\b/i,
+  'electricpiano': /\b(electric piano|rhodes|epiano|keyboard|clavinet)\b/i,
+  'organ': /\b(organ|hammond|tone wheel|swell)\b/i,
+  'sampledloop': /\b(sampled|sample|loop|chopped|grain|one-shot|glitch)\b/i,
+  'vocalsynthesis': /\b(vocoder|vocal pad|vocal chop|vocal synth|choir pad|vocal synthesis)\b|\bvoice\b/i
+};
+
+function classifyElectronic(name) {
+  if (!name) return null;
+  
+  for (const [family, pattern] of Object.entries(ELECTRONIC_PATTERNS)) {
+    if (pattern.test(name)) {
+      return family;
+    }
+  }
+  
+  return null;
+}
+
+const ELECTRONIC_PLANES = {
+  background: {
+    pad: [
+      'pad floats beneath the mix, underpinning the full arrangement',
+      'bass sits deep in the background, locking the groove with the kick',
+      'pad holds a slow-moving harmonic bed while leads move above',
+      'drum machine drives the rhythmic pocket; pad sustains the color'
+    ],
+    supportive: [
+      'pad rests on top of a grounded bass line',
+      'pad and bass create a full harmonic foundation',
+      'bass anchors the arrangement while the pad floats above'
+    ]
+  },
+  middle: {
+    texture: [
+      'arpeggio pattern locks the groove while the pad holds color beneath',
+      'electric piano threads light chords above the bass pocket',
+      'synth sweep adds textural motion between the rhythm and the lead',
+      'sampled loop sits in the mix, neither leading nor supporting the foundation'
+    ],
+    color: [
+      'pad supports the harmonic motion as the arpeggio adds rhythmic color',
+      'electric piano adds motion above a sustained pad foundation',
+      'pad holds the harmonic bed; electric piano adds rhythmic color'
+    ]
+  },
+  foreground: {
+    lead: [
+      'synth lead sings the main hook over the rhythmic and harmonic foundation',
+      'vocal chop punctuates the groove at the top of the mix',
+      'solo lead floats above the rest of the arrangement'
+    ],
+    melody: [
+      'synth lead carries the melody while a slow pad underpins the harmony',
+      'lead synth sings above a soft, sustained pad foundation',
+      'pad holds the emotional space; lead melody shapes the foreground statement'
+    ]
+  }
+};
+
+function electronicPlanePhrase(plane, variant = 'default') {
+  const planeData = ELECTRONIC_PLANES[plane];
+  if (!planeData) return null;
+  
+  // Try to find a category; if not specified, return first available
+  const categories = Object.keys(planeData);
+  if (categories.length === 0) return null;
+  
+  const category = categories[0];
+  const phrases = planeData[category];
+  
+  return phrases && phrases.length > 0 ? phrases[0] : null;
+}
+
+const ELECTRONIC_PAIR_LINKS = {
+  'pad_lead': [
+    'synth lead carries the melody while a slow pad underpins the harmony',
+    'lead synth sings above a soft, sustained pad foundation',
+    'pad holds the emotional space; lead melody shapes the foreground statement'
+  ],
+  'pad_arpeggio': [
+    'arpeggio locks the groove while a pad sustains the chord harmony',
+    'pad supports the harmonic motion as the arpeggio adds rhythmic color',
+    'arpeggiated texture sits above a slow, deep pad foundation'
+  ],
+  'bass_drums': [
+    'bass and kick lock together in the rhythmic foundation',
+    'bass groove interlocks with the drum machine\'s pocket',
+    'kick defines the rhythm; bass reinforces the low end'
+  ],
+  'bass_pad': [
+    'bass sits in the low foundation while a pad holds the mid-range harmony',
+    'pad rests on top of a grounded bass line',
+    'pad and bass create a full harmonic foundation'
+  ],
+  'lead_arpeggio': [
+    'synth lead carries the melody while arpeggios add rhythmic texture below',
+    'arpeggio pattern supports the lead melody without competing',
+    'lead melody soars above the steady arpeggio motion'
+  ],
+  'lead_electricpiano': [
+    'electric piano adds harmonic punctuation beneath the lead melody',
+    'lead synth sings while electric piano threads rhythmic chords',
+    'electric piano supports the lead with warm harmonic texture'
+  ],
+  'electricpiano_pad': [
+    'electric piano adds motion above a sustained pad foundation',
+    'pad holds the harmonic bed; electric piano adds rhythmic color',
+    'soft pad beneath, electric piano chords floating above'
+  ],
+  'organ_bass': [
+    'organ and bass lock in a soulful, rhythmic foundation',
+    'organ swell reinforces the bass groove',
+    'bass and organ move together in the low-mid foundation'
+  ]
+};
+
+const ELECTRONIC_MOVEMENT = {
+  'filter': {
+    name: 'Filter Motion',
+    examples: ['filter opens', 'filter sweep', 'brightens', 'darkens', 'tone opens'],
+    phrases: [
+      'synth lead brightens as the filter opens toward the chorus',
+      'pad darkens with a smooth filter sweep as energy drops',
+      'filtered texture moves from thin to rich across the phrase',
+      'lead tone opens up with a rising filter curve'
+    ]
+  },
+  'ducking': {
+    name: 'Ducking/Pumping',
+    examples: ['ducks back', 'breathes', 'compresses', 'dips', 'pumps'],
+    phrases: [
+      'bass ducks back each beat as the kick lands, then swells forward',
+      'pad breathes in and out with each kick hit',
+      'texture compresses slightly on the downbeat, releasing into the phrase',
+      'pad dips back on the snare hit, creating space for the snare to land'
+    ]
+  },
+  'delay': {
+    name: 'Delay Throws and Echo',
+    examples: ['echo', 'delayed', 'trails', 'repeats'],
+    phrases: [
+      'synth lead throws an echo into the next phrase',
+      'vocal chop trails with delayed repetitions, fading away',
+      'lead synth bounces with rhythmic echo delays',
+      'delayed repeats of the melody blur into the background'
+    ]
+  },
+  'width': {
+    name: 'Chorus and Width',
+    examples: ['widens', 'modulated', 'shimmers', 'broadens', 'expands'],
+    phrases: [
+      'pad widens with subtle chorus, creating space and movement',
+      'synth texture expands and contracts with modulation',
+      'lead synth shimmers with a wide, modulated tone',
+      'pad tone broadens with added harmonic width'
+    ]
+  },
+  'distortion': {
+    name: 'Distortion and Harmonic Colour',
+    examples: ['distortion', 'roughens', 'bite', 'edge', 'gritty', 'harmonic'],
+    phrases: [
+      'synth lead gains bite and edge with subtle distortion',
+      'pad tone roughens slightly as distortion kicks in',
+      'texture hardens with added harmonic aggression',
+      'lead tone transforms from clean to gritty, adding intensity'
+    ]
+  },
+  'pitch': {
+    name: 'Pitch Modulation and Glide',
+    examples: ['glide', 'bends', 'modulates', 'sweeps', 'rises', 'falls'],
+    phrases: [
+      'lead synth bends between notes with a smooth glide',
+      'arpeggio notes glide together, blurring the rhythmic edge',
+      'synth pitch modulates up and down, adding movement',
+      'lead tone sweeps upward, rising with tension'
+    ]
+  }
+};
+
+function movementPhrase(technique) {
+  const movement = ELECTRONIC_MOVEMENT[technique];
+  if (!movement || !movement.phrases || movement.phrases.length === 0) return null;
+  return movement.phrases[0];
+}
+
+const HYBRID_PAIR_LINKS = {
+  'strings_pad': [
+    'string pad floats above a soft electronic pad foundation',
+    'strings add classical warmth to a cool synth bed',
+    'electronic pad holds harmony while strings add lyrical motion'
+  ],
+  'strings_lead': [
+    'string melody weaves with a bright synth lead',
+    'synth lead cuts through a bed of warm strings',
+    'strings and synth lead trade phrases in a call-and-response'
+  ],
+  'woodwinds_pad': [
+    'woodwind color floats above a sustained synth foundation',
+    'synth pad holds the emotional space; woodwinds add articulation',
+    'woodwind accents punctuate the smooth synth bed'
+  ],
+  'woodwinds_lead': [
+    'woodwind and synth lead trade melodic phrases',
+    'synth lead carries the hook while woodwind adds answering color',
+    'woodwind countermelody weaves beneath a bright synth lead'
+  ],
+  'brass_pad': [
+    'brass adds power and punctuation above a soft synth pad',
+    'pad foundation supports brass statements from above',
+    'soft pad sustains while brass punches through on key moments'
+  ],
+  'brass_lead': [
+    'brass fanfare cuts through a bright synth lead',
+    'synth lead and brass trade foreground statements',
+    'brass adds power while synth lead carries detail'
+  ]
+};
+
+function allElectronicPhrases() {
+  const phrases = new Set();
+  
+  // Plane phrases
+  Object.values(ELECTRONIC_PLANES).forEach(planeData => {
+    Object.values(planeData).forEach(categoryPhrases => {
+      categoryPhrases.forEach(phrase => phrases.add(phrase));
+    });
+  });
+  
+  // Pair links
+  Object.values(ELECTRONIC_PAIR_LINKS).forEach(pairPhrases => {
+    pairPhrases.forEach(phrase => phrases.add(phrase));
+  });
+  
+  // Movement
+  Object.values(ELECTRONIC_MOVEMENT).forEach(movement => {
+    movement.phrases.forEach(phrase => phrases.add(phrase));
+  });
+  
+  // Hybrid
+  Object.values(HYBRID_PAIR_LINKS).forEach(hybridPhrases => {
+    hybridPhrases.forEach(phrase => phrases.add(phrase));
+  });
+  
+  return Array.from(phrases);
+}
+
+Object.assign(window.__ATMOS, { classifyElectronic, electronicPlanePhrase, movementPhrase, allElectronicPhrases, ELECTRONIC_FAMILIES, ELECTRONIC_PATTERNS, ELECTRONIC_PLANES, ELECTRONIC_PAIR_LINKS, ELECTRONIC_MOVEMENT, HYBRID_PAIR_LINKS });
+})();
+
 /* core/linking.js */
 (function(){
 /* ==========================================================================
  * linking.js — INSTRUMENT-FAMILY LINKING LANGUAGE.
  *
  * SOURCE: docs/knowledge/instrument-family-linking-guide.md (John, 2026-07-23).
- * Every phrase below is taken from that guide. Section numbers are cited on each
- * block. NOTHING HERE IS INVENTED — that is the entire point of the file.
+ * ELECTRONIC: docs/knowledge/electronic-family-linking-guide.md (Claude, 2026-08-12).
+ * Every phrase below is taken from these guides. NOTHING HERE IS INVENTED.
  *
  * WHY: round 4 was lost partly because interaction language was written from
  * scratch while a tested library already existed. John: "I don't feel you're
@@ -2047,12 +2376,13 @@ Object.assign(window.__ATMOS, { composerLayerList, composerStyleLayer, decorateS
  *     prompts ("orchestral, rich strings, ... instrumental only"); our genre
  *     anchor must stay the engine's, never "orchestral".
  *
- * KNOWN GAP, STATED RATHER THAN FILLED: the guide covers strings, woodwinds,
- * brass, percussion, harp and piano. It does NOT cover synthesisers, drum
- * machines, electric bass or electric guitar, so the ELECTRONIC side of the
- * character layer is still ungrounded. Do not invent equivalents — that is the
- * failure this file exists to stop. Ask John for an electronic linking guide.
+ * ELECTRONIC COVERAGE: electronic-family-linking-guide.md now covers synthesisers,
+ * drum machines, electric bass, electric piano, organ, arpeggios, sampled sources,
+ * and vocal synthesis. classifyInstrument() now resolves both orchestral and
+ * electronic families.
  * ========================================================================*/
+
+const {classifyElectronic} = window.__ATMOS;
 
 /* ---- §1 Instrument families and core roles -------------------------------- */
 const FAMILY_ROLES = {
@@ -2070,23 +2400,26 @@ const FAMILY_ROLES = {
                 typical: 'harmonic bed, rhythmic punctuation, solo lines' },
 };
 
-/* Map a written instrument name onto a guide family. Returns null when the
- * instrument is outside the guide's scope (synths, drum machines, electric
- * instruments) — callers must then fall back rather than guess. */
+/* Map a written instrument name onto a guide family. Resolves both orchestral
+ * families (from FAMILY_PATTERNS) and electronic families (via classifyElectronic).
+ * Check electronic patterns first to avoid collisions (e.g. "drum machine" matches
+ * percussion but is electronic). Returns null only if no family matches. */
 const FAMILY_PATTERNS = [
   ['strings',    /\b(string|strings|violin|viola|cello|double bass|pizzicato)\b/i],
   ['woodwinds',  /\b(woodwind|woodwinds|flute|oboe|clarinet|bassoon|cor anglais|recorder|duduk|shakuhachi|reed|reeds|saxophone)\b/i],
   ['brass',      /\b(brass|horn|horns|trumpet|trombone|tuba|flugelhorn|cornet)\b/i],
   ['harp',       /\b(harp)\b/i],
   ['piano',      /\b(piano|rhodes|clavinet|harpsichord|celesta)\b/i],
-  // Electronic percussion sources are OUTSIDE the guide's scope and must fall
-  // through to null rather than be mapped onto an orchestral family.
-  ['electronic', /\b(drum machine|drum-machine|808|909|electro|synth|sampled|programmed)\b/i],
   ['percussion', /\b(percussion|timpani|marimba|vibraphone|glockenspiel|xylophone|dulcimer|cimbalom|bells|drum|drums|shaker|conga|cajón|cajon|tabla)\b/i],
 ];
 function classifyInstrument(name) {
   const t = String(name || '');
-  for (const [fam, re] of FAMILY_PATTERNS) if (re.test(t)) return fam === 'electronic' ? null : fam;
+  // Check electronic patterns first to avoid collisions with orchestral families
+  const electronic = classifyElectronic(t);
+  if (electronic) return electronic;
+  // Then check orchestral patterns
+  for (const [fam, re] of FAMILY_PATTERNS) if (re.test(t)) return fam;
+  // No match in either guide
   return null;
 }
 
@@ -5033,6 +5366,303 @@ function modifierVariants(modId) {
 }
 
 Object.assign(window.__ATMOS, { modifierCores, modifierSignatures, modifierList, resolveModifier, modifierVariants, ATOM_MODIFIERS });
+})();
+
+/* core/structure.js */
+(function(){
+/* ==========================================================================
+ * structure.js — SONG STRUCTURE & ENERGY (structure-first pipeline, Phase 1).
+ *
+ * SOURCE: docs/knowledge/structure-and-energy.md (research complete 2026-07-23,
+ * structure decisions confirmed by John same date). Every preset, energy value,
+ * and coherence rule below is taken from that document. NOTHING HERE IS
+ * INVENTED — validate-structure.mjs reads the guide from disk and fails the
+ * build on any drift.
+ *
+ * WHY THIS MODULE EXISTS: John's ordering is song type -> structure -> style ->
+ * metatags, not the reverse. This is decision #1 in the pipeline: song type
+ * gates which structural vocabulary is legal and whether the style prompt may
+ * carry vocal-delivery language. See docs/architecture/structure-first-pipeline-plan.md
+ * for the full rollout plan (approved by John 2026-08-12).
+ *
+ * FIXED PRESETS (John, 2026-07-23): the user picks one preset and the engine
+ * fills it. No editable/add-remove mode — coherence is guaranteed by
+ * construction, not by a validator repairing a free-built structure.
+ * ========================================================================*/
+
+/* ---- Song type gate (guide §2) --------------------------------------------
+ * Song type is decision #1. It gates structural vocabulary AND whether style
+ * language may carry vocal-delivery description. */
+const SONG_TYPES = Object.freeze({
+  vocal: {
+    id: 'vocal',
+    label: 'Vocal',
+    vocabulary: ['Intro', 'Verse', 'Pre-Chorus', 'Chorus', 'Post-Chorus', 'Bridge',
+                 'Instrumental Break', 'Outro'],
+    styleAllowsVocalDelivery: true,
+    lyricsMode: 'written', // real lyrics under section tags
+  },
+  instrumental: {
+    id: 'instrumental',
+    label: 'Instrumental',
+    vocabulary: ['Intro', 'Theme', 'Movement', 'Build', 'Build-Up', 'Drop',
+                 'Breakdown', 'Interlude', 'Reprise', 'Climax', 'Outro'],
+    styleAllowsVocalDelivery: false,
+    lyricsMode: 'instrumental', // [Instrumental] + structural markers only
+  },
+});
+
+/* ---- Section energy levels (guide §3) -------------------------------------
+ * Energy scored 1 (lowest) to 5 (peak). Two tables: vocal sections and
+ * instrumental (electronic/cinematic) sections. Some section names are shared
+ * across tables (Intro, Outro) with the same value in both. */
+const SECTION_ENERGY = Object.freeze({
+  // Vocal
+  'Intro': 2,
+  'Verse': 3,
+  'Pre-Chorus': 4,
+  'Chorus': 5,
+  'Post-Chorus': 4,
+  'Bridge': 2,
+  'Instrumental Break': 3,
+  'Outro': 2,
+  // Instrumental (electronic + cinematic)
+  'Build': 4,
+  'Build-Up': 4,
+  'Drop': 5,
+  'Breakdown': 2,
+  'Interlude': 3,
+  'Reprise': 4,
+  'Theme': 3,
+  'Movement': 3,
+  'Climax': 5,
+});
+
+/* ---- Coherence rules (guide §4, R1-R7) -------------------------------------
+ * Stated as checkable constraints. validateEnergyCoherence() below implements
+ * each one; ids match the guide exactly for traceability. */
+const COHERENCE_RULES = Object.freeze([
+  { id: 'R1', name: 'Intro is low', text: 'An intro must be energy <= 2.' },
+  { id: 'R2', name: 'A peak must be earned by a build',
+    text: 'A Drop or Chorus (energy 5) must be immediately preceded by a section of energy >= its own minus 2 that is rising.' },
+  { id: 'R3', name: 'A breakdown/bridge drops',
+    text: 'A Breakdown or Bridge must be LOWER energy than the section before it.' },
+  { id: 'R4', name: 'No two adjacent sections at identical energy',
+    text: 'for more than a verse-repeat (Verse->Verse allowed; Chorus->Chorus is the earned-double exception at the end).' },
+  { id: 'R5', name: 'End resolves',
+    text: 'The last section is an Outro (energy <= 2) OR a final Chorus/Drop followed by an Outro.' },
+  { id: 'R6', name: 'The overall curve must rise then resolve',
+    text: 'Peak energy should occur in the back half, not the first section.' },
+  { id: 'R7', name: 'Instrumental/vocal vocabulary must not mix',
+    text: 'A vocal structure cannot contain a Drop token; an instrumental cannot contain a Verse-with-lyrics.' },
+]);
+
+/* ---- Structure presets (guide §5) ------------------------------------------
+ * Each preset carries: id, label, type (vocal|instrumental), sections[]
+ * (labels only — energy is looked up from SECTION_ENERGY so there is exactly
+ * ONE source of truth for energy values), and a short description from the
+ * guide. Numbers 1-12 match the guide's own numbering for traceability. */
+const STRUCTURE_PRESETS = Object.freeze({
+  // ---- Vocal presets ----
+  'verse-chorus': {
+    id: 'verse-chorus', num: 1, type: 'vocal', label: 'Verse\u2013Chorus (ABAB)',
+    sections: ['Intro', 'Verse', 'Chorus', 'Verse', 'Chorus', 'Outro'],
+    description: 'The streaming-era default without a bridge.',
+  },
+  'verse-chorus-bridge': {
+    id: 'verse-chorus-bridge', num: 2, type: 'vocal', label: 'Verse\u2013Chorus\u2013Bridge (ABABCB)',
+    sections: ['Intro', 'Verse', 'Chorus', 'Verse', 'Chorus', 'Bridge', 'Chorus', 'Outro'],
+    description: 'The most common structure in modern pop.',
+  },
+  'pre-chorus-pop': {
+    id: 'pre-chorus-pop', num: 3, type: 'vocal', label: 'Pre-Chorus Pop',
+    sections: ['Intro', 'Verse', 'Pre-Chorus', 'Chorus', 'Verse', 'Pre-Chorus', 'Chorus', 'Bridge', 'Chorus', 'Outro'],
+    description: 'Firework / Rolling in the Deep shape.',
+  },
+  'aaba': {
+    id: 'aaba', num: 4, type: 'vocal', label: 'AABA (32-bar)',
+    sections: ['Intro', 'Verse', 'Verse', 'Bridge', 'Verse', 'Outro'],
+    description: 'No chorus; the A-section carries the hook/refrain. Jazz standard, classic pop, folk.',
+  },
+  'anthemic': {
+    id: 'anthemic', num: 5, type: 'vocal', label: 'Anthemic (double final chorus)',
+    sections: ['Intro', 'Verse', 'Pre-Chorus', 'Chorus', 'Verse', 'Pre-Chorus', 'Chorus', 'Bridge', 'Chorus', 'Chorus', 'Outro'],
+    description: 'Ends on the earned double.',
+  },
+  'full-pop': {
+    id: 'full-pop', num: 10, type: 'vocal', label: 'Full Pop',
+    sections: ['Intro', 'Verse', 'Verse', 'Pre-Chorus', 'Chorus', 'Instrumental Break', 'Verse', 'Pre-Chorus', 'Chorus', 'Bridge', 'Chorus', 'Outro'],
+    description: 'John\u2019s full-length preset. Verified coherent vs R1-R7.',
+  },
+  'three-verse': {
+    id: 'three-verse', num: 11, type: 'vocal', label: 'Three-Verse',
+    sections: ['Intro', 'Verse', 'Verse', 'Chorus', 'Verse', 'Chorus', 'Bridge', 'Chorus', 'Outro'],
+    description: 'John\u2019s preset. Verse->Chorus is a valid 3->5, not the forbidden 2->5 leap.',
+  },
+  'three-verse-break': {
+    id: 'three-verse-break', num: 12, type: 'vocal', label: 'Three-Verse + Break',
+    sections: ['Intro', 'Verse', 'Verse', 'Chorus', 'Instrumental Break', 'Verse', 'Chorus', 'Bridge', 'Outro'],
+    description: 'Ends bridge->outro (a softer, reflective close) rather than a final chorus \u2014 confirmed intentional by John.',
+  },
+  // ---- Instrumental presets ----
+  'club-two-drop': {
+    id: 'club-two-drop', num: 6, type: 'instrumental', label: 'Club / Two-Drop EDM',
+    sections: ['Intro', 'Build', 'Drop', 'Breakdown', 'Build', 'Drop', 'Outro'],
+    description: 'The mainstage formula; two waves of tension/release with mixable bookends.',
+  },
+  'progressive-melodic': {
+    id: 'progressive-melodic', num: 7, type: 'instrumental', label: 'Progressive / Melodic',
+    sections: ['Intro', 'Build', 'Drop', 'Breakdown', 'Interlude', 'Build', 'Drop', 'Outro'],
+    description: 'Longer, more evolving; the melodic-techno/prog-house shape.',
+  },
+  'downtempo-ambient': {
+    id: 'downtempo-ambient', num: 8, type: 'instrumental', label: 'Downtempo / Ambient',
+    sections: ['Intro', 'Theme', 'Movement', 'Interlude', 'Reprise', 'Outro'],
+    description: 'Beatless-friendly; evolving loops, no drop. Fits the Balearic ambient/beatless clusters.',
+  },
+  'cinematic-through-composed': {
+    id: 'cinematic-through-composed', num: 9, type: 'instrumental', label: 'Cinematic / Through-composed',
+    sections: ['Intro', 'Theme', 'Movement', 'Movement', 'Climax', 'Reprise', 'Outro'],
+    description: 'Builds to one climax; the film-score shape.',
+  },
+});
+
+/* ---- G3: Beatless Balearic mapping rule (John, 2026-07-23) -----------------
+ * Beatless Balearic clusters must NEVER take a Club/drop structure. Enforced
+ * here as a lookup the engine can consult before offering the structure menu. */
+const BEATLESS_ALLOWED_PRESETS = Object.freeze(['downtempo-ambient']);
+
+/* ---- Resolve a preset to its full section+energy shape --------------------
+ * Single source of truth: presets carry section LABELS only; energy is always
+ * looked up from SECTION_ENERGY so a value can never drift between the two. */
+function resolveStructure(presetId) {
+  const preset = STRUCTURE_PRESETS[presetId];
+  if (!preset) return null;
+  const energyShape = preset.sections.map(s => SECTION_ENERGY[s]);
+  return {
+    id: preset.id, type: preset.type, label: preset.label,
+    sections: preset.sections.slice(), energyShape,
+    description: preset.description,
+  };
+}
+
+function presetsForType(type) {
+  return Object.values(STRUCTURE_PRESETS).filter(p => p.type === type);
+}
+
+/* ---- Energy coherence validation (R1-R7) -----------------------------------
+ * Checks a resolved {sections, energyShape, type} against the coherence rules.
+ * Returns { ok: boolean, violations: [{rule, message}] }. */
+function validateEnergyCoherence(structure) {
+  const { sections, energyShape, type } = structure;
+  const violations = [];
+  const n = sections.length;
+
+  // R1 — Intro is low
+  if (sections[0] === 'Intro' && energyShape[0] > 2) {
+    violations.push({ rule: 'R1', message: `Intro energy ${energyShape[0]} exceeds 2` });
+  }
+
+  // R2 — peak must be earned by a build (rising into 5). EXCEPTION: a Bridge
+  // immediately before the peak is explicitly sanctioned by the guide even
+  // though its own energy is low — "the bridge resets... to make the final
+  // chorus feel earned" (§3, §4 R3). The earning happens via CONTRAST, not a
+  // monotonic rise, so Bridge->Chorus/Drop is exempted from the rise check.
+  for (let i = 0; i < n; i++) {
+    if (energyShape[i] === 5) {
+      if (i === 0) {
+        violations.push({ rule: 'R2', message: `${sections[i]} at position 0 has no preceding build` });
+        continue;
+      }
+      const prevSection = sections[i - 1];
+      const prev = energyShape[i - 1];
+      const isBridgeReset = prevSection === 'Bridge';
+      if (!isBridgeReset && !(prev >= 3 && prev <= energyShape[i])) {
+        violations.push({ rule: 'R2', message: `${sections[i]} (energy 5) not properly earned by preceding ${sections[i-1]} (energy ${prev})` });
+      }
+    }
+  }
+
+  // R3 — breakdown/bridge drops relative to previous section
+  for (let i = 1; i < n; i++) {
+    if ((sections[i] === 'Breakdown' || sections[i] === 'Bridge') && energyShape[i] >= energyShape[i - 1]) {
+      violations.push({ rule: 'R3', message: `${sections[i]} (energy ${energyShape[i]}) does not drop below preceding ${sections[i-1]} (energy ${energyShape[i-1]})` });
+    }
+  }
+
+  // R4 — no two adjacent identical-energy sections, except Verse->Verse,
+  // Movement->Movement (through-composed development, same idiom as a verse
+  // repeat), or the earned Chorus->Chorus double at the very end.
+  for (let i = 1; i < n; i++) {
+    if (energyShape[i] === energyShape[i - 1] && sections[i] === sections[i - 1]) {
+      const isRepeatableSection = sections[i] === 'Verse' || sections[i] === 'Movement';
+      const isEarnedDouble = sections[i] === 'Chorus' && i === n - 2; // second-to-last, followed by Outro
+      if (!isRepeatableSection && !isEarnedDouble) {
+        violations.push({ rule: 'R4', message: `${sections[i]} repeats ${sections[i-1]} at identical energy ${energyShape[i]}` });
+      }
+    }
+  }
+
+  // R5 — end resolves
+  const last = sections[n - 1];
+  const secondLast = sections[n - 2];
+  const endsOnOutro = last === 'Outro' && energyShape[n - 1] <= 2;
+  const endsOnPeakThenOutro = last === 'Outro' && (secondLast === 'Chorus' || secondLast === 'Drop');
+  if (!endsOnOutro && !endsOnPeakThenOutro) {
+    violations.push({ rule: 'R5', message: `structure does not end on a resolving Outro (ends on ${last})` });
+  }
+
+  // R6 — peak must not occur in the first section ("not the first section" —
+  // guide's own wording is looser than "past the midpoint"; John's 12 shipped
+  // presets peak well before the midpoint in several cases, e.g. Verse-Chorus
+  // ABAB peaks at position 2 of 6).
+  const peak = Math.max(...energyShape);
+  const firstPeakIdx = energyShape.indexOf(peak);
+  if (firstPeakIdx === 0 && peak === 5) {
+    violations.push({ rule: 'R6', message: `peak energy ${peak} occurs at position 0 (the first section)` });
+  }
+
+  // R7 — vocabulary must not mix
+  const vocalOnly = new Set(['Verse', 'Pre-Chorus', 'Chorus', 'Post-Chorus', 'Bridge', 'Instrumental Break']);
+  const instrumentalOnly = new Set(['Build', 'Build-Up', 'Drop', 'Breakdown', 'Interlude', 'Reprise', 'Theme', 'Movement', 'Climax']);
+  for (const s of sections) {
+    if (type === 'instrumental' && vocalOnly.has(s) && s !== 'Instrumental Break') {
+      violations.push({ rule: 'R7', message: `instrumental structure contains vocal-only section "${s}"` });
+    }
+    if (type === 'vocal' && instrumentalOnly.has(s)) {
+      violations.push({ rule: 'R7', message: `vocal structure contains instrumental-only section "${s}"` });
+    }
+  }
+
+  return { ok: violations.length === 0, violations };
+}
+
+/* ---- Suno structural tag set (guide §6) ------------------------------------
+ * Reliably-read bracket tags. Used by the metatag/lyric engine to confirm a
+ * section label maps to a tag Suno actually recognises. */
+const SUNO_STRUCTURE_TAGS = Object.freeze([
+  'Intro', 'Verse', 'Pre-Chorus', 'Chorus', 'Post-Chorus', 'Bridge',
+  'Instrumental', 'Instrumental Break', 'Break', 'Interlude', 'Drop',
+  'Build-Up', 'Breakdown', 'Outro', 'End',
+]);
+
+/* ---- LLM call contract (guide §6a, John 2026-07-23) ------------------------
+ * Any generative call (lyric engine, future stages) MUST receive the resolved
+ * structure (section order + energy) as an explicit input. This helper builds
+ * the canonical payload shape so every call site passes the same contract. */
+function structureCallPayload(presetId) {
+  const structure = resolveStructure(presetId);
+  if (!structure) return null;
+  return {
+    songType: structure.type,
+    presetId,
+    presetLabel: structure.label,
+    sections: structure.sections,
+    energyShape: structure.energyShape,
+  };
+}
+
+Object.assign(window.__ATMOS, { resolveStructure, presetsForType, validateEnergyCoherence, structureCallPayload, SONG_TYPES, SECTION_ENERGY, COHERENCE_RULES, STRUCTURE_PRESETS, BEATLESS_ALLOWED_PRESETS, SUNO_STRUCTURE_TAGS });
 })();
 
 /* core/lyric-controls.js */
@@ -9049,6 +9679,7 @@ Object.assign(window.__ATMOS, { getEngine, atomCharacterList, atomOverlays, reso
 // overlays and the Lyric/Metatag engine will add their own sub-states later
 // without touching this shape.
 const {getEngine, resolverCharacters, atomCharacterList, legacyPresetMap, legacyClusters, legacyClassic} = window.__ATMOS;
+const {presetsForType} = window.__ATMOS;
 
 function newSeed() { return (Math.random() * 2147483647) >>> 0; }
 
@@ -9056,10 +9687,29 @@ function initState() {
   // maxMode is global (persists across engine switches); res/leg are per-kind.
   // ov = modifier overlays (Composer / Producer / Remixer). Global like maxMode:
   // an overlay is a hand applied ON TOP of whichever engine is selected.
+  // songType/structurePresetId: PHASE 1 of the structure-first pipeline
+  // (docs/architecture/structure-first-pipeline-plan.md, approved by John
+  // 2026-08-12). Selectable now; NOT YET WIRED into generate() — that is
+  // Phase 2 (style constraints) and Phase 3 (lyric engine reads it). Storing
+  // the selection now lets the UI panel exist and be exercised ahead of the
+  // pipeline reorder that consumes it.
   const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false,
-              ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null, atom: null };
+              ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null, atom: null,
+              songType: 'vocal', structurePresetId: presetsForType('vocal')[0].id };
   syncEngineDefaults(S, 'Delerium');
   return S;
+}
+
+// Change song type: reset the structure preset to the first valid option for
+// the new type (structures are type-specific — see core/structure.js R7).
+function setSongType(S, songType) {
+  S.songType = songType;
+  const first = presetsForType(songType)[0];
+  S.structurePresetId = first ? first.id : '';
+}
+
+function setStructurePreset(S, presetId) {
+  S.structurePresetId = presetId;
 }
 
 // (Re)build the control sub-state when the engine changes.
@@ -9116,7 +9766,7 @@ function syncEngineDefaults(S, engineId) {
   }
 }
 
-Object.assign(window.__ATMOS, { newSeed, initState, syncEngineDefaults });
+Object.assign(window.__ATMOS, { newSeed, initState, setSongType, setStructurePreset, syncEngineDefaults });
 })();
 
 /* js/generate.js */
@@ -9303,11 +9953,12 @@ Object.assign(window.__ATMOS, { generate });
 /* js/ui.js */
 (function(){
 const {ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool, atomCharacterList, atomOverlays, legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,} = window.__ATMOS;
-const {syncEngineDefaults, newSeed} = window.__ATMOS;
+const {syncEngineDefaults, newSeed, setSongType, setStructurePreset} = window.__ATMOS;
 const {generate} = window.__ATMOS;
 const {overlayList} = window.__ATMOS;
 const {favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll} = window.__ATMOS;
 const {composerLayerList} = window.__ATMOS;
+const {SONG_TYPES, presetsForType, resolveStructure} = window.__ATMOS;
 
 // ---- tiny DOM helpers ------------------------------------------------------
 function el(tag, attrs = {}, kids = []) {
@@ -9413,6 +10064,14 @@ function mount(state, root) { S = state; rootEl = root; renderAll(); }
 
 function renderAll() {
   rootEl.innerHTML = '';
+
+  // STRUCTURE-FIRST PANEL (Phase 1, docs/architecture/structure-first-pipeline-plan.md).
+  // Song type + structure preset are surfaced here, ahead of the engine tabs,
+  // matching John's confirmed decision order: song type -> structure -> style
+  // -> metatags. NOT YET WIRED into generate() (Phase 2/3) — selecting here
+  // stores the choice on state for the pipeline reorder to consume later.
+  structurePanel(rootEl);
+
   rootEl.appendChild(el('div', { class: 'tabs' }, ENGINES.map(e => {
     const disabled = e.kind === 'stub';
     return el('button', {
@@ -9436,6 +10095,40 @@ function renderAll() {
   if (eng.kind !== 'stub') favouritesPanel(controls);
 
   refreshOutput();
+}
+
+// ---- structure-first panel (song type + structure preset) ------------------
+// Decision #1 in John's pipeline ordering. Song type gates which structure
+// presets are offered (vocal vs instrumental vocabularies never mix, R7).
+// Changing song type resets the preset to the first valid option for the new
+// type (see state.js setSongType).
+function structurePanel(root) {
+  const box = el('div', { class: 'structure-panel' });
+  box.appendChild(el('h4', { text: 'Song structure' }));
+
+  const typeOptions = Object.values(SONG_TYPES).map(t => ({ value: t.id, label: t.label }));
+  box.appendChild(field('Song type', segmented(typeOptions, S.songType, v => {
+    setSongType(S, v);
+    renderAll();
+  })));
+
+  const presets = presetsForType(S.songType);
+  const presetOptions = presets.map(p => ({ value: p.id, label: p.label }));
+  box.appendChild(field('Structure preset', select(presetOptions, S.structurePresetId, v => {
+    setStructurePreset(S, v);
+    renderAll();
+  })));
+
+  const structure = resolveStructure(S.structurePresetId);
+  if (structure) {
+    const sectionsText = structure.sections
+      .map((s, i) => `${s} (${structure.energyShape[i]})`)
+      .join(' \u2192 ');
+    box.appendChild(el('p', { class: 'hint structure-preview', text: sectionsText }));
+    if (structure.description) box.appendChild(el('p', { class: 'hint', text: structure.description }));
+  }
+
+  root.appendChild(box);
 }
 
 // ---- favourites ------------------------------------------------------------

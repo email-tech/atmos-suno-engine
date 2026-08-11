@@ -69,6 +69,11 @@ select:focus,.txt:focus{outline:none;border-color:var(--accent)}
 /* ---- favourites ---------------------------------------------------------- */
 .favourites { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line, #2a2a2a); }
 .favourites h4 { margin: 0 0 10px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; opacity: .7; }
+
+/* ---- structure-first panel (song type + structure preset) ---------------- */
+.structure-panel { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line, #2a2a2a); }
+.structure-panel h4 { margin: 0 0 10px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; opacity: .7; }
+.structure-preview { font-family: monospace; font-size: 12px; opacity: .8; margin-top: 6px; }
 .fav-save { display: flex; gap: 8px; margin-bottom: 10px; }
 .fav-save .fav-name { flex: 1 1 auto; min-width: 0; }
 .fav-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line, #2a2a2a); }
