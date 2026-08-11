@@ -22,6 +22,10 @@ Retention is not memory and not prose. Work through this list in order.
    - `arrange-skill.md`, `prod-mix-skill.md`, `music-theory-skill.md`,
      `songwriting-skill.md`, `ai-music-skill.md`, `hardware-studio.md`
    - `balearic-influence-trait-library-v1.md`
+   - `structure-and-energy.md` — researched song-structure, energy-curve and
+     coherence rules for the structure-first pipeline (song forms, EDM/instrumental
+     forms, per-section energy levels, R1-R7 coherence rules, Suno structure tags).
+     This is the map; the Project-folder skill files are only pointers to it.
 
 3. **Run `node validate-knowledge.mjs` and `node validate-linking.mjs`.** If it fails, something regressed since
    the last session — fix that before anything else.
