@@ -2,8 +2,8 @@
  * linking.js — INSTRUMENT-FAMILY LINKING LANGUAGE.
  *
  * SOURCE: docs/knowledge/instrument-family-linking-guide.md (John, 2026-07-23).
- * Every phrase below is taken from that guide. Section numbers are cited on each
- * block. NOTHING HERE IS INVENTED — that is the entire point of the file.
+ * ELECTRONIC: docs/knowledge/electronic-family-linking-guide.md (Claude, 2026-08-12).
+ * Every phrase below is taken from these guides. NOTHING HERE IS INVENTED.
  *
  * WHY: round 4 was lost partly because interaction language was written from
  * scratch while a tested library already existed. John: "I don't feel you're
@@ -24,12 +24,13 @@
  *     prompts ("orchestral, rich strings, ... instrumental only"); our genre
  *     anchor must stay the engine's, never "orchestral".
  *
- * KNOWN GAP, STATED RATHER THAN FILLED: the guide covers strings, woodwinds,
- * brass, percussion, harp and piano. It does NOT cover synthesisers, drum
- * machines, electric bass or electric guitar, so the ELECTRONIC side of the
- * character layer is still ungrounded. Do not invent equivalents — that is the
- * failure this file exists to stop. Ask John for an electronic linking guide.
+ * ELECTRONIC COVERAGE: electronic-family-linking-guide.md now covers synthesisers,
+ * drum machines, electric bass, electric piano, organ, arpeggios, sampled sources,
+ * and vocal synthesis. classifyInstrument() now resolves both orchestral and
+ * electronic families.
  * ========================================================================*/
+
+import { classifyElectronic } from './linking-electronic.js';
 
 /* ---- §1 Instrument families and core roles -------------------------------- */
 export const FAMILY_ROLES = {
@@ -47,23 +48,26 @@ export const FAMILY_ROLES = {
                 typical: 'harmonic bed, rhythmic punctuation, solo lines' },
 };
 
-/* Map a written instrument name onto a guide family. Returns null when the
- * instrument is outside the guide's scope (synths, drum machines, electric
- * instruments) — callers must then fall back rather than guess. */
+/* Map a written instrument name onto a guide family. Resolves both orchestral
+ * families (from FAMILY_PATTERNS) and electronic families (via classifyElectronic).
+ * Check electronic patterns first to avoid collisions (e.g. "drum machine" matches
+ * percussion but is electronic). Returns null only if no family matches. */
 const FAMILY_PATTERNS = [
   ['strings',    /\b(string|strings|violin|viola|cello|double bass|pizzicato)\b/i],
   ['woodwinds',  /\b(woodwind|woodwinds|flute|oboe|clarinet|bassoon|cor anglais|recorder|duduk|shakuhachi|reed|reeds|saxophone)\b/i],
   ['brass',      /\b(brass|horn|horns|trumpet|trombone|tuba|flugelhorn|cornet)\b/i],
   ['harp',       /\b(harp)\b/i],
   ['piano',      /\b(piano|rhodes|clavinet|harpsichord|celesta)\b/i],
-  // Electronic percussion sources are OUTSIDE the guide's scope and must fall
-  // through to null rather than be mapped onto an orchestral family.
-  ['electronic', /\b(drum machine|drum-machine|808|909|electro|synth|sampled|programmed)\b/i],
   ['percussion', /\b(percussion|timpani|marimba|vibraphone|glockenspiel|xylophone|dulcimer|cimbalom|bells|drum|drums|shaker|conga|cajón|cajon|tabla)\b/i],
 ];
 export function classifyInstrument(name) {
   const t = String(name || '');
-  for (const [fam, re] of FAMILY_PATTERNS) if (re.test(t)) return fam === 'electronic' ? null : fam;
+  // Check electronic patterns first to avoid collisions with orchestral families
+  const electronic = classifyElectronic(t);
+  if (electronic) return electronic;
+  // Then check orchestral patterns
+  for (const [fam, re] of FAMILY_PATTERNS) if (re.test(t)) return fam;
+  // No match in either guide
   return null;
 }
 

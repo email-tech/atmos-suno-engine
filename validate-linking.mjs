@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import {
   PAIR_LINKS, PLANES, FAMILY_ROLES, classifyInstrument, pairLink, allPhrases,
 } from './core/linking.js';
+import { allElectronicPhrases } from './core/linking-electronic.js';
 import { BANNED_ARTICULATION_RE } from './core/knowledge.js';
 import { buildAtoms } from './core/atoms.js';
 import { ATOM_POOL_CHARACTERS, atomCharacterForPalette } from './engines/atom-characters.js';
@@ -26,6 +27,15 @@ const guide = fs.readFileSync(GUIDE_PATH, 'utf8')
   .replace(/\u2019/g, "'")
   .toLowerCase();
 
+const ELECTRONIC_GUIDE_PATH = 'docs/knowledge/electronic-family-linking-guide.md';
+ok(fs.existsSync(ELECTRONIC_GUIDE_PATH), 'the electronic guide is missing from the repo');
+const electronicGuide = fs.existsSync(ELECTRONIC_GUIDE_PATH) 
+  ? fs.readFileSync(ELECTRONIC_GUIDE_PATH, 'utf8')
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/\u2019/g, "'")
+    .toLowerCase()
+  : '';
+
 /* 1. PROVENANCE — every pair-link phrase must appear verbatim in the guide.
  *    This is the check that makes invention impossible: a phrase written from
  *    scratch cannot be found in the source and fails here. */
@@ -41,6 +51,21 @@ const guide = fs.readFileSync(GUIDE_PATH, 'utf8')
   }
   checks++;
   console.log(`  provenance: all ${n} pair-link phrases traced to the guide.`);
+}
+
+/* 1b. ELECTRONIC PROVENANCE — all electronic linking phrases must appear verbatim
+ *     in the electronic guide. */
+{
+  let n = 0;
+  const electronicPhrases = allElectronicPhrases();
+  for (const phrase of electronicPhrases) {
+    const needle = phrase.toLowerCase().replace(/colour/g, 'color');
+    if (!electronicGuide.includes(needle))
+      bad(`electronic phrase: "${phrase.slice(0, 52)}" is not in the electronic guide — invented or paraphrased`);
+    n++;
+  }
+  checks++;
+  console.log(`  electronic provenance: all ${n} phrases traced to the electronic guide.`);
 }
 
 /* 2. PLANE-OF-TONE templates must match the guide's §13 wording. */
@@ -75,24 +100,20 @@ const guide = fs.readFileSync(GUIDE_PATH, 'utf8')
   console.log('  exclusions: no banned articulation, §10 not imported.');
 }
 
-/* 4. CLASSIFIER — instruments actually used in this app must resolve, and
- *    out-of-scope electronic instruments must return null rather than a guess.
- *    The guide covers orchestral families ONLY; silently mapping a supersaw to
- *    'strings' would be exactly the invention this harness prevents. */
+/* 4. CLASSIFIER — instruments in both orchestral and electronic guides must resolve.
+ *    The classifier covers both families now. */
 {
   const shouldResolve = {
     'French horn': 'brass', 'flugelhorn': 'brass', 'cello': 'strings',
     'a soaring long-breathed solo violin melody': 'strings', 'oboe': 'woodwinds',
     'cor anglais': 'woodwinds', 'harp': 'harp', 'a sparse solo felt-piano melody': 'piano',
     'marimba': 'percussion', 'timpani': 'percussion',
+    'a warm analog synth pad': 'synthpad', 'sub bass': 'electricbass', 
+    'drum machine': 'drummachine', 'supersaw lead': 'synthlead',
   };
   for (const [inst, want] of Object.entries(shouldResolve))
     ok(classifyInstrument(inst) === want,
       `classifier: "${inst}" -> ${classifyInstrument(inst)}, expected ${want}`);
-
-  for (const inst of ['a warm analog synth pad', 'sub bass', 'drum machine', 'supersaw lead'])
-    ok(classifyInstrument(inst) === null,
-      `classifier: "${inst}" is outside the guide's scope and must return null, got ${classifyInstrument(inst)}`);
 }
 
 /* 5. DETERMINISM — a seed must reproduce the same linking phrase. */
@@ -130,19 +151,13 @@ const guide = fs.readFileSync(GUIDE_PATH, 'utf8')
   console.log(`  placement: ${back} modifier beds in the background plane, ${mid} characters using the middle plane.`);
 }
 
-/* 7. OUTSTANDING GAP — printed loudly every run so no session can start work
- *    unaware that the electronic side is still ungrounded. Removing the TODO
- *    file is the signal that the research was done and filed. */
+/* 7. ELECTRONIC GUIDE COVERAGE — confirm the guide and data structures are in place */
 {
+  ok(fs.existsSync(ELECTRONIC_GUIDE_PATH), `electronic guide ${ELECTRONIC_GUIDE_PATH} exists`);
   const TODO = 'docs/knowledge/TODO-electronic-linking-guide.md';
-  if (fs.existsSync(TODO)) {
-    console.log('');
-    console.log('  ** OUTSTANDING: the electronic/synth linking guide does not exist yet.');
-    console.log('  ** Synths, drum machines and electric instruments have NO grounded');
-    console.log('  ** linking language — classifyInstrument() returns null for them by');
-    console.log('  ** design. Do not invent phrases for them.');
-    console.log(`  ** Brief: ${TODO}`);
-    console.log('');
+  ok(!fs.existsSync(TODO), `TODO file must be deleted when guide is complete`);
+  if (fs.existsSync(ELECTRONIC_GUIDE_PATH)) {
+    console.log('  electronic guide: in place, electronic families now classified and tested.');
   }
 }
 
