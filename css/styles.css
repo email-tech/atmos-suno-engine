@@ -82,3 +82,9 @@ select:focus,.txt:focus{outline:none;border-color:var(--accent)}
 button.link { background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: inherit; opacity: .75; text-decoration: underline; }
 button.link:hover { opacity: 1; }
 button.link.danger { color: #e06c6c; }
+
+/* ---- P7 live lyric panel (deliberately plain — see js/ui.js comment) ----- */
+.lyric-panel { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line, #2a2a2a); }
+.lyric-panel h4 { margin: 0 0 10px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; opacity: .7; }
+.lyric-panel input[type="text"], .lyric-panel input[type="password"] { width: 100%; box-sizing: border-box; }
+.lyric-panel pre { background: rgba(255,255,255,.03); border: 1px solid var(--line, #2a2a2a); border-radius: 4px; padding: 10px; margin-top: 8px; }

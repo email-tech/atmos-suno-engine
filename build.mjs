@@ -45,6 +45,7 @@ const files = [
   'legacy/prompt-style-builder.js',
   'core/favourites.js',
   'js/registry.js',
+  'js/claude-client.js',
   'js/state.js',
   'js/generate.js',
   'js/ui.js',

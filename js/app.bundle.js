@@ -10032,6 +10032,115 @@ function legacyClusterRolePool(engineId, clusterId, role, palette) {
 Object.assign(window.__ATMOS, { getEngine, atomCharacterList, atomOverlays, resolverCharacters, resolverRolePool, legacyPresetMap, legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, ENGINES, RESOLVER_ROLES, CLUSTER_ROLES });
 })();
 
+/* js/claude-client.js */
+(function(){
+/* ==========================================================================
+ * claude-client.js — REAL transport for the Lyric Engine's runLyricEngine().
+ *
+ * Ported forward from archive/js/claude-client.js (the proven ATMOS v7
+ * design) with the model list updated to current models. The key-handling
+ * architecture is UNCHANGED from that prior art — it was already the right
+ * design for a local, single-user, file:// tool:
+ *   - The API key is entered by the user in the app and lives client-side
+ *     only (see js/state.js S.claude.apiKey). It is NEVER committed to the
+ *     repo, never sent anywhere but Anthropic's API (direct mode) or the
+ *     user's own local proxy (proxy mode).
+ *   - DIRECT mode calls api.anthropic.com straight from the browser, using
+ *     the anthropic-dangerous-direct-browser-access header Anthropic
+ *     requires for that. Simplest path; may hit CORS in some browsers.
+ *   - PROXY mode calls a local proxy at 127.0.0.1:8787 (not shipped here —
+ *     an optional local relay for anyone who hits CORS in direct mode).
+ * This module is NOT dependency-injected like the rest of core/ — it IS the
+ * dependency that gets injected as `transport` into runLyricEngine().
+ * ========================================================================*/
+
+const DEFAULT_MODEL = 'claude-opus-4-8'; // matches core/lyric.js's DEFAULT_LYRIC_MODEL
+const CLAUDE_MODELS = [
+  'claude-opus-4-8',
+  'claude-sonnet-5',
+  'claude-haiku-4-5-20251001',
+];
+
+const API_URL = 'https://api.anthropic.com/v1/messages';
+const PROXY_URL = 'http://127.0.0.1:8787/v1/messages';
+const TRANSPORT_MODE_KEY = 'atmos.claudeTransportMode';
+
+function getStoredTransportMode() {
+  try { return localStorage.getItem(TRANSPORT_MODE_KEY) || 'direct'; }
+  catch { return 'direct'; } // localStorage unavailable (e.g. some file:// contexts)
+}
+function setStoredTransportMode(mode) {
+  try { localStorage.setItem(TRANSPORT_MODE_KEY, mode); } catch { /* best-effort */ }
+}
+
+// callClaude: the raw request. Shaped to match what runLyricEngine's
+// `transport({prompt, model, temperature, maxTokens}) -> string` contract
+// expects — see makeClaudeTransport() below for the adapter.
+async function callClaude({ apiKey, model, temperature, maxTokens, prompt, transportMode }) {
+  const mode = transportMode || getStoredTransportMode();
+  if (mode === 'direct' && !(apiKey && apiKey.trim())) {
+    throw new Error('Missing Claude API key. Enter a key in Claude Settings before generating.');
+  }
+
+  let response;
+  try {
+    response = await fetch(mode === 'proxy' ? PROXY_URL : API_URL, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(mode === 'direct' ? { 'x-api-key': apiKey.trim() } : {}),
+        'anthropic-version': '2023-06-01',
+        ...(mode === 'direct' ? { 'anthropic-dangerous-direct-browser-access': 'true' } : {}),
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: Number(maxTokens) || 4096,
+        temperature: temperature != null ? Number(temperature) : 0.9,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+  } catch (error) {
+    const help = mode === 'direct'
+      ? 'Direct browser mode may be blocked by CORS. Switch to Local proxy mode and start the optional proxy.'
+      : 'Local proxy mode expects the optional proxy to be running at http://127.0.0.1:8787.';
+    throw new Error(`Network or CORS failure while calling Claude: ${error.message}. ${help}`);
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    const modelHint = response.status === 404 ? ` The selected model ("${model}") may not be available to this API key.` : '';
+    throw new Error(`Claude request failed (${response.status}).${modelHint} ${body || 'Check API key, model, quota, or browser CORS policy.'}`);
+  }
+
+  const data = await response.json();
+  const text = (data.content || []).map(item => item.text || '').join('\n').trim();
+  if (!text) throw new Error('Claude returned an empty response.');
+  return text;
+}
+
+async function testClaudeConnection(settings) {
+  return callClaude({
+    ...settings,
+    maxTokens: 64,
+    temperature: 0,
+    prompt: 'Return JSON only: {"ok":true,"message":"Claude connection ready"}',
+  });
+}
+
+// makeClaudeTransport: adapts callClaude's {apiKey,...} shape to the plain
+// {prompt, model, temperature, maxTokens} -> string function shape that
+// core/lyric.js's runLyricEngine() expects as its `transport` argument. This
+// is the ONE function that turns the (previously always-mocked) lyric
+// pipeline into a real, live call.
+function makeClaudeTransport({ apiKey, transportMode }) {
+  return async function transport({ prompt, model, temperature, maxTokens }) {
+    return callClaude({ apiKey, transportMode, model, temperature, maxTokens, prompt });
+  };
+}
+
+Object.assign(window.__ATMOS, { callClaude, testClaudeConnection, getStoredTransportMode, setStoredTransportMode, makeClaudeTransport, DEFAULT_MODEL, CLAUDE_MODELS });
+})();
+
 /* js/state.js */
 (function(){
 // Shell state. Two control sub-states (resolver vs legacy); the active one is
@@ -10040,6 +10149,7 @@ Object.assign(window.__ATMOS, { getEngine, atomCharacterList, atomOverlays, reso
 // without touching this shape.
 const {getEngine, resolverCharacters, atomCharacterList, legacyPresetMap, legacyClusters, legacyClassic} = window.__ATMOS;
 const {presetsForType} = window.__ATMOS;
+const {DEFAULT_MODEL, getStoredTransportMode} = window.__ATMOS;
 
 function newSeed() { return (Math.random() * 2147483647) >>> 0; }
 
@@ -10055,7 +10165,23 @@ function initState() {
   // pipeline reorder that consumes it.
   const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false,
               ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null, atom: null,
-              songType: 'vocal', structurePresetId: presetsForType('vocal')[0].id };
+              songType: 'vocal', structurePresetId: presetsForType('vocal')[0].id,
+              // P7 (2026-08-12): client-side API settings for the REAL lyric
+              // transport. apiKey lives only in memory/localStorage on the
+              // user's own machine — see js/claude-client.js header for the
+              // full key-handling rationale (ported from the proven ATMOS v7
+              // design, unchanged).
+              claude: { apiKey: '', model: DEFAULT_MODEL, transportMode: getStoredTransportMode() },
+              // Minimal inputs for a live lyric generation call. title is the
+              // user override John asked about (defaults to LLM-invented when
+              // blank); lineLength/rhymeDensity are the two the quality gate
+              // (core/lyric-validator.js) actually checks against.
+              lyric: {
+                subject: '', title: '', lineLength: 'Flexible', rhymeDensity: 'Moderate',
+                status: 'idle', // 'idle' | 'running' | 'done' | 'error'
+                result: null, error: null,
+              },
+            };
   syncEngineDefaults(S, 'Delerium');
   return S;
 }
@@ -10070,6 +10196,18 @@ function setSongType(S, songType) {
 
 function setStructurePreset(S, presetId) {
   S.structurePresetId = presetId;
+}
+
+// Update one or more fields of the live-lyric input sub-state (subject,
+// title override, lineLength/rhymeDensity targets) without clobbering the
+// others. Does not touch status/result/error — those are set by the async
+// generation flow itself (see js/generate.js's generateLyricsLive()).
+function setLyricInputs(S, patch) {
+  Object.assign(S.lyric, patch);
+}
+
+function setClaudeSettings(S, patch) {
+  Object.assign(S.claude, patch);
 }
 
 // (Re)build the control sub-state when the engine changes.
@@ -10126,7 +10264,7 @@ function syncEngineDefaults(S, engineId) {
   }
 }
 
-Object.assign(window.__ATMOS, { newSeed, initState, setSongType, setStructurePreset, syncEngineDefaults });
+Object.assign(window.__ATMOS, { newSeed, initState, setSongType, setStructurePreset, setLyricInputs, setClaudeSettings, syncEngineDefaults });
 })();
 
 /* js/generate.js */
@@ -10139,6 +10277,8 @@ Object.assign(window.__ATMOS, { newSeed, initState, setSongType, setStructurePre
 const {getEngine, legacyClassic} = window.__ATMOS;
 const {buildAtoms} = window.__ATMOS;
 const {buildMusicalDNA} = window.__ATMOS;
+const {inferCIL} = window.__ATMOS;
+const {runLyricEngine} = window.__ATMOS;
 const {runMetatagEngine} = window.__ATMOS;
 const {COMPOSER_LAYERS, composerStyleLayer} = window.__ATMOS;
 const {atomCharacterForPalette} = window.__ATMOS;
@@ -10149,6 +10289,7 @@ const {EngineExtras} = window.__ATMOS;
 const {MAX_MODE_STR} = window.__ATMOS;
 const {buildStylePrompt, buildNegativePrompt, buildLyricsField} = window.__ATMOS;
 const {resolveStructure} = window.__ATMOS;
+const {makeClaudeTransport} = window.__ATMOS;
 
 function applyMax(style, on) {
   if (!on) return style;
@@ -10263,7 +10404,55 @@ function generate(S) {
   return { style: '', negative: '', lyrics: '', length: 0, over: false, stub: true };
 }
 
-// Resolve classic slots for the 3-level manual control (Randomize all / Lock some / Full manual).
+// ---- P7: LIVE lyric generation (2026-08-12) --------------------------------
+// The one function in this file that makes a real network call. Everything
+// upstream of the transport is pure and testable without a network — see
+// buildLiveLyricRequest() below and validate-live-lyric.mjs, which tests that
+// piece plus the full async flow with an injected fake transport.
+//
+// P8 GAP, STATED RATHER THAN HIDDEN: only 'atom' engines currently have
+// buildMusicalDNA() wired (DNA extractors for resolver/legacy engines are
+// P8, not yet built). Calling this for a resolver or legacy engine throws a
+// clear error rather than silently producing something wrong.
+function buildLiveLyricRequest(S) {
+  const eng = getEngine(S.engineId);
+  if (eng.kind !== 'atom') {
+    throw new Error(
+      `Live lyric generation needs Musical DNA, which only 'atom' engines currently produce ` +
+      `(P8 — DNA extractors for resolver/legacy engines — is not built yet). ` +
+      `Selected engine "${S.engineId}" is kind "${eng.kind}".`
+    );
+  }
+  const a = S.atom;
+  const palette = a.palette || 'electronic';
+  const baseChar = eng.module[a.characterId];
+  const dna = buildMusicalDNA(baseChar, palette, {
+    seed: S.seed, characterId: a.characterId, overlayId: a.overlayId || null,
+  });
+  const cil = inferCIL(dna);
+  const structure = lyricStructure(S);
+  const l = S.lyric || {};
+  const answers = {
+    'song.subject': l.subject || '',
+    'song.lineLength': l.lineLength || 'Flexible',
+    'song.rhymeDensity': l.rhymeDensity || 'Moderate',
+  };
+  if (l.title && l.title.trim()) answers['song.title'] = l.title.trim(); // user override; LLM invents one if absent
+  const transport = makeClaudeTransport(S.claude || {});
+  return { dna, cil, structure, answers, transport, model: (S.claude && S.claude.model) || undefined };
+}
+
+// generateLyricsLive: the async entry point. `transportOverride` is test-only
+// dependency injection (see validate-live-lyric.mjs) — omit it in the live
+// app to use the real Claude transport built above.
+async function generateLyricsLive(S, transportOverride) {
+  const req = buildLiveLyricRequest(S);
+  return runLyricEngine({
+    dna: req.dna, cil: req.cil, structure: req.structure, answers: req.answers,
+    transport: transportOverride || req.transport,
+    model: req.model, repair: true,
+  });
+}
 // Each role is either locked (chosen) or drawn fresh from the proven STYLE_ENGINES array.
 function resolveClassicSlots(engineId, l, seed) {
   const arrs = legacyClassic(engineId).slots;   // {pad:[],bass:[],rhythm:[],percussion:[],motif:[],movement:[]}
@@ -10343,18 +10532,20 @@ function toLegacyState(S) {
   };
 }
 
-Object.assign(window.__ATMOS, { generate });
+Object.assign(window.__ATMOS, { generateLyricsLive, generate, buildLiveLyricRequest });
 })();
 
 /* js/ui.js */
 (function(){
 const {ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool, atomCharacterList, atomOverlays, legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,} = window.__ATMOS;
-const {syncEngineDefaults, newSeed, setSongType, setStructurePreset} = window.__ATMOS;
-const {generate} = window.__ATMOS;
+const {syncEngineDefaults, newSeed, setSongType, setStructurePreset, setLyricInputs, setClaudeSettings} = window.__ATMOS;
+const {generate, generateLyricsLive} = window.__ATMOS;
 const {overlayList} = window.__ATMOS;
 const {favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll} = window.__ATMOS;
 const {composerLayerList} = window.__ATMOS;
 const {SONG_TYPES, presetsForType, resolveStructure} = window.__ATMOS;
+const {CONTROL_OPTIONS} = window.__ATMOS;
+const {CLAUDE_MODELS} = window.__ATMOS;
 
 // ---- tiny DOM helpers ------------------------------------------------------
 function el(tag, attrs = {}, kids = []) {
@@ -10654,6 +10845,85 @@ function renderAtomControls(root, eng) {
 
   root.appendChild(el('p', { class: 'note', text: 'Atom assembly path. Overlays are congruent-by-default \u2014 an incongruent one is refused (shown below the prompt).' }));
   root.appendChild(buttons());
+  // P7 (2026-08-12): live lyric generation only exists for atom engines —
+  // resolver/legacy engines have no DNA extractor yet (P8, not built).
+  lyricPanel(root);
+}
+
+// ---- P7: live lyric generation panel (atom engines only, see P8 gap note) --
+// Deliberately plain — matching structurePanel's unstyled aesthetic. This is
+// "structure and logic" wiring (John, 2026-08-12), not a UI design pass;
+// visual polish is explicitly deferred to a later pass using the design
+// skills John has installed.
+function lyricPanel(root) {
+  const box = el('div', { class: 'lyric-panel' });
+  box.appendChild(el('h4', { text: 'Lyrics (live, P7)' }));
+
+  const l = S.lyric;
+  const c = S.claude;
+
+  box.appendChild(field('Subject / topic', el('input', {
+    type: 'text', value: l.subject, placeholder: 'leave blank to let the LLM invent one',
+    oninput: e => setLyricInputs(S, { subject: e.target.value }),
+  })));
+  box.appendChild(field('Title (optional override)', el('input', {
+    type: 'text', value: l.title, placeholder: 'leave blank for an LLM-generated title',
+    oninput: e => setLyricInputs(S, { title: e.target.value }),
+  })));
+  box.appendChild(field('Line length target',
+    select(CONTROL_OPTIONS.lineLength.map(v => ({ value: v, label: v })), l.lineLength,
+      v => setLyricInputs(S, { lineLength: v }))));
+  box.appendChild(field('Rhyme density target',
+    select(CONTROL_OPTIONS.rhymeDensity.map(v => ({ value: v, label: v })), l.rhymeDensity,
+      v => setLyricInputs(S, { rhymeDensity: v }))));
+
+  box.appendChild(el('h4', { text: 'Claude settings', style: 'margin-top:14px;' }));
+  box.appendChild(field('API key', el('input', {
+    type: 'password', value: c.apiKey, placeholder: 'sk-ant-...',
+    oninput: e => setClaudeSettings(S, { apiKey: e.target.value }),
+  })));
+  box.appendChild(field('Model', select(CLAUDE_MODELS.map(m => ({ value: m, label: m })), c.model,
+    v => setClaudeSettings(S, { model: v }))));
+  box.appendChild(field('Transport', segmented(
+    [{ value: 'direct', label: 'Direct' }, { value: 'proxy', label: 'Local proxy' }], c.transportMode,
+    v => setClaudeSettings(S, { transportMode: v }))));
+
+  const genBtnAttrs = {
+    class: 'ghost', text: l.status === 'running' ? 'Generating\u2026' : 'Generate lyrics',
+    onclick: async () => {
+      l.status = 'running'; l.error = null; l.result = null;
+      renderAll();
+      try {
+        const result = await generateLyricsLive(S);
+        l.status = 'done'; l.result = result;
+      } catch (e) {
+        l.status = 'error'; l.error = e.message;
+      }
+      renderAll();
+    },
+  };
+  if (l.status === 'running') genBtnAttrs.disabled = 'true'; // omit the key entirely when not disabled — setAttribute('disabled', null) would stringify to "null" and disable it anyway
+  const genBtn = el('button', genBtnAttrs);
+  box.appendChild(genBtn);
+
+  if (l.status === 'error') {
+    box.appendChild(el('p', { class: 'note', text: `Error: ${l.error}` }));
+  }
+  if (l.status === 'done' && l.result) {
+    const r = l.result;
+    if (r.instrumental) {
+      box.appendChild(el('p', { class: 'note', text: 'Instrumental song type \u2014 lyrics field is [Instrumental], no LLM call made.' }));
+    } else {
+      const q = r.quality;
+      box.appendChild(el('p', { class: 'note',
+        text: q ? `Quality score: ${q.score} (threshold 85) \u2014 ${q.passed ? 'PASSED' : 'below threshold, best of ' + r.attempts + ' attempt(s)'}`
+                 : (r.parseError ? 'Model response could not be parsed as JSON after all attempts.' : '') }));
+      if (r.title) box.appendChild(el('p', { text: `Title: ${r.title}` }));
+      if (r.lyrics) box.appendChild(el('pre', { text: r.lyrics, style: 'white-space:pre-wrap; font-size:12px;' }));
+    }
+  }
+
+  root.appendChild(box);
 }
 
 // ---- resolver controls -----------------------------------------------------

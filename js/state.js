@@ -4,6 +4,7 @@
 // without touching this shape.
 import { getEngine, resolverCharacters, atomCharacterList, legacyPresetMap, legacyClusters, legacyClassic } from './registry.js';
 import { presetsForType } from '../core/structure.js';
+import { DEFAULT_MODEL, getStoredTransportMode } from './claude-client.js';
 
 export function newSeed() { return (Math.random() * 2147483647) >>> 0; }
 
@@ -19,7 +20,23 @@ export function initState() {
   // pipeline reorder that consumes it.
   const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false,
               ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null, atom: null,
-              songType: 'vocal', structurePresetId: presetsForType('vocal')[0].id };
+              songType: 'vocal', structurePresetId: presetsForType('vocal')[0].id,
+              // P7 (2026-08-12): client-side API settings for the REAL lyric
+              // transport. apiKey lives only in memory/localStorage on the
+              // user's own machine — see js/claude-client.js header for the
+              // full key-handling rationale (ported from the proven ATMOS v7
+              // design, unchanged).
+              claude: { apiKey: '', model: DEFAULT_MODEL, transportMode: getStoredTransportMode() },
+              // Minimal inputs for a live lyric generation call. title is the
+              // user override John asked about (defaults to LLM-invented when
+              // blank); lineLength/rhymeDensity are the two the quality gate
+              // (core/lyric-validator.js) actually checks against.
+              lyric: {
+                subject: '', title: '', lineLength: 'Flexible', rhymeDensity: 'Moderate',
+                status: 'idle', // 'idle' | 'running' | 'done' | 'error'
+                result: null, error: null,
+              },
+            };
   syncEngineDefaults(S, 'Delerium');
   return S;
 }
@@ -34,6 +51,18 @@ export function setSongType(S, songType) {
 
 export function setStructurePreset(S, presetId) {
   S.structurePresetId = presetId;
+}
+
+// Update one or more fields of the live-lyric input sub-state (subject,
+// title override, lineLength/rhymeDensity targets) without clobbering the
+// others. Does not touch status/result/error — those are set by the async
+// generation flow itself (see js/generate.js's generateLyricsLive()).
+export function setLyricInputs(S, patch) {
+  Object.assign(S.lyric, patch);
+}
+
+export function setClaudeSettings(S, patch) {
+  Object.assign(S.claude, patch);
 }
 
 // (Re)build the control sub-state when the engine changes.

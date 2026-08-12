@@ -3,12 +3,14 @@ import {
   atomCharacterList, atomOverlays,
   legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,
 } from './registry.js';
-import { syncEngineDefaults, newSeed, setSongType, setStructurePreset } from './state.js';
-import { generate } from './generate.js';
+import { syncEngineDefaults, newSeed, setSongType, setStructurePreset, setLyricInputs, setClaudeSettings } from './state.js';
+import { generate, generateLyricsLive } from './generate.js';
 import { overlayList } from '../core/overlays.js';
 import { favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll } from '../core/favourites.js';
 import { composerLayerList } from '../core/composer-layers.js';
 import { SONG_TYPES, presetsForType, resolveStructure } from '../core/structure.js';
+import { CONTROL_OPTIONS } from '../core/lyric-controls.js';
+import { CLAUDE_MODELS } from './claude-client.js';
 
 // ---- tiny DOM helpers ------------------------------------------------------
 function el(tag, attrs = {}, kids = []) {
@@ -308,6 +310,85 @@ function renderAtomControls(root, eng) {
 
   root.appendChild(el('p', { class: 'note', text: 'Atom assembly path. Overlays are congruent-by-default \u2014 an incongruent one is refused (shown below the prompt).' }));
   root.appendChild(buttons());
+  // P7 (2026-08-12): live lyric generation only exists for atom engines —
+  // resolver/legacy engines have no DNA extractor yet (P8, not built).
+  lyricPanel(root);
+}
+
+// ---- P7: live lyric generation panel (atom engines only, see P8 gap note) --
+// Deliberately plain — matching structurePanel's unstyled aesthetic. This is
+// "structure and logic" wiring (John, 2026-08-12), not a UI design pass;
+// visual polish is explicitly deferred to a later pass using the design
+// skills John has installed.
+function lyricPanel(root) {
+  const box = el('div', { class: 'lyric-panel' });
+  box.appendChild(el('h4', { text: 'Lyrics (live, P7)' }));
+
+  const l = S.lyric;
+  const c = S.claude;
+
+  box.appendChild(field('Subject / topic', el('input', {
+    type: 'text', value: l.subject, placeholder: 'leave blank to let the LLM invent one',
+    oninput: e => setLyricInputs(S, { subject: e.target.value }),
+  })));
+  box.appendChild(field('Title (optional override)', el('input', {
+    type: 'text', value: l.title, placeholder: 'leave blank for an LLM-generated title',
+    oninput: e => setLyricInputs(S, { title: e.target.value }),
+  })));
+  box.appendChild(field('Line length target',
+    select(CONTROL_OPTIONS.lineLength.map(v => ({ value: v, label: v })), l.lineLength,
+      v => setLyricInputs(S, { lineLength: v }))));
+  box.appendChild(field('Rhyme density target',
+    select(CONTROL_OPTIONS.rhymeDensity.map(v => ({ value: v, label: v })), l.rhymeDensity,
+      v => setLyricInputs(S, { rhymeDensity: v }))));
+
+  box.appendChild(el('h4', { text: 'Claude settings', style: 'margin-top:14px;' }));
+  box.appendChild(field('API key', el('input', {
+    type: 'password', value: c.apiKey, placeholder: 'sk-ant-...',
+    oninput: e => setClaudeSettings(S, { apiKey: e.target.value }),
+  })));
+  box.appendChild(field('Model', select(CLAUDE_MODELS.map(m => ({ value: m, label: m })), c.model,
+    v => setClaudeSettings(S, { model: v }))));
+  box.appendChild(field('Transport', segmented(
+    [{ value: 'direct', label: 'Direct' }, { value: 'proxy', label: 'Local proxy' }], c.transportMode,
+    v => setClaudeSettings(S, { transportMode: v }))));
+
+  const genBtnAttrs = {
+    class: 'ghost', text: l.status === 'running' ? 'Generating\u2026' : 'Generate lyrics',
+    onclick: async () => {
+      l.status = 'running'; l.error = null; l.result = null;
+      renderAll();
+      try {
+        const result = await generateLyricsLive(S);
+        l.status = 'done'; l.result = result;
+      } catch (e) {
+        l.status = 'error'; l.error = e.message;
+      }
+      renderAll();
+    },
+  };
+  if (l.status === 'running') genBtnAttrs.disabled = 'true'; // omit the key entirely when not disabled — setAttribute('disabled', null) would stringify to "null" and disable it anyway
+  const genBtn = el('button', genBtnAttrs);
+  box.appendChild(genBtn);
+
+  if (l.status === 'error') {
+    box.appendChild(el('p', { class: 'note', text: `Error: ${l.error}` }));
+  }
+  if (l.status === 'done' && l.result) {
+    const r = l.result;
+    if (r.instrumental) {
+      box.appendChild(el('p', { class: 'note', text: 'Instrumental song type \u2014 lyrics field is [Instrumental], no LLM call made.' }));
+    } else {
+      const q = r.quality;
+      box.appendChild(el('p', { class: 'note',
+        text: q ? `Quality score: ${q.score} (threshold 85) \u2014 ${q.passed ? 'PASSED' : 'below threshold, best of ' + r.attempts + ' attempt(s)'}`
+                 : (r.parseError ? 'Model response could not be parsed as JSON after all attempts.' : '') }));
+      if (r.title) box.appendChild(el('p', { text: `Title: ${r.title}` }));
+      if (r.lyrics) box.appendChild(el('pre', { text: r.lyrics, style: 'white-space:pre-wrap; font-size:12px;' }));
+    }
+  }
+
+  root.appendChild(box);
 }
 
 // ---- resolver controls -----------------------------------------------------

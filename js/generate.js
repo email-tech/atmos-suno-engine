@@ -6,6 +6,8 @@
 import { getEngine, legacyClassic } from './registry.js';
 import { buildAtoms } from '../core/atoms.js';
 import { buildMusicalDNA } from '../core/dna.js';
+import { inferCIL } from '../core/cil.js';
+import { runLyricEngine } from '../core/lyric.js';
 import { runMetatagEngine } from '../core/metatag.js';
 import { COMPOSER_LAYERS, composerStyleLayer } from '../core/composer-layers.js';
 import { atomCharacterForPalette } from '../engines/atom-characters.js';
@@ -16,6 +18,7 @@ import { EngineExtras } from '../legacy/engine-extras.js';
 import { MAX_MODE_STR } from '../legacy/data-style-engines.js';
 import { buildStylePrompt, buildNegativePrompt, buildLyricsField } from '../legacy/prompt-style-builder.js';
 import { resolveStructure } from '../core/structure.js';
+import { makeClaudeTransport } from './claude-client.js';
 
 function applyMax(style, on) {
   if (!on) return style;
@@ -130,7 +133,55 @@ export function generate(S) {
   return { style: '', negative: '', lyrics: '', length: 0, over: false, stub: true };
 }
 
-// Resolve classic slots for the 3-level manual control (Randomize all / Lock some / Full manual).
+// ---- P7: LIVE lyric generation (2026-08-12) --------------------------------
+// The one function in this file that makes a real network call. Everything
+// upstream of the transport is pure and testable without a network — see
+// buildLiveLyricRequest() below and validate-live-lyric.mjs, which tests that
+// piece plus the full async flow with an injected fake transport.
+//
+// P8 GAP, STATED RATHER THAN HIDDEN: only 'atom' engines currently have
+// buildMusicalDNA() wired (DNA extractors for resolver/legacy engines are
+// P8, not yet built). Calling this for a resolver or legacy engine throws a
+// clear error rather than silently producing something wrong.
+export function buildLiveLyricRequest(S) {
+  const eng = getEngine(S.engineId);
+  if (eng.kind !== 'atom') {
+    throw new Error(
+      `Live lyric generation needs Musical DNA, which only 'atom' engines currently produce ` +
+      `(P8 — DNA extractors for resolver/legacy engines — is not built yet). ` +
+      `Selected engine "${S.engineId}" is kind "${eng.kind}".`
+    );
+  }
+  const a = S.atom;
+  const palette = a.palette || 'electronic';
+  const baseChar = eng.module[a.characterId];
+  const dna = buildMusicalDNA(baseChar, palette, {
+    seed: S.seed, characterId: a.characterId, overlayId: a.overlayId || null,
+  });
+  const cil = inferCIL(dna);
+  const structure = lyricStructure(S);
+  const l = S.lyric || {};
+  const answers = {
+    'song.subject': l.subject || '',
+    'song.lineLength': l.lineLength || 'Flexible',
+    'song.rhymeDensity': l.rhymeDensity || 'Moderate',
+  };
+  if (l.title && l.title.trim()) answers['song.title'] = l.title.trim(); // user override; LLM invents one if absent
+  const transport = makeClaudeTransport(S.claude || {});
+  return { dna, cil, structure, answers, transport, model: (S.claude && S.claude.model) || undefined };
+}
+
+// generateLyricsLive: the async entry point. `transportOverride` is test-only
+// dependency injection (see validate-live-lyric.mjs) — omit it in the live
+// app to use the real Claude transport built above.
+export async function generateLyricsLive(S, transportOverride) {
+  const req = buildLiveLyricRequest(S);
+  return runLyricEngine({
+    dna: req.dna, cil: req.cil, structure: req.structure, answers: req.answers,
+    transport: transportOverride || req.transport,
+    model: req.model, repair: true,
+  });
+}
 // Each role is either locked (chosen) or drawn fresh from the proven STYLE_ENGINES array.
 function resolveClassicSlots(engineId, l, seed) {
   const arrs = legacyClassic(engineId).slots;   // {pad:[],bass:[],rhythm:[],percussion:[],motif:[],movement:[]}
