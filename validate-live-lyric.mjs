@@ -27,8 +27,9 @@
  *
  * Run from repo root: node validate-live-lyric.mjs
  */
-import { callClaude, makeClaudeTransport, DEFAULT_MODEL, CLAUDE_MODELS } from './js/claude-client.js';
-import { initState, syncEngineDefaults, setLyricInputs, setClaudeSettings } from './js/state.js';
+import { callClaude, makeClaudeTransport, CLAUDE_DEFAULT_MODEL, CLAUDE_MODELS } from './js/claude-client.js';
+import { callGemini, makeGeminiTransport, GEMINI_DEFAULT_MODEL, GEMINI_MODELS } from './js/gemini-client.js';
+import { initState, syncEngineDefaults, setLyricInputs, setClaudeSettings, setGeminiSettings, setProvider } from './js/state.js';
 import { buildLiveLyricRequest, generateLyricsLive } from './js/generate.js';
 
 let checks = 0, fails = 0;
@@ -40,7 +41,7 @@ const ok = (c, m) => { checks++; if (!c) bad(m); };
 {
   let threw = false;
   try {
-    await callClaude({ apiKey: '', transportMode: 'direct', model: DEFAULT_MODEL, prompt: 'x', maxTokens: 10 });
+    await callClaude({ apiKey: '', transportMode: 'direct', model: CLAUDE_DEFAULT_MODEL, prompt: 'x', maxTokens: 10 });
   } catch (e) {
     threw = true;
     ok(/Missing Claude API key/.test(e.message), `expected a clear missing-key error, got: "${e.message}"`);
@@ -60,16 +61,16 @@ const ok = (c, m) => { checks++; if (!c) bad(m); };
     return { ok: true, json: async () => ({ content: [{ text: 'mock response' }] }) };
   };
   try {
-    await callClaude({ apiKey: 'sk-test-key', transportMode: 'direct', model: DEFAULT_MODEL, prompt: 'hello', maxTokens: 100, temperature: 0.7 });
+    await callClaude({ apiKey: 'sk-test-key', transportMode: 'direct', model: CLAUDE_DEFAULT_MODEL, prompt: 'hello', maxTokens: 100, temperature: 0.7 });
     ok(capturedUrl === 'https://api.anthropic.com/v1/messages', `direct mode should call the Anthropic API URL, got "${capturedUrl}"`);
     ok(capturedInit.headers['x-api-key'] === 'sk-test-key', 'direct mode should send the API key in x-api-key header');
     ok(capturedInit.headers['anthropic-dangerous-direct-browser-access'] === 'true', 'direct mode should send the browser-access header Anthropic requires');
     const body = JSON.parse(capturedInit.body);
-    ok(body.model === DEFAULT_MODEL, 'request body should carry the requested model');
+    ok(body.model === CLAUDE_DEFAULT_MODEL, 'request body should carry the requested model');
     ok(body.messages[0].content === 'hello', 'request body should carry the prompt as the user message content');
 
     capturedUrl = null; capturedInit = null;
-    await callClaude({ apiKey: '', transportMode: 'proxy', model: DEFAULT_MODEL, prompt: 'hello', maxTokens: 100 });
+    await callClaude({ apiKey: '', transportMode: 'proxy', model: CLAUDE_DEFAULT_MODEL, prompt: 'hello', maxTokens: 100 });
     ok(capturedUrl === 'http://127.0.0.1:8787/v1/messages', `proxy mode should call the local proxy URL, got "${capturedUrl}"`);
     ok(!('x-api-key' in capturedInit.headers), 'proxy mode should NOT send an x-api-key header (the proxy holds the key, not the browser)');
   } finally {
@@ -85,7 +86,7 @@ const ok = (c, m) => { checks++; if (!c) bad(m); };
   globalThis.fetch = async () => ({ ok: false, status: 401, text: async () => 'invalid x-api-key' });
   let threw = false;
   try {
-    await callClaude({ apiKey: 'bad-key', transportMode: 'direct', model: DEFAULT_MODEL, prompt: 'x', maxTokens: 10 });
+    await callClaude({ apiKey: 'bad-key', transportMode: 'direct', model: CLAUDE_DEFAULT_MODEL, prompt: 'x', maxTokens: 10 });
   } catch (e) {
     threw = true;
     ok(/401/.test(e.message), `error message should include the HTTP status, got: "${e.message}"`);
@@ -131,10 +132,15 @@ const ok = (c, m) => { checks++; if (!c) bad(m); };
 }
 
 /* 6. buildLiveLyricRequest — answers threading, including the title
- *    default-vs-override behaviour John asked about. */
+ *    default-vs-override behaviour John asked about. Explicit setProvider
+ *    here since Gemini is now the default (John, 2026-08-13) — this test is
+ *    about answers threading, which is provider-agnostic, so the choice
+ *    doesn't matter EXCEPT that it must be set explicitly rather than
+ *    relying on an assumed default that changed. */
 {
   const S = initState();
   syncEngineDefaults(S, 'Balearic Atom'); // an atom engine — DNA extractor exists
+  setProvider(S, 'claude');
   setLyricInputs(S, { subject: 'a long drive at dawn', lineLength: '6-8 syllables', rhymeDensity: 'Heavy' });
   setClaudeSettings(S, { apiKey: 'sk-test' });
 
@@ -160,7 +166,9 @@ const ok = (c, m) => { checks++; if (!c) bad(m); };
   const S = initState();
   syncEngineDefaults(S, 'Balearic Atom');
   setLyricInputs(S, { subject: 'a long drive at dawn', lineLength: '6-8 syllables', rhymeDensity: 'Moderate' });
-  setClaudeSettings(S, { apiKey: 'sk-test' });
+  // provider left at its default (Gemini, John 2026-08-13) deliberately —
+  // this test uses transportOverride, so which provider's settings are on
+  // state doesn't matter; the point is proving the CHAIN, not the provider.
 
   const goodLyrics = '[Verse 1]\ncat dog love dusk fire night\ncat dog love dusk fire light\n\n[Chorus]\ncat dog love dusk fire moon\ncat dog love dusk fire star';
   let calls = 0;
@@ -184,11 +192,84 @@ const ok = (c, m) => { checks++; if (!c) bad(m); };
   console.log('  generateLyricsLive end-to-end: fake-transport vocal generation connects the full P7 chain; instrumental short-circuit skips the transport entirely.');
 }
 
-/* 8. MODEL LIST — sanity check the ported model list matches what's current. */
+/* 9. GEMINI GUARD RAILS + REQUEST SHAPE — mirrors tests 1-3 (the Claude
+ *    equivalent) so both providers get the same level of proof. */
 {
-  ok(CLAUDE_MODELS.includes(DEFAULT_MODEL), 'DEFAULT_MODEL should be one of the listed CLAUDE_MODELS');
-  ok(CLAUDE_MODELS.length >= 3, 'expected at least 3 current model options');
-  console.log(`  model list: ${CLAUDE_MODELS.length} current models, default "${DEFAULT_MODEL}".`);
+  let threw = false;
+  try { await callGemini({ apiKey: '', transportMode: 'direct', model: GEMINI_DEFAULT_MODEL, prompt: 'x', maxTokens: 10 }); }
+  catch (e) { threw = true; ok(/Missing Gemini API key/.test(e.message), `expected a clear missing-key error, got: "${e.message}"`); }
+  ok(threw, 'callGemini with an empty key in direct mode should throw, not silently proceed');
+
+  const originalFetch = globalThis.fetch;
+  let capturedUrl = null, capturedInit = null;
+  globalThis.fetch = async (url, init) => { capturedUrl = url; capturedInit = init; return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'mock response' }] } }] }) }; };
+  try {
+    await callGemini({ apiKey: 'AIza-test-key', transportMode: 'direct', model: GEMINI_DEFAULT_MODEL, prompt: 'hello', maxTokens: 100, temperature: 0.7 });
+    ok(capturedUrl === `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_DEFAULT_MODEL}:generateContent`, `direct mode should call the Gemini generateContent URL for the requested model, got "${capturedUrl}"`);
+    ok(capturedInit.headers['x-goog-api-key'] === 'AIza-test-key', 'direct mode should send the API key in x-goog-api-key header');
+    const body = JSON.parse(capturedInit.body);
+    ok(body.contents[0].parts[0].text === 'hello', 'request body should carry the prompt in contents[0].parts[0].text');
+    ok(body.generationConfig.maxOutputTokens === 100, 'request body should carry maxTokens as generationConfig.maxOutputTokens');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  console.log('  Gemini guard rail + request shape: missing key throws before any call; correct URL/header/body for direct mode.');
+}
+
+/* 10. GEMINI ERROR HANDLING — non-ok HTTP and an empty/blocked candidate both
+ *     surface as readable errors, not silent failures or crashes. */
+{
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, status: 403, text: async () => 'API key not valid' });
+  let threw = false;
+  try { await callGemini({ apiKey: 'bad-key', transportMode: 'direct', model: GEMINI_DEFAULT_MODEL, prompt: 'x', maxTokens: 10 }); }
+  catch (e) { threw = true; ok(/403/.test(e.message), `error message should include the HTTP status, got: "${e.message}"`); }
+  finally { globalThis.fetch = originalFetch; }
+  ok(threw, 'a non-ok HTTP response should throw');
+
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [] }, finishReason: 'SAFETY' }] }) });
+  threw = false;
+  try { await callGemini({ apiKey: 'sk-test', transportMode: 'direct', model: GEMINI_DEFAULT_MODEL, prompt: 'x', maxTokens: 10 }); }
+  catch (e) { threw = true; ok(/SAFETY/.test(e.message), `a safety-blocked empty candidate should surface the finishReason, got: "${e.message}"`); }
+  finally { globalThis.fetch = originalFetch; }
+  ok(threw, 'an empty candidate (e.g. safety-blocked) should throw with the finishReason, not silently return empty text');
+  console.log('  Gemini error handling: non-ok HTTP and safety-blocked empty candidates both throw readable errors.');
+}
+
+/* 11. PROVIDER SWITCHING — buildLiveLyricRequest picks the transport based
+ *     on S.provider, and each provider's settings persist independently
+ *     across a switch (entering a Claude key doesn't get wiped by then
+ *     entering a Gemini key, or vice versa). */
+{
+  const S = initState();
+  syncEngineDefaults(S, 'Balearic Atom');
+  ok(S.provider === 'gemini', `default provider should be 'gemini' (John, 2026-08-13), got "${S.provider}"`);
+
+  setGeminiSettings(S, { apiKey: 'AIza-gemini-key', model: 'gemini-3.1-pro-preview' });
+  const geminiReq = buildLiveLyricRequest(S);
+  ok(geminiReq.provider === 'gemini', 'buildLiveLyricRequest should report provider=gemini when S.provider is gemini');
+  ok(geminiReq.model === 'gemini-3.1-pro-preview', 'buildLiveLyricRequest should use the Gemini model from S.gemini.model');
+
+  setProvider(S, 'claude');
+  setClaudeSettings(S, { apiKey: 'sk-claude-key', model: 'claude-sonnet-5' });
+  const claudeReq = buildLiveLyricRequest(S);
+  ok(claudeReq.provider === 'claude', 'buildLiveLyricRequest should report provider=claude after setProvider(S, "claude")');
+  ok(claudeReq.model === 'claude-sonnet-5', 'buildLiveLyricRequest should use the Claude model from S.claude.model');
+
+  // switching back — the Gemini settings entered earlier must still be there
+  setProvider(S, 'gemini');
+  ok(S.gemini.apiKey === 'AIza-gemini-key', 'switching provider away and back should not lose the previously-entered Gemini key');
+  ok(S.claude.apiKey === 'sk-claude-key', 'the Claude key entered while on the Claude provider should persist even while Gemini is active');
+  console.log('  provider switching: transport selection follows S.provider; each provider\u2019s settings persist independently across switches.');
+}
+
+/* 12. MODEL LISTS — sanity check both ported/authored model lists. */
+{
+  ok(CLAUDE_MODELS.includes(CLAUDE_DEFAULT_MODEL), 'CLAUDE_DEFAULT_MODEL should be one of the listed CLAUDE_MODELS');
+  ok(CLAUDE_MODELS.length >= 3, 'expected at least 3 current Claude model options');
+  ok(GEMINI_MODELS.includes(GEMINI_DEFAULT_MODEL), 'GEMINI_DEFAULT_MODEL should be one of the listed GEMINI_MODELS');
+  ok(GEMINI_MODELS.length >= 2, 'expected at least 2 current Gemini model options');
+  console.log(`  model lists: ${CLAUDE_MODELS.length} Claude models (default "${CLAUDE_DEFAULT_MODEL}"), ${GEMINI_MODELS.length} Gemini models (default "${GEMINI_DEFAULT_MODEL}").`);
 }
 
 console.log(`validate-live-lyric: ${checks} checks, ${fails} failures.`);

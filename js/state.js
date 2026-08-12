@@ -4,7 +4,8 @@
 // without touching this shape.
 import { getEngine, resolverCharacters, atomCharacterList, legacyPresetMap, legacyClusters, legacyClassic } from './registry.js';
 import { presetsForType } from '../core/structure.js';
-import { DEFAULT_MODEL, getStoredTransportMode } from './claude-client.js';
+import { CLAUDE_DEFAULT_MODEL, getClaudeStoredTransportMode } from './claude-client.js';
+import { GEMINI_DEFAULT_MODEL, getGeminiStoredTransportMode } from './gemini-client.js';
 
 export function newSeed() { return (Math.random() * 2147483647) >>> 0; }
 
@@ -21,12 +22,17 @@ export function initState() {
   const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false,
               ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null, atom: null,
               songType: 'vocal', structurePresetId: presetsForType('vocal')[0].id,
-              // P7 (2026-08-12): client-side API settings for the REAL lyric
-              // transport. apiKey lives only in memory/localStorage on the
-              // user's own machine — see js/claude-client.js header for the
-              // full key-handling rationale (ported from the proven ATMOS v7
-              // design, unchanged).
-              claude: { apiKey: '', model: DEFAULT_MODEL, transportMode: getStoredTransportMode() },
+              // P7 (2026-08-12) + provider choice (2026-08-13, John: "Gemini
+              // pro is the model I'd like to use for Lyrics, but I think
+              // having both options offers more flexibility"). provider
+              // selects which transport buildLiveLyricRequest() builds;
+              // BOTH providers' settings persist independently so switching
+              // the toggle back and forth never loses an entered key. Every
+              // key lives client-side only — see js/claude-client.js and
+              // js/gemini-client.js headers for the full rationale.
+              provider: 'gemini',
+              claude: { apiKey: '', model: CLAUDE_DEFAULT_MODEL, transportMode: getClaudeStoredTransportMode() },
+              gemini: { apiKey: '', model: GEMINI_DEFAULT_MODEL, transportMode: getGeminiStoredTransportMode() },
               // Minimal inputs for a live lyric generation call. title is the
               // user override John asked about (defaults to LLM-invented when
               // blank); lineLength/rhymeDensity are the two the quality gate
@@ -63,6 +69,14 @@ export function setLyricInputs(S, patch) {
 
 export function setClaudeSettings(S, patch) {
   Object.assign(S.claude, patch);
+}
+
+export function setGeminiSettings(S, patch) {
+  Object.assign(S.gemini, patch);
+}
+
+export function setProvider(S, provider) {
+  S.provider = provider;
 }
 
 // (Re)build the control sub-state when the engine changes.

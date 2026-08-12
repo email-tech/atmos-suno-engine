@@ -3,7 +3,7 @@ import {
   atomCharacterList, atomOverlays,
   legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,
 } from './registry.js';
-import { syncEngineDefaults, newSeed, setSongType, setStructurePreset, setLyricInputs, setClaudeSettings } from './state.js';
+import { syncEngineDefaults, newSeed, setSongType, setStructurePreset, setLyricInputs, setClaudeSettings, setGeminiSettings, setProvider } from './state.js';
 import { generate, generateLyricsLive } from './generate.js';
 import { overlayList } from '../core/overlays.js';
 import { favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll } from '../core/favourites.js';
@@ -11,6 +11,7 @@ import { composerLayerList } from '../core/composer-layers.js';
 import { SONG_TYPES, presetsForType, resolveStructure } from '../core/structure.js';
 import { CONTROL_OPTIONS } from '../core/lyric-controls.js';
 import { CLAUDE_MODELS } from './claude-client.js';
+import { GEMINI_MODELS } from './gemini-client.js';
 
 // ---- tiny DOM helpers ------------------------------------------------------
 function el(tag, attrs = {}, kids = []) {
@@ -325,7 +326,6 @@ function lyricPanel(root) {
   box.appendChild(el('h4', { text: 'Lyrics (live, P7)' }));
 
   const l = S.lyric;
-  const c = S.claude;
 
   box.appendChild(field('Subject / topic', el('input', {
     type: 'text', value: l.subject, placeholder: 'leave blank to let the LLM invent one',
@@ -342,16 +342,42 @@ function lyricPanel(root) {
     select(CONTROL_OPTIONS.rhymeDensity.map(v => ({ value: v, label: v })), l.rhymeDensity,
       v => setLyricInputs(S, { rhymeDensity: v }))));
 
-  box.appendChild(el('h4', { text: 'Claude settings', style: 'margin-top:14px;' }));
-  box.appendChild(field('API key', el('input', {
-    type: 'password', value: c.apiKey, placeholder: 'sk-ant-...',
-    oninput: e => setClaudeSettings(S, { apiKey: e.target.value }),
-  })));
-  box.appendChild(field('Model', select(CLAUDE_MODELS.map(m => ({ value: m, label: m })), c.model,
-    v => setClaudeSettings(S, { model: v }))));
-  box.appendChild(field('Transport', segmented(
-    [{ value: 'direct', label: 'Direct' }, { value: 'proxy', label: 'Local proxy' }], c.transportMode,
-    v => setClaudeSettings(S, { transportMode: v }))));
+  box.appendChild(el('h4', { text: 'Model provider', style: 'margin-top:14px;' }));
+  box.appendChild(field('Provider', segmented(
+    [{ value: 'gemini', label: 'Gemini' }, { value: 'claude', label: 'Claude' }], S.provider || 'gemini',
+    v => { setProvider(S, v); renderAll(); })));
+
+  if ((S.provider || 'gemini') === 'gemini') {
+    const g = S.gemini;
+    box.appendChild(field('Gemini API key', el('input', {
+      type: 'password', value: g.apiKey, placeholder: 'AIza...',
+      oninput: e => setGeminiSettings(S, { apiKey: e.target.value }),
+    })));
+    // Free-text combo, not a locked dropdown — Google renames Gemini models
+    // more often than most providers; GEMINI_MODELS is a starting list, not
+    // an exhaustive one. See js/gemini-client.js header.
+    box.appendChild(field('Model (editable \u2014 Google renames these often)', el('input', {
+      type: 'text', value: g.model, list: 'gemini-model-suggestions',
+      oninput: e => setGeminiSettings(S, { model: e.target.value }),
+    })));
+    const datalist = el('datalist', { id: 'gemini-model-suggestions' },
+      GEMINI_MODELS.map(m => el('option', { value: m })));
+    box.appendChild(datalist);
+    box.appendChild(field('Transport', segmented(
+      [{ value: 'direct', label: 'Direct' }, { value: 'proxy', label: 'Local proxy' }], g.transportMode,
+      v => setGeminiSettings(S, { transportMode: v }))));
+  } else {
+    const c = S.claude;
+    box.appendChild(field('Claude API key', el('input', {
+      type: 'password', value: c.apiKey, placeholder: 'sk-ant-...',
+      oninput: e => setClaudeSettings(S, { apiKey: e.target.value }),
+    })));
+    box.appendChild(field('Model', select(CLAUDE_MODELS.map(m => ({ value: m, label: m })), c.model,
+      v => setClaudeSettings(S, { model: v }))));
+    box.appendChild(field('Transport', segmented(
+      [{ value: 'direct', label: 'Direct' }, { value: 'proxy', label: 'Local proxy' }], c.transportMode,
+      v => setClaudeSettings(S, { transportMode: v }))));
+  }
 
   const genBtnAttrs = {
     class: 'ghost', text: l.status === 'running' ? 'Generating\u2026' : 'Generate lyrics',

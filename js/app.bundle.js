@@ -10054,7 +10054,7 @@ Object.assign(window.__ATMOS, { getEngine, atomCharacterList, atomOverlays, reso
  * dependency that gets injected as `transport` into runLyricEngine().
  * ========================================================================*/
 
-const DEFAULT_MODEL = 'claude-opus-4-8'; // matches core/lyric.js's DEFAULT_LYRIC_MODEL
+const CLAUDE_DEFAULT_MODEL = 'claude-opus-4-8'; // matches core/lyric.js's DEFAULT_LYRIC_MODEL
 const CLAUDE_MODELS = [
   'claude-opus-4-8',
   'claude-sonnet-5',
@@ -10065,11 +10065,16 @@ const API_URL = 'https://api.anthropic.com/v1/messages';
 const PROXY_URL = 'http://127.0.0.1:8787/v1/messages';
 const TRANSPORT_MODE_KEY = 'atmos.claudeTransportMode';
 
-function getStoredTransportMode() {
+// NAMING NOTE: this bundler (build.mjs) flattens every module's exports into
+// one shared window.__ATMOS namespace with no per-module scoping — a name
+// used in two files collides silently (the later-bundled file wins). Hence
+// getClaudeStoredTransportMode rather than the more obvious
+// getStoredTransportMode, which js/gemini-client.js also needs to export.
+function getClaudeStoredTransportMode() {
   try { return localStorage.getItem(TRANSPORT_MODE_KEY) || 'direct'; }
   catch { return 'direct'; } // localStorage unavailable (e.g. some file:// contexts)
 }
-function setStoredTransportMode(mode) {
+function setClaudeStoredTransportMode(mode) {
   try { localStorage.setItem(TRANSPORT_MODE_KEY, mode); } catch { /* best-effort */ }
 }
 
@@ -10077,7 +10082,7 @@ function setStoredTransportMode(mode) {
 // `transport({prompt, model, temperature, maxTokens}) -> string` contract
 // expects — see makeClaudeTransport() below for the adapter.
 async function callClaude({ apiKey, model, temperature, maxTokens, prompt, transportMode }) {
-  const mode = transportMode || getStoredTransportMode();
+  const mode = transportMode || getClaudeStoredTransportMode();
   if (mode === 'direct' && !(apiKey && apiKey.trim())) {
     throw new Error('Missing Claude API key. Enter a key in Claude Settings before generating.');
   }
@@ -10138,7 +10143,132 @@ function makeClaudeTransport({ apiKey, transportMode }) {
   };
 }
 
-Object.assign(window.__ATMOS, { callClaude, testClaudeConnection, getStoredTransportMode, setStoredTransportMode, makeClaudeTransport, DEFAULT_MODEL, CLAUDE_MODELS });
+Object.assign(window.__ATMOS, { callClaude, testClaudeConnection, getClaudeStoredTransportMode, setClaudeStoredTransportMode, makeClaudeTransport, CLAUDE_DEFAULT_MODEL, CLAUDE_MODELS });
+})();
+
+/* js/gemini-client.js */
+(function(){
+/* ==========================================================================
+ * gemini-client.js — SECOND provider option for the Lyric Engine transport,
+ * alongside js/claude-client.js. John, 2026-08-13: "Gemini pro is the model
+ * I'd like to use for Lyrics, but I think having both options offers more
+ * flexibility" — Gemini is the default provider (see js/state.js), Claude
+ * remains fully available via the provider toggle in the lyric panel.
+ *
+ * Same key-handling architecture as claude-client.js: the API key is entered
+ * by the user, lives client-side only (memory/localStorage on the user's own
+ * machine), never committed to the repo, never sent anywhere but Google's API
+ * (direct mode) or the user's own local proxy (proxy mode).
+ *
+ * MODEL NAMING CAVEAT: Google renames/versions Gemini models more often than
+ * Anthropic does. GEMINI_MODELS below is a SUGGESTED list, not an exhaustive
+ * or guaranteed-current one — the model field in the UI is a free-text input
+ * with these as a dropdown of starting points, not a locked enum, specifically
+ * so a rename doesn't leave this dead until code is edited. Verified against
+ * Google's own API reference and Vertex AI docs at time of writing (2026-08).
+ *
+ * REQUEST SHAPE (verified, not guessed): POST to
+ * https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
+ * with header x-goog-api-key, body {contents:[{parts:[{text}]}], generationConfig}.
+ * Response: candidates[0].content.parts[].text.
+ * ========================================================================*/
+
+const GEMINI_DEFAULT_MODEL = 'gemini-3-pro-preview';
+const GEMINI_MODELS = [
+  'gemini-3-pro-preview',
+  'gemini-3.1-pro-preview',
+  'gemini-3-flash-preview',
+];
+
+const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+const PROXY_URL = 'http://127.0.0.1:8788/v1beta/generateContent'; // different port than claude-client's proxy — the two can run side by side
+const TRANSPORT_MODE_KEY = 'atmos.geminiTransportMode';
+
+// NAMING NOTE: this bundler (build.mjs) flattens every module's exports into
+// one shared window.__ATMOS namespace with no per-module scoping — a name
+// used in two files collides silently (the later-bundled file wins). Hence
+// getGeminiStoredTransportMode rather than the more obvious
+// getStoredTransportMode, which js/claude-client.js also exports.
+function getGeminiStoredTransportMode() {
+  try { return localStorage.getItem(TRANSPORT_MODE_KEY) || 'direct'; }
+  catch { return 'direct'; }
+}
+function setGeminiStoredTransportMode(mode) {
+  try { localStorage.setItem(TRANSPORT_MODE_KEY, mode); } catch { /* best-effort */ }
+}
+
+// callGemini: the raw request. Shaped to match what runLyricEngine's
+// `transport({prompt, model, temperature, maxTokens}) -> string` contract
+// expects — see makeGeminiTransport() below for the adapter.
+async function callGemini({ apiKey, model, temperature, maxTokens, prompt, transportMode }) {
+  const mode = transportMode || getGeminiStoredTransportMode();
+  if (mode === 'direct' && !(apiKey && apiKey.trim())) {
+    throw new Error('Missing Gemini API key. Enter a key in Gemini Settings before generating.');
+  }
+  const m = model || GEMINI_DEFAULT_MODEL;
+  const url = mode === 'proxy' ? PROXY_URL : `${API_BASE}/${encodeURIComponent(m)}:generateContent`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(mode === 'direct' ? { 'x-goog-api-key': apiKey.trim() } : {}),
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: temperature != null ? Number(temperature) : 0.9,
+          maxOutputTokens: Number(maxTokens) || 4096,
+        },
+      }),
+    });
+  } catch (error) {
+    const help = mode === 'direct'
+      ? 'Direct browser mode may be blocked by CORS. Switch to Local proxy mode and start the optional proxy.'
+      : 'Local proxy mode expects the optional proxy to be running at http://127.0.0.1:8788.';
+    throw new Error(`Network or CORS failure while calling Gemini: ${error.message}. ${help}`);
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    const modelHint = response.status === 404 ? ` The selected model ("${m}") may not exist or may have been renamed — Google renames Gemini models more often than most providers.` : '';
+    throw new Error(`Gemini request failed (${response.status}).${modelHint} ${body || 'Check API key, model, quota, or browser CORS policy.'}`);
+  }
+
+  const data = await response.json();
+  const candidate = (data.candidates || [])[0];
+  const parts = (candidate && candidate.content && candidate.content.parts) || [];
+  const text = parts.map(p => p.text || '').join('').trim();
+  if (!text) {
+    // Gemini returns a candidate with no text but a finishReason when blocked
+    // by safety filters or truncated — surface that instead of a bare "empty".
+    const reason = candidate && candidate.finishReason;
+    throw new Error(`Gemini returned an empty response.${reason ? ` finishReason: ${reason}` : ''}`);
+  }
+  return text;
+}
+
+async function testGeminiConnection(settings) {
+  return callGemini({
+    ...settings,
+    maxTokens: 64,
+    temperature: 0,
+    prompt: 'Return JSON only: {"ok":true,"message":"Gemini connection ready"}',
+  });
+}
+
+// makeGeminiTransport: adapts callGemini's {apiKey,...} shape to the plain
+// {prompt, model, temperature, maxTokens} -> string function shape that
+// core/lyric.js's runLyricEngine() expects as its `transport` argument.
+function makeGeminiTransport({ apiKey, transportMode }) {
+  return async function transport({ prompt, model, temperature, maxTokens }) {
+    return callGemini({ apiKey, transportMode, model, temperature, maxTokens, prompt });
+  };
+}
+
+Object.assign(window.__ATMOS, { callGemini, testGeminiConnection, getGeminiStoredTransportMode, setGeminiStoredTransportMode, makeGeminiTransport, GEMINI_DEFAULT_MODEL, GEMINI_MODELS });
 })();
 
 /* js/state.js */
@@ -10149,7 +10279,8 @@ Object.assign(window.__ATMOS, { callClaude, testClaudeConnection, getStoredTrans
 // without touching this shape.
 const {getEngine, resolverCharacters, atomCharacterList, legacyPresetMap, legacyClusters, legacyClassic} = window.__ATMOS;
 const {presetsForType} = window.__ATMOS;
-const {DEFAULT_MODEL, getStoredTransportMode} = window.__ATMOS;
+const {CLAUDE_DEFAULT_MODEL, getClaudeStoredTransportMode} = window.__ATMOS;
+const {GEMINI_DEFAULT_MODEL, getGeminiStoredTransportMode} = window.__ATMOS;
 
 function newSeed() { return (Math.random() * 2147483647) >>> 0; }
 
@@ -10166,12 +10297,17 @@ function initState() {
   const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false,
               ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null, atom: null,
               songType: 'vocal', structurePresetId: presetsForType('vocal')[0].id,
-              // P7 (2026-08-12): client-side API settings for the REAL lyric
-              // transport. apiKey lives only in memory/localStorage on the
-              // user's own machine — see js/claude-client.js header for the
-              // full key-handling rationale (ported from the proven ATMOS v7
-              // design, unchanged).
-              claude: { apiKey: '', model: DEFAULT_MODEL, transportMode: getStoredTransportMode() },
+              // P7 (2026-08-12) + provider choice (2026-08-13, John: "Gemini
+              // pro is the model I'd like to use for Lyrics, but I think
+              // having both options offers more flexibility"). provider
+              // selects which transport buildLiveLyricRequest() builds;
+              // BOTH providers' settings persist independently so switching
+              // the toggle back and forth never loses an entered key. Every
+              // key lives client-side only — see js/claude-client.js and
+              // js/gemini-client.js headers for the full rationale.
+              provider: 'gemini',
+              claude: { apiKey: '', model: CLAUDE_DEFAULT_MODEL, transportMode: getClaudeStoredTransportMode() },
+              gemini: { apiKey: '', model: GEMINI_DEFAULT_MODEL, transportMode: getGeminiStoredTransportMode() },
               // Minimal inputs for a live lyric generation call. title is the
               // user override John asked about (defaults to LLM-invented when
               // blank); lineLength/rhymeDensity are the two the quality gate
@@ -10208,6 +10344,14 @@ function setLyricInputs(S, patch) {
 
 function setClaudeSettings(S, patch) {
   Object.assign(S.claude, patch);
+}
+
+function setGeminiSettings(S, patch) {
+  Object.assign(S.gemini, patch);
+}
+
+function setProvider(S, provider) {
+  S.provider = provider;
 }
 
 // (Re)build the control sub-state when the engine changes.
@@ -10264,7 +10408,7 @@ function syncEngineDefaults(S, engineId) {
   }
 }
 
-Object.assign(window.__ATMOS, { newSeed, initState, setSongType, setStructurePreset, setLyricInputs, setClaudeSettings, syncEngineDefaults });
+Object.assign(window.__ATMOS, { newSeed, initState, setSongType, setStructurePreset, setLyricInputs, setClaudeSettings, setGeminiSettings, setProvider, syncEngineDefaults });
 })();
 
 /* js/generate.js */
@@ -10290,6 +10434,7 @@ const {MAX_MODE_STR} = window.__ATMOS;
 const {buildStylePrompt, buildNegativePrompt, buildLyricsField} = window.__ATMOS;
 const {resolveStructure} = window.__ATMOS;
 const {makeClaudeTransport} = window.__ATMOS;
+const {makeGeminiTransport} = window.__ATMOS;
 
 function applyMax(style, on) {
   if (!on) return style;
@@ -10438,8 +10583,17 @@ function buildLiveLyricRequest(S) {
     'song.rhymeDensity': l.rhymeDensity || 'Moderate',
   };
   if (l.title && l.title.trim()) answers['song.title'] = l.title.trim(); // user override; LLM invents one if absent
-  const transport = makeClaudeTransport(S.claude || {});
-  return { dna, cil, structure, answers, transport, model: (S.claude && S.claude.model) || undefined };
+
+  // Provider choice (2026-08-13, John): Gemini is the default for lyrics,
+  // Claude remains fully available via S.provider. Both providers' transport
+  // functions share the exact same {prompt,model,temperature,maxTokens}->string
+  // shape, so runLyricEngine() never needs to know which one it's calling.
+  const provider = S.provider === 'claude' ? 'claude' : 'gemini';
+  const providerSettings = (provider === 'claude' ? S.claude : S.gemini) || {};
+  const transport = provider === 'claude'
+    ? makeClaudeTransport(providerSettings)
+    : makeGeminiTransport(providerSettings);
+  return { dna, cil, structure, answers, transport, model: providerSettings.model || undefined, provider };
 }
 
 // generateLyricsLive: the async entry point. `transportOverride` is test-only
@@ -10538,7 +10692,7 @@ Object.assign(window.__ATMOS, { generateLyricsLive, generate, buildLiveLyricRequ
 /* js/ui.js */
 (function(){
 const {ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool, atomCharacterList, atomOverlays, legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,} = window.__ATMOS;
-const {syncEngineDefaults, newSeed, setSongType, setStructurePreset, setLyricInputs, setClaudeSettings} = window.__ATMOS;
+const {syncEngineDefaults, newSeed, setSongType, setStructurePreset, setLyricInputs, setClaudeSettings, setGeminiSettings, setProvider} = window.__ATMOS;
 const {generate, generateLyricsLive} = window.__ATMOS;
 const {overlayList} = window.__ATMOS;
 const {favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll} = window.__ATMOS;
@@ -10546,6 +10700,7 @@ const {composerLayerList} = window.__ATMOS;
 const {SONG_TYPES, presetsForType, resolveStructure} = window.__ATMOS;
 const {CONTROL_OPTIONS} = window.__ATMOS;
 const {CLAUDE_MODELS} = window.__ATMOS;
+const {GEMINI_MODELS} = window.__ATMOS;
 
 // ---- tiny DOM helpers ------------------------------------------------------
 function el(tag, attrs = {}, kids = []) {
@@ -10860,7 +11015,6 @@ function lyricPanel(root) {
   box.appendChild(el('h4', { text: 'Lyrics (live, P7)' }));
 
   const l = S.lyric;
-  const c = S.claude;
 
   box.appendChild(field('Subject / topic', el('input', {
     type: 'text', value: l.subject, placeholder: 'leave blank to let the LLM invent one',
@@ -10877,16 +11031,42 @@ function lyricPanel(root) {
     select(CONTROL_OPTIONS.rhymeDensity.map(v => ({ value: v, label: v })), l.rhymeDensity,
       v => setLyricInputs(S, { rhymeDensity: v }))));
 
-  box.appendChild(el('h4', { text: 'Claude settings', style: 'margin-top:14px;' }));
-  box.appendChild(field('API key', el('input', {
-    type: 'password', value: c.apiKey, placeholder: 'sk-ant-...',
-    oninput: e => setClaudeSettings(S, { apiKey: e.target.value }),
-  })));
-  box.appendChild(field('Model', select(CLAUDE_MODELS.map(m => ({ value: m, label: m })), c.model,
-    v => setClaudeSettings(S, { model: v }))));
-  box.appendChild(field('Transport', segmented(
-    [{ value: 'direct', label: 'Direct' }, { value: 'proxy', label: 'Local proxy' }], c.transportMode,
-    v => setClaudeSettings(S, { transportMode: v }))));
+  box.appendChild(el('h4', { text: 'Model provider', style: 'margin-top:14px;' }));
+  box.appendChild(field('Provider', segmented(
+    [{ value: 'gemini', label: 'Gemini' }, { value: 'claude', label: 'Claude' }], S.provider || 'gemini',
+    v => { setProvider(S, v); renderAll(); })));
+
+  if ((S.provider || 'gemini') === 'gemini') {
+    const g = S.gemini;
+    box.appendChild(field('Gemini API key', el('input', {
+      type: 'password', value: g.apiKey, placeholder: 'AIza...',
+      oninput: e => setGeminiSettings(S, { apiKey: e.target.value }),
+    })));
+    // Free-text combo, not a locked dropdown — Google renames Gemini models
+    // more often than most providers; GEMINI_MODELS is a starting list, not
+    // an exhaustive one. See js/gemini-client.js header.
+    box.appendChild(field('Model (editable \u2014 Google renames these often)', el('input', {
+      type: 'text', value: g.model, list: 'gemini-model-suggestions',
+      oninput: e => setGeminiSettings(S, { model: e.target.value }),
+    })));
+    const datalist = el('datalist', { id: 'gemini-model-suggestions' },
+      GEMINI_MODELS.map(m => el('option', { value: m })));
+    box.appendChild(datalist);
+    box.appendChild(field('Transport', segmented(
+      [{ value: 'direct', label: 'Direct' }, { value: 'proxy', label: 'Local proxy' }], g.transportMode,
+      v => setGeminiSettings(S, { transportMode: v }))));
+  } else {
+    const c = S.claude;
+    box.appendChild(field('Claude API key', el('input', {
+      type: 'password', value: c.apiKey, placeholder: 'sk-ant-...',
+      oninput: e => setClaudeSettings(S, { apiKey: e.target.value }),
+    })));
+    box.appendChild(field('Model', select(CLAUDE_MODELS.map(m => ({ value: m, label: m })), c.model,
+      v => setClaudeSettings(S, { model: v }))));
+    box.appendChild(field('Transport', segmented(
+      [{ value: 'direct', label: 'Direct' }, { value: 'proxy', label: 'Local proxy' }], c.transportMode,
+      v => setClaudeSettings(S, { transportMode: v }))));
+  }
 
   const genBtnAttrs = {
     class: 'ghost', text: l.status === 'running' ? 'Generating\u2026' : 'Generate lyrics',

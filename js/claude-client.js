@@ -18,7 +18,7 @@
  * dependency that gets injected as `transport` into runLyricEngine().
  * ========================================================================*/
 
-export const DEFAULT_MODEL = 'claude-opus-4-8'; // matches core/lyric.js's DEFAULT_LYRIC_MODEL
+export const CLAUDE_DEFAULT_MODEL = 'claude-opus-4-8'; // matches core/lyric.js's DEFAULT_LYRIC_MODEL
 export const CLAUDE_MODELS = [
   'claude-opus-4-8',
   'claude-sonnet-5',
@@ -29,11 +29,16 @@ const API_URL = 'https://api.anthropic.com/v1/messages';
 const PROXY_URL = 'http://127.0.0.1:8787/v1/messages';
 const TRANSPORT_MODE_KEY = 'atmos.claudeTransportMode';
 
-export function getStoredTransportMode() {
+// NAMING NOTE: this bundler (build.mjs) flattens every module's exports into
+// one shared window.__ATMOS namespace with no per-module scoping — a name
+// used in two files collides silently (the later-bundled file wins). Hence
+// getClaudeStoredTransportMode rather than the more obvious
+// getStoredTransportMode, which js/gemini-client.js also needs to export.
+export function getClaudeStoredTransportMode() {
   try { return localStorage.getItem(TRANSPORT_MODE_KEY) || 'direct'; }
   catch { return 'direct'; } // localStorage unavailable (e.g. some file:// contexts)
 }
-export function setStoredTransportMode(mode) {
+export function setClaudeStoredTransportMode(mode) {
   try { localStorage.setItem(TRANSPORT_MODE_KEY, mode); } catch { /* best-effort */ }
 }
 
@@ -41,7 +46,7 @@ export function setStoredTransportMode(mode) {
 // `transport({prompt, model, temperature, maxTokens}) -> string` contract
 // expects — see makeClaudeTransport() below for the adapter.
 export async function callClaude({ apiKey, model, temperature, maxTokens, prompt, transportMode }) {
-  const mode = transportMode || getStoredTransportMode();
+  const mode = transportMode || getClaudeStoredTransportMode();
   if (mode === 'direct' && !(apiKey && apiKey.trim())) {
     throw new Error('Missing Claude API key. Enter a key in Claude Settings before generating.');
   }

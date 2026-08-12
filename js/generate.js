@@ -19,6 +19,7 @@ import { MAX_MODE_STR } from '../legacy/data-style-engines.js';
 import { buildStylePrompt, buildNegativePrompt, buildLyricsField } from '../legacy/prompt-style-builder.js';
 import { resolveStructure } from '../core/structure.js';
 import { makeClaudeTransport } from './claude-client.js';
+import { makeGeminiTransport } from './gemini-client.js';
 
 function applyMax(style, on) {
   if (!on) return style;
@@ -167,8 +168,17 @@ export function buildLiveLyricRequest(S) {
     'song.rhymeDensity': l.rhymeDensity || 'Moderate',
   };
   if (l.title && l.title.trim()) answers['song.title'] = l.title.trim(); // user override; LLM invents one if absent
-  const transport = makeClaudeTransport(S.claude || {});
-  return { dna, cil, structure, answers, transport, model: (S.claude && S.claude.model) || undefined };
+
+  // Provider choice (2026-08-13, John): Gemini is the default for lyrics,
+  // Claude remains fully available via S.provider. Both providers' transport
+  // functions share the exact same {prompt,model,temperature,maxTokens}->string
+  // shape, so runLyricEngine() never needs to know which one it's calling.
+  const provider = S.provider === 'claude' ? 'claude' : 'gemini';
+  const providerSettings = (provider === 'claude' ? S.claude : S.gemini) || {};
+  const transport = provider === 'claude'
+    ? makeClaudeTransport(providerSettings)
+    : makeGeminiTransport(providerSettings);
+  return { dna, cil, structure, answers, transport, model: providerSettings.model || undefined, provider };
 }
 
 // generateLyricsLive: the async entry point. `transportOverride` is test-only
