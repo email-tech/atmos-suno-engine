@@ -17,7 +17,7 @@ import { CHAR_LIMIT, rng } from '../core/constants.js';
 import { resolveOverlays } from '../core/overlays.js';
 import { EngineExtras } from '../legacy/engine-extras.js';
 import { MAX_MODE_STR } from '../legacy/data-style-engines.js';
-import { buildStylePrompt, buildNegativePrompt, buildLyricsField } from '../legacy/prompt-style-builder.js';
+import { buildStylePromptWithArrangement, buildNegativePrompt, buildLyricsField } from '../legacy/prompt-style-builder.js';
 import { resolveStructure, structureHasResolutionPoint } from '../core/structure.js';
 import { makeClaudeTransport } from './claude-client.js';
 import { makeGeminiTransport } from './gemini-client.js';
@@ -131,13 +131,22 @@ export function generate(S) {
 
   if (eng.kind === 'legacy') {
     const state = toLegacyState(S);            // proven builder handles maxMode itself
-    const style = buildStylePrompt(state);
+    // P8 PHASE 3 PREREQUISITE (2026-08-12): now surfaces `arrangement` too,
+    // the same way the atom and resolver branches above already do — the
+    // resolved slot picks (pad/bass/motif/etc) used to be discarded once
+    // woven into the style string; buildStylePromptWithArrangement() returns
+    // both. `style` itself is computed identically to the old
+    // buildStylePrompt(state) call (same underlying function, proven byte-
+    // identical in validate-legacy.mjs), so this is additive only.
+    const built = buildStylePromptWithArrangement(state);
+    const style = built.style;
     return {
       style,
       negative: buildNegativePrompt(state),
       lyrics: buildLyricsField(state),
       length: style.length,
       over: style.length > CHAR_LIMIT,
+      arrangement: built.arrangement,
       structure: lyricStructure(S),
     };
   }

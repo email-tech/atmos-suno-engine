@@ -138,7 +138,7 @@ export function buildClusterPrompt(clusterId, state) {
   const s = state.style;
   const engine = EngineExtras[engineName] || {};
   const c = (engine.flavourClusters || {})[clusterId];
-  if (!c) return "";
+  if (!c) return { style: "", arrangement: null };
   const roll = (s.rngSeed != null) ? mulberry32(s.rngSeed) : Math.random;
   const locks = s.slotLocks || {};
   const pick = pool => (Array.isArray(pool) && pool.length)
@@ -239,6 +239,12 @@ export function buildClusterPrompt(clusterId, state) {
   const ovFrontCounter = (ov.counter && !lockedRole("counter"))? ovCounter : null;
   const rhythmSlot = c.beatless ? null : slot("rhythm");
   const rhythm = (rhythmSlot && ov.groove) ? `${rhythmSlot} ${ov.groove}` : rhythmSlot;  // remixer treats the engine's own drums
+  // percSlot: drawn ONCE here (not inline in `parts` below) so the RNG draw
+  // sequence stays byte-for-byte identical to before this change, while the
+  // value is also available to capture into `arrangement` below. Calling
+  // slot("perc") a second time would advance the RNG again and change every
+  // subsequent draw for this seed — must stay a single call.
+  const percSlot = c.beatless ? null : slot("perc");
   const parts = [
     c.genre || STYLE_ENGINES[engineName].genre,  // genre anchor (per-cluster, else engine default)
     tempo,                                // BPM range + energy (or override number)
@@ -249,7 +255,7 @@ export function buildClusterPrompt(clusterId, state) {
     { t: ovFrontHarmony ? null : ovHarmony, role: "harmony" },   // engine harmony only (overlay harmony was hoisted)
     { t: bassSlot, role: "bass" },       // foundational overlay bass displaces the drawn bass here
     { t: rhythm, role: "rhythm" },
-    c.beatless ? null : { t: slot("perc"), drop: 2, role: "perc" },      // extra percussion layer
+    c.beatless ? null : { t: percSlot, drop: 2, role: "perc" },      // extra percussion layer
     { t: drawn.strings, role: "strings" },                   // string / choir / chant bed
     { t: ovTexture, drop: 3, role: "texture" },    // secondary sustained layer
     { t: ovFrontMotif ? null : ovMotif, role: "motif" },         // engine motif only (overlay motif hoisted)
@@ -263,7 +269,45 @@ export function buildClusterPrompt(clusterId, state) {
     buildVocalPhrase(state),
     MASTERING
   ];
-  return fitParts(parts, s.maxMode, locks);
+  const style = fitParts(parts, s.maxMode, locks);
+
+  // P8 PHASE 3 PREREQUISITE (2026-08-12, John's go-ahead): the resolved picks
+  // below used to exist only as local variables inside this function and were
+  // discarded once woven into `style`. They are now also returned as a
+  // structured `arrangement` object so a DNA extractor (core/dna-legacy.js,
+  // not yet built — see docs/architecture/p8-dna-extractors-plan-legacy.md)
+  // can read them, mirroring how core/resolver.js's build() already returns
+  // { arrangement, style }. ADDITIVE ONLY: `style` above is computed exactly
+  // as before this change, and buildStylePrompt() (below) still returns that
+  // same string to every existing caller — proven byte-identical in
+  // validate-legacy.mjs. Values captured here are the FINAL, post-overlay
+  // ones (e.g. `bassSlot` not `drawn.bass`, `ovHarmony` not `drawn.harmony`)
+  // so this reports what's actually in the track, same principle as the
+  // resolver/atom DNA producers.
+  const arrangement = {
+    subPath: "cluster",
+    engine: engineName,
+    cluster: clusterId,
+    genre: c.genre || STYLE_ENGINES[engineName].genre,
+    beatless: !!c.beatless,
+    tempo,
+    palette,
+    pads: drawn.pads,
+    harmony: ovHarmony,
+    bass: bassSlot,
+    strings: drawn.strings,
+    texture: ovTexture,
+    motif: ovMotif,
+    counter: ovCounter,
+    movement: ovMovement,
+    rhythm: rhythmSlot,     // raw drum-family text; groove treatment kept separate, as on the resolver path
+    groove: ov.groove || null,
+    perc: percSlot,
+    color,
+    ip: { core: ipCore, arc: ipArc },
+  };
+
+  return { style, arrangement };
 }
 
 export function buildClusterNegative(clusterId, state) {
@@ -339,9 +383,46 @@ function presetCluster(state) {
 /* ---- entry points (app.js calls these) ---------------------------------- */
 export function buildStylePrompt(state) {
   const pc = presetCluster(state);
+  if (pc) return buildClusterPrompt(pc, state).style;
+  if (clusterActive(state)) return buildClusterPrompt(state.style.cluster, state).style;
+  return buildClassicStyle(state);
+}
+
+/* P8 PHASE 3 PREREQUISITE (2026-08-12): same routing as buildStylePrompt()
+ * above, but returns { style, arrangement } instead of unwrapping to a bare
+ * string. buildStylePrompt() itself is untouched in behaviour — every
+ * existing caller (js/generate.js, validate-legacy.mjs, validate-
+ * overlays.mjs) keeps getting exactly the same string it always has.
+ *
+ * Classic-path arrangement: unlike the cluster path, the classic slot picks
+ * (pad/harmony/bass/rhythm/percussion/motif/movement) are already resolved
+ * onto state.style BEFORE buildClassicStyle() is ever called — see
+ * resolveClassicSlots() in js/generate.js's toLegacyState(). So no change to
+ * buildClassicStyle() itself was needed; its inputs were never the problem,
+ * only the cluster path's were. Per the plan doc's field table, the classic
+ * path has no beatless or interplay/arc concept anywhere in its data — those
+ * fields are simply absent here, not defaulted or invented. */
+export function buildStylePromptWithArrangement(state) {
+  const pc = presetCluster(state);
   if (pc) return buildClusterPrompt(pc, state);
   if (clusterActive(state)) return buildClusterPrompt(state.style.cluster, state);
-  return buildClassicStyle(state);
+  const s = state.style;
+  return {
+    style: buildClassicStyle(state),
+    arrangement: {
+      subPath: "classic",
+      engine: state.engine,
+      genre: (STYLE_ENGINES[state.engine] || {}).genre || null,
+      tempo: s.phase || null,
+      pad: s.pad || null,
+      harmony: s.harmony || null,
+      bass: s.bass || null,
+      rhythm: s.rhythm || null,
+      percussion: s.percussion || null,
+      motif: s.motif || null,
+      movement: s.movement || null,
+    },
+  };
 }
 
 export function buildNegativePrompt(state) {

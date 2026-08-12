@@ -1,7 +1,7 @@
 // Headless validation of the legacy cluster/preset path after the Balearic
 // harmony+colour+interplay work and the 3-level cluster lock control.
 import { EngineExtras } from './legacy/engine-extras.js';
-import { buildStylePrompt, buildNegativePrompt } from './legacy/prompt-style-builder.js';
+import { buildStylePrompt, buildStylePromptWithArrangement, buildNegativePrompt } from './legacy/prompt-style-builder.js';
 import { STYLE_ENGINES } from './legacy/data-style-engines.js';
 
 const LIMIT = 1000;
@@ -19,6 +19,28 @@ const INSTR = ['tabla', 'bouzouki', 'clavinet', 'hammond organ', 'mellotron', 'c
 
 let draws = 0, over = 0, fails = [];
 const stats = {};
+
+// P8 PHASE 3 PREREQUISITE (2026-08-12): buildStylePromptWithArrangement()
+// must render BYTE-IDENTICAL style output to buildStylePrompt() for every
+// state this suite exercises — the arrangement capture is additive only and
+// must never change what Suno actually sees. Also sanity-checks the
+// arrangement object itself isn't empty/malformed (deep field-correctness
+// is validate-dna-legacy.mjs's job once Phase 3 proper is built).
+let arrParityChecks = 0, arrParityFails = 0, arrShapeFails = 0;
+function checkArrangementParity(state, expectedStyle) {
+  arrParityChecks++;
+  const built = buildStylePromptWithArrangement(state);
+  if (built.style !== expectedStyle) {
+    arrParityFails++;
+    fails.push(`ARRANGEMENT-PARITY style mismatch (${state.engine}/${state.style.cluster || state.style.preset})`);
+  }
+  const a = built.arrangement;
+  if (!a) { arrShapeFails++; fails.push(`ARRANGEMENT-PARITY null arrangement (${state.engine})`); return; }
+  if (!a.genre) { arrShapeFails++; fails.push(`ARRANGEMENT-PARITY no genre (${state.engine}/${a.subPath})`); }
+  if (a.subPath !== 'cluster' && a.subPath !== 'classic') {
+    arrShapeFails++; fails.push(`ARRANGEMENT-PARITY unknown subPath "${a.subPath}"`);
+  }
+}
 
 function mkState(engine, l, seed) {
   return {
@@ -98,9 +120,40 @@ for (const engine of ['Balearic', 'Enigma']) {
         const seed = (Math.random() * 2 ** 31) >>> 0;
         const l = { ...e, palette, phase: phases[i % phases.length] || '' };
         const state = mkState(engine, l, seed);
-        check(engine, e.cluster, palette, buildStylePrompt(state), buildNegativePrompt(state), seed);
+        const style = buildStylePrompt(state);
+        check(engine, e.cluster, palette, style, buildNegativePrompt(state), seed);
+        checkArrangementParity(state, style);
       }
     }
+  }
+}
+
+// classic-path arrangement parity (2026-08-12): the main draw loop above only
+// exercises the cluster/preset path (mkState always sets buildMode:'cluster'
+// or routes via a preset). Classic slot states aren't produced by mkState at
+// all, so build a few directly here to prove buildStylePromptWithArrangement
+// matches buildStylePrompt on that path too, and that its arrangement pulls
+// straight from state.style (no draw, so no RNG-order risk on this path).
+for (const engine of ['Balearic', 'Enigma']) {
+  const classic = { presets: (STYLE_ENGINES[engine].presets || []), phases: (STYLE_ENGINES[engine].phases || []) };
+  for (let i = 0; i < 20; i++) {
+    const classicState = {
+      engine,
+      style: {
+        buildMode: 'classic', cluster: '', preset: '',
+        palette: 'electronic', arrangement: false, bpmOverride: '',
+        phase: classic.phases[i % Math.max(classic.phases.length, 1)] || '',
+        pad: `test-pad-${i}`, harmony: `test-harmony-${i}`, bass: `test-bass-${i}`,
+        rhythm: `test-rhythm-${i}`, percussion: `test-perc-${i}`, motif: `test-motif-${i}`, movement: `test-movement-${i}`,
+        vocalMode: 'Instrumental', vocalDescriptor: '', vocalPersona: '',
+        maxMode: false, negativePrompt: '',
+      },
+    };
+    const style = buildStylePrompt(classicState);
+    checkArrangementParity(classicState, style);
+    const built = buildStylePromptWithArrangement(classicState);
+    if (built.arrangement.subPath !== 'classic') { arrShapeFails++; fails.push(`ARRANGEMENT-PARITY classic state resolved to subPath "${built.arrangement.subPath}"`); }
+    if (built.arrangement.pad !== `test-pad-${i}`) { arrShapeFails++; fails.push(`ARRANGEMENT-PARITY classic pad not passed through verbatim (${engine})`); }
   }
 }
 
@@ -136,6 +189,7 @@ for (const k of rows) {
   console.log(`${k.padEnd(40)} len ${String(s.min).padStart(3)}-${String(s.max).padStart(4)} uniq=${String(s.uniq.size).padStart(3)}  chords ${String(hPct).padStart(3)}%  perc ${pc('perc')}  texture ${pc('texture')}  counter ${pc('counter')}  colour ${String(cPct).padStart(3)}%  interplay ${String(iPct).padStart(3)}%  parts~${(s.layers / s.n).toFixed(1)}`);
 }
 console.log(`\ndraws: ${draws}  over-limit: ${over}  lock failures: ${lockFails}`);
+console.log(`arrangement-parity: ${arrParityChecks} checks, ${arrParityFails} style mismatches, ${arrShapeFails} shape failures`);
 console.log(`clusters without 100% harmony: ${missingHarm}   Balearic clusters without 100% interplay: ${missingIP}`);
 const uniqFails = [...new Set(fails)];
 console.log(`failures: ${fails.length} (${uniqFails.length} unique)`);
