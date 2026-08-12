@@ -53,6 +53,33 @@ import { MASTERING } from './constants.js';
 
 const ROLE_ORDER = ['pads', 'harmony', 'bass', 'drums', 'voice', 'lead', 'color', 'movement'];
 
+/* resolveInfluencesFromNames(names) — shared between the resolver and legacy
+ * DNA producers (2026-08-12), both of which source their overlay from the
+ * SAME core/overlays.js resolveOverlays() call (generate.js's overlayFor()),
+ * unlike the atom path which has its own gen-2 modifier system entirely.
+ * Extracted here rather than duplicated in core/dna-legacy.js, per the
+ * project's one-source-of-truth rule — a fix to this logic (e.g. the
+ * known applied:true-always limitation noted below) now only needs making
+ * once for both engine kinds. */
+export function resolveInfluencesFromNames(names) {
+  return (names || []).map(nameStr => {
+    const [kind, id] = String(nameStr).split(':');
+    const ov = (OVERLAYS[kind] || {})[id];
+    return {
+      key: id,
+      kind,                                  // 'composer' | 'producer' | 'remixer'
+      label: ov ? ov.label : id,             // UI label only
+      nameClass: 'person',
+      renderPolicy: 'never',                 // generic fingerprint, never the name in output
+      // NOTE: always true — neither this nor the legacy producer checks
+      // whether the overlay's tags were banned or whether any role actually
+      // landed (unlike the atom path's real refusal check via
+      // fresh.overlayNote). Flagged, not fixed, in the P8 Phase 2 log entry.
+      applied: true,
+    };
+  });
+}
+
 /**
  * buildResolverDNA(arrangement, overlay, opts)
  *  - arrangement: the `arr` object resolveArrangement()/build() already
@@ -89,21 +116,8 @@ export function buildResolverDNA(arrangement, overlay, opts) {
     }));
 
   // influences[]: sourced from the resolved overlay's `names` (e.g.
-  // ['composer:zimmer']), looked up against the legacy OVERLAYS library for
-  // a display label. Same renderPolicy:'never' contract as the atom path —
-  // generic fingerprint only, never a name in rendered output.
-  const influences = ((overlay && overlay.names) || []).map(nameStr => {
-    const [kind, id] = String(nameStr).split(':');
-    const ov = (OVERLAYS[kind] || {})[id];
-    return {
-      key: id,
-      kind,                                  // 'composer' | 'producer' | 'remixer'
-      label: ov ? ov.label : id,             // UI label only
-      nameClass: 'person',
-      renderPolicy: 'never',                 // generic fingerprint, never the name in output
-      applied: true,
-    };
-  });
+  // ['composer:zimmer']), via the shared helper above.
+  const influences = resolveInfluencesFromNames(overlay && overlay.names);
 
   const tempoSpec = arr.beatless
     ? 'beatless'

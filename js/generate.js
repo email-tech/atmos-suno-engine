@@ -7,6 +7,7 @@ import { getEngine, legacyClassic } from './registry.js';
 import { buildAtoms } from '../core/atoms.js';
 import { buildMusicalDNA } from '../core/dna.js';
 import { buildResolverDNA } from '../core/dna-resolver.js';
+import { buildLegacyDNA } from '../core/dna-legacy.js';
 import { inferCIL } from '../core/cil.js';
 import { runLyricEngine } from '../core/lyric.js';
 import { runMetatagEngine } from '../core/metatag.js';
@@ -160,20 +161,13 @@ export function generate(S) {
 // buildLiveLyricRequest() below and validate-live-lyric.mjs, which tests that
 // piece plus the full async flow with an injected fake transport.
 //
-// P8 PHASE 2 (2026-08-13, docs/architecture/p8-dna-extractors-plan.md):
-// resolver engines now produce Musical DNA too, via buildResolverDNA(). The
-// P8 gap narrows to legacy engines only (their DNA extractor is a separate,
-// not-yet-scoped future pass — legacy's cluster/preset/classic-slot model is
-// a THIRD data shape, deliberately not guessed at alongside this phase).
+// P8 COMPLETE (2026-08-12): all three engine kinds now produce Musical DNA —
+// atom (buildMusicalDNA), resolver (buildResolverDNA), and legacy
+// (buildLegacyDNA, docs/architecture/p8-dna-extractors-plan-legacy.md,
+// Q1-Q4 all resolved). The P8 gap this function used to throw for legacy
+// engines is retired.
 export function buildLiveLyricRequest(S) {
   const eng = getEngine(S.engineId);
-  if (eng.kind !== 'atom' && eng.kind !== 'resolver') {
-    throw new Error(
-      `Live lyric generation needs Musical DNA. Atom and resolver engines produce it; ` +
-      `legacy engines don't yet (their DNA extractor is a separate future phase — see ` +
-      `docs/architecture/p8-dna-extractors-plan.md). Selected engine "${S.engineId}" is kind "${eng.kind}".`
-    );
-  }
 
   let dna;
   if (eng.kind === 'atom') {
@@ -183,7 +177,7 @@ export function buildLiveLyricRequest(S) {
     dna = buildMusicalDNA(baseChar, palette, {
       seed: S.seed, characterId: a.characterId, overlayId: a.overlayId || null,
     });
-  } else {
+  } else if (eng.kind === 'resolver') {
     // resolver: resolve the arrangement the SAME way generate()'s resolver
     // branch does (same overlayFor/structureHint inputs), then project it
     // into Musical DNA via buildResolverDNA() rather than re-deriving style.
@@ -201,6 +195,21 @@ export function buildLiveLyricRequest(S) {
     dna = buildResolverDNA(out.arrangement, overlay, {
       characterId: r.characterId, seed: S.seed, palette: r.palette,
     });
+  } else if (eng.kind === 'legacy') {
+    // legacy: resolve the SAME way generate()'s legacy branch does (same
+    // toLegacyState() call), then project via buildLegacyDNA(). vocalMode is
+    // read off state.style AFTER toLegacyState() has already applied the
+    // song-type gate (S.songType='instrumental' forcing it), so this reports
+    // the effective mode actually in play for this build, not the raw
+    // per-engine S.leg.vocalMode.
+    const state = toLegacyState(S);
+    const built = buildStylePromptWithArrangement(state);
+    dna = buildLegacyDNA(built, {
+      seed: S.seed, palette: state.style.palette,
+      overlay: state.style.ov, vocalMode: state.style.vocalMode,
+    });
+  } else {
+    throw new Error(`Live lyric generation needs Musical DNA. Unknown engine kind "${eng.kind}" for engine "${S.engineId}".`);
   }
 
   const cil = inferCIL(dna);

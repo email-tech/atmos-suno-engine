@@ -288,6 +288,8 @@ export function buildClusterPrompt(clusterId, state) {
     subPath: "cluster",
     engine: engineName,
     cluster: clusterId,
+    label: c.label || null,                                 // the cluster's own display name (Q4)
+    presetLabel: presetDriven ? (s.preset || null) : null,   // the preset text the user actually picked, when preset-driven (Q4) — NOT always identical to c.label (e.g. "Carmina choral (Screen)" vs the cluster's "Carmina choral (Screen Behind the Mirror)")
     genre: c.genre || STYLE_ENGINES[engineName].genre,
     beatless: !!c.beatless,
     tempo,

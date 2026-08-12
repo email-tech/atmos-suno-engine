@@ -115,12 +115,13 @@ const ok = (c, m) => { checks++; if (!c) bad(m); };
   console.log('  makeClaudeTransport: adapts to the exact {prompt,model,temperature,maxTokens}->string shape runLyricEngine expects.');
 }
 
-/* 5. buildLiveLyricRequest — P8 PHASE 2: resolver engines now succeed; only
- *    legacy engines are still refused (legacy's DNA extractor is a separate,
- *    not-yet-scoped future phase — see docs/architecture/p8-dna-extractors-plan.md). */
+/* 5. buildLiveLyricRequest — P8 COMPLETE (2026-08-12): all three engine
+ *    kinds now produce real Musical DNA. atom (P0), resolver (Phase 2),
+ *    legacy (Phase 3, Q1-Q4 all resolved) — see docs/architecture/
+ *    p8-dna-extractors-plan.md and its -legacy.md companion. */
 {
   const S = initState();
-  syncEngineDefaults(S, 'Delerium'); // a resolver engine — DNA extractor now exists (P8 Phase 2)
+  syncEngineDefaults(S, 'Delerium'); // a resolver engine
   let req;
   try { req = buildLiveLyricRequest(S); }
   catch (e) { bad(`buildLiveLyricRequest should now succeed for a resolver engine (Delerium), but threw: "${e.message}"`); }
@@ -135,13 +136,48 @@ const ok = (c, m) => { checks++; if (!c) bad(m); };
       'every resolver arrangement entry should carry a role directly and have no bedId/behaviour (Q2: role is the answer, no functional tagging needed)');
   }
 
-  syncEngineDefaults(S, 'Balearic'); // a legacy engine — still no DNA extractor
-  let threw = false;
-  try { buildLiveLyricRequest(S); }
-  catch (e) { threw = true; ok(/legacy engines don.t yet/.test(e.message), `expected the narrowed P8-gap error message, got: "${e.message}"`); }
-  ok(threw, 'buildLiveLyricRequest should still refuse a legacy engine (Balearic) \u2014 that DNA extractor is a separate future phase');
-  console.log('  P8 Phase 2: buildLiveLyricRequest now succeeds for resolver engines (real DNA, correct Q1/Q2/Q3 answers); legacy still clearly refused.');
+  // legacy — CLUSTER path (Balearic direct cluster pick)
+  syncEngineDefaults(S, 'Balearic');
+  S.leg.buildMode = 'cluster';
+  let reqLegacyCluster;
+  try { reqLegacyCluster = buildLiveLyricRequest(S); }
+  catch (e) { bad(`buildLiveLyricRequest should now succeed for a legacy cluster-path build (Balearic), but threw: "${e.message}"`); }
+  ok(!!reqLegacyCluster, 'buildLiveLyricRequest should return a request object for a legacy cluster-path build');
+  if (reqLegacyCluster) {
+    const d = reqLegacyCluster.dna;
+    ok(d.meta.engineKind === 'legacy', 'legacy-sourced DNA should report meta.engineKind === "legacy"');
+    ok(d.harmony.keyMode === null && d.provenance.harmony === 'n/a', 'legacy DNA harmony should be null/n-a, same finding as resolver');
+    ok(!!d.identity.subgenre, "legacy cluster-path DNA should carry a non-null subgenre (Q4: the cluster's own label, since Balearic has no preset system)");
+    ok(Array.isArray(d.arrangement) && d.arrangement.length > 0, 'legacy cluster-path DNA should carry a non-empty arrangement[]');
+    ok(typeof d.dynamics.beatless === 'boolean', 'legacy cluster-path DNA should report a real beatless boolean (Q2/Q3: this sub-path has the concept)');
+  }
+
+  // legacy — CLASSIC path (Balearic 'Classic mix' slot mode)
+  S.leg.buildMode = 'classic';
+  let reqLegacyClassic;
+  try { reqLegacyClassic = buildLiveLyricRequest(S); }
+  catch (e) { bad(`buildLiveLyricRequest should now succeed for a legacy classic-path build (Balearic), but threw: "${e.message}"`); }
+  ok(!!reqLegacyClassic, 'buildLiveLyricRequest should return a request object for a legacy classic-path build');
+  if (reqLegacyClassic) {
+    const d = reqLegacyClassic.dna;
+    ok(d.identity.subgenre === null, 'legacy classic-path DNA should honestly report subgenre as null (Q2: no character/preset concept exists on this sub-path)');
+    ok(d.dynamics.beatless === null && d.provenance.dynamics === 'n/a', 'legacy classic-path DNA should report dynamics as n/a, not invented (Q2/Q3)');
+  }
+
+  // legacy — Enigma preset-driven (routes into the cluster path under a
+  // different label — Q4's actual test: the preset text, not the cluster id)
+  syncEngineDefaults(S, 'Enigma');
+  let reqEnigma;
+  try { reqEnigma = buildLiveLyricRequest(S); }
+  catch (e) { bad(`buildLiveLyricRequest should now succeed for a preset-driven legacy engine (Enigma), but threw: "${e.message}"`); }
+  if (reqEnigma) {
+    ok(reqEnigma.dna.identity.subgenre === S.leg.preset,
+      `Enigma DNA subgenre should be the preset label actually picked ("${S.leg.preset}"), got "${reqEnigma.dna.identity.subgenre}" (Q4)`);
+  }
+
+  console.log('  P8 complete: buildLiveLyricRequest succeeds for all three engine kinds — atom, resolver, and legacy (both cluster and classic sub-paths, preset-driven labelling correct).');
 }
+
 
 /* 6. buildLiveLyricRequest — answers threading, including the title
  *    default-vs-override behaviour John asked about. Explicit setProvider

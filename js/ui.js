@@ -311,12 +311,11 @@ function renderAtomControls(root, eng) {
 
   root.appendChild(el('p', { class: 'note', text: 'Atom assembly path. Overlays are congruent-by-default \u2014 an incongruent one is refused (shown below the prompt).' }));
   root.appendChild(buttons());
-  // P7 (2026-08-12): live lyric generation only exists for atom engines —
-  // resolver/legacy engines have no DNA extractor yet (P8, not built).
+  // P8 complete (2026-08-12): all three engine kinds now have a DNA producer.
   lyricPanel(root);
 }
 
-// ---- P7: live lyric generation panel (atom engines only, see P8 gap note) --
+// ---- P7: live lyric generation panel ---------------------------------------
 // Deliberately plain — matching structurePanel's unstyled aesthetic. This is
 // "structure and logic" wiring (John, 2026-08-12), not a UI design pass;
 // visual polish is explicitly deferred to a later pass using the design
@@ -444,6 +443,11 @@ function renderResolverControls(root, eng) {
   root.appendChild(el('p', { class: 'note', text: `Drums: ${drums}. Colour fires ~${Math.round(c.colorChance * 100)}% of draws.` }));
 
   root.appendChild(buttons());
+  // P8 complete (2026-08-12): resolver engines produce Musical DNA too
+  // (buildResolverDNA) — the lyric panel was wired for atom engines only
+  // when P7 shipped and never extended here when Phase 2 landed. Fixed now
+  // that all three engine kinds have a DNA producer.
+  lyricPanel(root);
 }
 function seedManualLocks(eng, r) {
   const c = eng.module.characters[r.characterId];
@@ -487,6 +491,7 @@ function renderLegacyControls(root, eng) {
       root.appendChild(el('p', { class: 'note', text: 'Interaction / arrangement language is always on.' }));
       root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
       root.appendChild(buttons());
+      lyricPanel(root);
       return;
     }
 
@@ -506,6 +511,7 @@ function renderLegacyControls(root, eng) {
     });
     root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
     root.appendChild(buttons());
+    lyricPanel(root);
     return;
   }
 
@@ -542,6 +548,7 @@ function renderLegacyControls(root, eng) {
   }
   root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
   root.appendChild(buttons());
+  lyricPanel(root);
 }
 
 function clusterLabel(engineId, clusterId) {

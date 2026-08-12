@@ -3816,6 +3816,33 @@ const {MASTERING} = window.__ATMOS;
 
 const ROLE_ORDER = ['pads', 'harmony', 'bass', 'drums', 'voice', 'lead', 'color', 'movement'];
 
+/* resolveInfluencesFromNames(names) — shared between the resolver and legacy
+ * DNA producers (2026-08-12), both of which source their overlay from the
+ * SAME core/overlays.js resolveOverlays() call (generate.js's overlayFor()),
+ * unlike the atom path which has its own gen-2 modifier system entirely.
+ * Extracted here rather than duplicated in core/dna-legacy.js, per the
+ * project's one-source-of-truth rule — a fix to this logic (e.g. the
+ * known applied:true-always limitation noted below) now only needs making
+ * once for both engine kinds. */
+function resolveInfluencesFromNames(names) {
+  return (names || []).map(nameStr => {
+    const [kind, id] = String(nameStr).split(':');
+    const ov = (OVERLAYS[kind] || {})[id];
+    return {
+      key: id,
+      kind,                                  // 'composer' | 'producer' | 'remixer'
+      label: ov ? ov.label : id,             // UI label only
+      nameClass: 'person',
+      renderPolicy: 'never',                 // generic fingerprint, never the name in output
+      // NOTE: always true — neither this nor the legacy producer checks
+      // whether the overlay's tags were banned or whether any role actually
+      // landed (unlike the atom path's real refusal check via
+      // fresh.overlayNote). Flagged, not fixed, in the P8 Phase 2 log entry.
+      applied: true,
+    };
+  });
+}
+
 /**
  * buildResolverDNA(arrangement, overlay, opts)
  *  - arrangement: the `arr` object resolveArrangement()/build() already
@@ -3852,21 +3879,8 @@ function buildResolverDNA(arrangement, overlay, opts) {
     }));
 
   // influences[]: sourced from the resolved overlay's `names` (e.g.
-  // ['composer:zimmer']), looked up against the legacy OVERLAYS library for
-  // a display label. Same renderPolicy:'never' contract as the atom path —
-  // generic fingerprint only, never a name in rendered output.
-  const influences = ((overlay && overlay.names) || []).map(nameStr => {
-    const [kind, id] = String(nameStr).split(':');
-    const ov = (OVERLAYS[kind] || {})[id];
-    return {
-      key: id,
-      kind,                                  // 'composer' | 'producer' | 'remixer'
-      label: ov ? ov.label : id,             // UI label only
-      nameClass: 'person',
-      renderPolicy: 'never',                 // generic fingerprint, never the name in output
-      applied: true,
-    };
-  });
+  // ['composer:zimmer']), via the shared helper above.
+  const influences = resolveInfluencesFromNames(overlay && overlay.names);
 
   const tempoSpec = arr.beatless
     ? 'beatless'
@@ -3918,7 +3932,7 @@ function buildResolverDNA(arrangement, overlay, opts) {
   };
 }
 
-Object.assign(window.__ATMOS, { buildResolverDNA });
+Object.assign(window.__ATMOS, { resolveInfluencesFromNames, buildResolverDNA });
 })();
 
 /* core/profiles.js */
@@ -9922,6 +9936,8 @@ function buildClusterPrompt(clusterId, state) {
     subPath: "cluster",
     engine: engineName,
     cluster: clusterId,
+    label: c.label || null,                                 // the cluster's own display name (Q4)
+    presetLabel: presetDriven ? (s.preset || null) : null,   // the preset text the user actually picked, when preset-driven (Q4) — NOT always identical to c.label (e.g. "Carmina choral (Screen)" vs the cluster's "Carmina choral (Screen Behind the Mirror)")
     genre: c.genre || STYLE_ENGINES[engineName].genre,
     beatless: !!c.beatless,
     tempo,
@@ -10732,6 +10748,7 @@ const {getEngine, legacyClassic} = window.__ATMOS;
 const {buildAtoms} = window.__ATMOS;
 const {buildMusicalDNA} = window.__ATMOS;
 const {buildResolverDNA} = window.__ATMOS;
+const {buildLegacyDNA} = window.__ATMOS;
 const {inferCIL} = window.__ATMOS;
 const {runLyricEngine} = window.__ATMOS;
 const {runMetatagEngine} = window.__ATMOS;
@@ -10885,20 +10902,13 @@ function generate(S) {
 // buildLiveLyricRequest() below and validate-live-lyric.mjs, which tests that
 // piece plus the full async flow with an injected fake transport.
 //
-// P8 PHASE 2 (2026-08-13, docs/architecture/p8-dna-extractors-plan.md):
-// resolver engines now produce Musical DNA too, via buildResolverDNA(). The
-// P8 gap narrows to legacy engines only (their DNA extractor is a separate,
-// not-yet-scoped future pass — legacy's cluster/preset/classic-slot model is
-// a THIRD data shape, deliberately not guessed at alongside this phase).
+// P8 COMPLETE (2026-08-12): all three engine kinds now produce Musical DNA —
+// atom (buildMusicalDNA), resolver (buildResolverDNA), and legacy
+// (buildLegacyDNA, docs/architecture/p8-dna-extractors-plan-legacy.md,
+// Q1-Q4 all resolved). The P8 gap this function used to throw for legacy
+// engines is retired.
 function buildLiveLyricRequest(S) {
   const eng = getEngine(S.engineId);
-  if (eng.kind !== 'atom' && eng.kind !== 'resolver') {
-    throw new Error(
-      `Live lyric generation needs Musical DNA. Atom and resolver engines produce it; ` +
-      `legacy engines don't yet (their DNA extractor is a separate future phase — see ` +
-      `docs/architecture/p8-dna-extractors-plan.md). Selected engine "${S.engineId}" is kind "${eng.kind}".`
-    );
-  }
 
   let dna;
   if (eng.kind === 'atom') {
@@ -10908,7 +10918,7 @@ function buildLiveLyricRequest(S) {
     dna = buildMusicalDNA(baseChar, palette, {
       seed: S.seed, characterId: a.characterId, overlayId: a.overlayId || null,
     });
-  } else {
+  } else if (eng.kind === 'resolver') {
     // resolver: resolve the arrangement the SAME way generate()'s resolver
     // branch does (same overlayFor/structureHint inputs), then project it
     // into Musical DNA via buildResolverDNA() rather than re-deriving style.
@@ -10926,6 +10936,21 @@ function buildLiveLyricRequest(S) {
     dna = buildResolverDNA(out.arrangement, overlay, {
       characterId: r.characterId, seed: S.seed, palette: r.palette,
     });
+  } else if (eng.kind === 'legacy') {
+    // legacy: resolve the SAME way generate()'s legacy branch does (same
+    // toLegacyState() call), then project via buildLegacyDNA(). vocalMode is
+    // read off state.style AFTER toLegacyState() has already applied the
+    // song-type gate (S.songType='instrumental' forcing it), so this reports
+    // the effective mode actually in play for this build, not the raw
+    // per-engine S.leg.vocalMode.
+    const state = toLegacyState(S);
+    const built = buildStylePromptWithArrangement(state);
+    dna = buildLegacyDNA(built, {
+      seed: S.seed, palette: state.style.palette,
+      overlay: state.style.ov, vocalMode: state.style.vocalMode,
+    });
+  } else {
+    throw new Error(`Live lyric generation needs Musical DNA. Unknown engine kind "${eng.kind}" for engine "${S.engineId}".`);
   }
 
   const cil = inferCIL(dna);
@@ -11354,12 +11379,11 @@ function renderAtomControls(root, eng) {
 
   root.appendChild(el('p', { class: 'note', text: 'Atom assembly path. Overlays are congruent-by-default \u2014 an incongruent one is refused (shown below the prompt).' }));
   root.appendChild(buttons());
-  // P7 (2026-08-12): live lyric generation only exists for atom engines —
-  // resolver/legacy engines have no DNA extractor yet (P8, not built).
+  // P8 complete (2026-08-12): all three engine kinds now have a DNA producer.
   lyricPanel(root);
 }
 
-// ---- P7: live lyric generation panel (atom engines only, see P8 gap note) --
+// ---- P7: live lyric generation panel ---------------------------------------
 // Deliberately plain — matching structurePanel's unstyled aesthetic. This is
 // "structure and logic" wiring (John, 2026-08-12), not a UI design pass;
 // visual polish is explicitly deferred to a later pass using the design
@@ -11487,6 +11511,11 @@ function renderResolverControls(root, eng) {
   root.appendChild(el('p', { class: 'note', text: `Drums: ${drums}. Colour fires ~${Math.round(c.colorChance * 100)}% of draws.` }));
 
   root.appendChild(buttons());
+  // P8 complete (2026-08-12): resolver engines produce Musical DNA too
+  // (buildResolverDNA) — the lyric panel was wired for atom engines only
+  // when P7 shipped and never extended here when Phase 2 landed. Fixed now
+  // that all three engine kinds have a DNA producer.
+  lyricPanel(root);
 }
 function seedManualLocks(eng, r) {
   const c = eng.module.characters[r.characterId];
@@ -11530,6 +11559,7 @@ function renderLegacyControls(root, eng) {
       root.appendChild(el('p', { class: 'note', text: 'Interaction / arrangement language is always on.' }));
       root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
       root.appendChild(buttons());
+      lyricPanel(root);
       return;
     }
 
@@ -11549,6 +11579,7 @@ function renderLegacyControls(root, eng) {
     });
     root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
     root.appendChild(buttons());
+    lyricPanel(root);
     return;
   }
 
@@ -11585,6 +11616,7 @@ function renderLegacyControls(root, eng) {
   }
   root.appendChild(field('Vocal', segmented(vocalSeg(), l.vocalMode, v => { l.vocalMode = v; refreshOutput(); })));
   root.appendChild(buttons());
+  lyricPanel(root);
 }
 
 function clusterLabel(engineId, clusterId) {
