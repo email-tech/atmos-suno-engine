@@ -27,6 +27,7 @@ const files = [
   'engines/atom-pools.js',
   'engines/atom-characters.js',
   'core/dna.js',
+  'core/dna-resolver.js',
   'core/profiles.js',
   'core/cil.js',
   'core/anchors.js',

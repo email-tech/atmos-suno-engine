@@ -6,6 +6,7 @@
 import { getEngine, legacyClassic } from './registry.js';
 import { buildAtoms } from '../core/atoms.js';
 import { buildMusicalDNA } from '../core/dna.js';
+import { buildResolverDNA } from '../core/dna-resolver.js';
 import { inferCIL } from '../core/cil.js';
 import { runLyricEngine } from '../core/lyric.js';
 import { runMetatagEngine } from '../core/metatag.js';
@@ -17,7 +18,7 @@ import { resolveOverlays } from '../core/overlays.js';
 import { EngineExtras } from '../legacy/engine-extras.js';
 import { MAX_MODE_STR } from '../legacy/data-style-engines.js';
 import { buildStylePrompt, buildNegativePrompt, buildLyricsField } from '../legacy/prompt-style-builder.js';
-import { resolveStructure } from '../core/structure.js';
+import { resolveStructure, structureHasResolutionPoint } from '../core/structure.js';
 import { makeClaudeTransport } from './claude-client.js';
 import { makeGeminiTransport } from './gemini-client.js';
 
@@ -106,9 +107,19 @@ export function generate(S) {
     const r = S.res;
     const locks = (r.level === 'random') ? {} : r.locks;
     const ch = eng.module.characters[r.characterId] || {};
+    // Harmony brightness Lever 3 (John, 2026-08-13): feed the already-resolved
+    // structure into resolveArrangement() so its harmony pick can favour a
+    // minor-to-major resolution when there's a genuine peak to land on, or
+    // stay flatter when there isn't. resolveStructure(S.structurePresetId)
+    // is the same call lyricStructure(S) makes below — computed once here to
+    // avoid resolving it twice.
+    const structureForHarmony = resolveStructure(S.structurePresetId);
+    const structureHint = structureForHarmony
+      ? { hasResolutionPoint: structureHasResolutionPoint(structureForHarmony) } : null;
     const out = build(eng.module, {
       characterId: r.characterId, palette: r.palette, locks, seed: S.seed,
       overlay: overlayFor(S, !!ch.beatless),
+      structureHint,
     });
     const style = applyMax(out.style, S.maxMode);
     return {
@@ -140,25 +151,49 @@ export function generate(S) {
 // buildLiveLyricRequest() below and validate-live-lyric.mjs, which tests that
 // piece plus the full async flow with an injected fake transport.
 //
-// P8 GAP, STATED RATHER THAN HIDDEN: only 'atom' engines currently have
-// buildMusicalDNA() wired (DNA extractors for resolver/legacy engines are
-// P8, not yet built). Calling this for a resolver or legacy engine throws a
-// clear error rather than silently producing something wrong.
+// P8 PHASE 2 (2026-08-13, docs/architecture/p8-dna-extractors-plan.md):
+// resolver engines now produce Musical DNA too, via buildResolverDNA(). The
+// P8 gap narrows to legacy engines only (their DNA extractor is a separate,
+// not-yet-scoped future pass — legacy's cluster/preset/classic-slot model is
+// a THIRD data shape, deliberately not guessed at alongside this phase).
 export function buildLiveLyricRequest(S) {
   const eng = getEngine(S.engineId);
-  if (eng.kind !== 'atom') {
+  if (eng.kind !== 'atom' && eng.kind !== 'resolver') {
     throw new Error(
-      `Live lyric generation needs Musical DNA, which only 'atom' engines currently produce ` +
-      `(P8 — DNA extractors for resolver/legacy engines — is not built yet). ` +
-      `Selected engine "${S.engineId}" is kind "${eng.kind}".`
+      `Live lyric generation needs Musical DNA. Atom and resolver engines produce it; ` +
+      `legacy engines don't yet (their DNA extractor is a separate future phase — see ` +
+      `docs/architecture/p8-dna-extractors-plan.md). Selected engine "${S.engineId}" is kind "${eng.kind}".`
     );
   }
-  const a = S.atom;
-  const palette = a.palette || 'electronic';
-  const baseChar = eng.module[a.characterId];
-  const dna = buildMusicalDNA(baseChar, palette, {
-    seed: S.seed, characterId: a.characterId, overlayId: a.overlayId || null,
-  });
+
+  let dna;
+  if (eng.kind === 'atom') {
+    const a = S.atom;
+    const palette = a.palette || 'electronic';
+    const baseChar = eng.module[a.characterId];
+    dna = buildMusicalDNA(baseChar, palette, {
+      seed: S.seed, characterId: a.characterId, overlayId: a.overlayId || null,
+    });
+  } else {
+    // resolver: resolve the arrangement the SAME way generate()'s resolver
+    // branch does (same overlayFor/structureHint inputs), then project it
+    // into Musical DNA via buildResolverDNA() rather than re-deriving style.
+    const r = S.res;
+    const locks = (r.level === 'random') ? {} : r.locks;
+    const ch = eng.module.characters[r.characterId] || {};
+    const structureForHarmony = resolveStructure(S.structurePresetId);
+    const structureHint = structureForHarmony
+      ? { hasResolutionPoint: structureHasResolutionPoint(structureForHarmony) } : null;
+    const overlay = overlayFor(S, !!ch.beatless);
+    const out = build(eng.module, {
+      characterId: r.characterId, palette: r.palette, locks, seed: S.seed,
+      overlay, structureHint,
+    });
+    dna = buildResolverDNA(out.arrangement, overlay, {
+      characterId: r.characterId, seed: S.seed, palette: r.palette,
+    });
+  }
+
   const cil = inferCIL(dna);
   const structure = lyricStructure(S);
   const l = S.lyric || {};

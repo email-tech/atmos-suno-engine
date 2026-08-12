@@ -115,20 +115,32 @@ const ok = (c, m) => { checks++; if (!c) bad(m); };
   console.log('  makeClaudeTransport: adapts to the exact {prompt,model,temperature,maxTokens}->string shape runLyricEngine expects.');
 }
 
-/* 5. buildLiveLyricRequest — P8 GAP GUARD: refuses non-atom engines clearly. */
+/* 5. buildLiveLyricRequest — P8 PHASE 2: resolver engines now succeed; only
+ *    legacy engines are still refused (legacy's DNA extractor is a separate,
+ *    not-yet-scoped future phase — see docs/architecture/p8-dna-extractors-plan.md). */
 {
   const S = initState();
-  syncEngineDefaults(S, 'Delerium'); // a resolver engine — no DNA extractor yet
+  syncEngineDefaults(S, 'Delerium'); // a resolver engine — DNA extractor now exists (P8 Phase 2)
+  let req;
+  try { req = buildLiveLyricRequest(S); }
+  catch (e) { bad(`buildLiveLyricRequest should now succeed for a resolver engine (Delerium), but threw: "${e.message}"`); }
+  ok(!!req, 'buildLiveLyricRequest should return a request object for a resolver engine');
+  if (req) {
+    ok(req.dna && req.dna.meta && req.dna.meta.engineKind === 'resolver', 'resolver-sourced DNA should report meta.engineKind === "resolver"');
+    ok(req.dna.harmony && req.dna.harmony.keyMode === null, 'resolver-sourced DNA should report harmony.keyMode as null (Q1: no key concept exists for this engine kind)');
+    ok(req.dna.provenance && req.dna.provenance.harmony === 'n/a', 'resolver-sourced DNA harmony provenance should be "n/a" (structurally absent), not "unknown"');
+    ok(req.dna.production && req.dna.production.masteringTail && req.dna.production.masteringTail.includes('Dolby'), 'resolver-sourced DNA should carry the shared MASTERING constant (Q3)');
+    ok(Array.isArray(req.dna.arrangement) && req.dna.arrangement.length > 0, 'resolver-sourced DNA should carry a non-empty arrangement[] projection');
+    ok(req.dna.arrangement.every(v => v.role && v.bedId === null && v.behaviour === null),
+      'every resolver arrangement entry should carry a role directly and have no bedId/behaviour (Q2: role is the answer, no functional tagging needed)');
+  }
+
+  syncEngineDefaults(S, 'Balearic'); // a legacy engine — still no DNA extractor
   let threw = false;
   try { buildLiveLyricRequest(S); }
-  catch (e) { threw = true; ok(/only .atom. engines/.test(e.message), `expected the P8-gap error message, got: "${e.message}"`); }
-  ok(threw, 'buildLiveLyricRequest should refuse a resolver engine (Delerium) with a clear error, not silently build something wrong');
-
-  syncEngineDefaults(S, 'Balearic'); // a legacy engine — also no DNA extractor yet
-  threw = false;
-  try { buildLiveLyricRequest(S); } catch (e) { threw = true; }
-  ok(threw, 'buildLiveLyricRequest should also refuse a legacy engine (Balearic)');
-  console.log('  P8 gap guard: buildLiveLyricRequest refuses resolver/legacy engines with a clear error instead of producing something wrong.');
+  catch (e) { threw = true; ok(/legacy engines don.t yet/.test(e.message), `expected the narrowed P8-gap error message, got: "${e.message}"`); }
+  ok(threw, 'buildLiveLyricRequest should still refuse a legacy engine (Balearic) \u2014 that DNA extractor is a separate future phase');
+  console.log('  P8 Phase 2: buildLiveLyricRequest now succeeds for resolver engines (real DNA, correct Q1/Q2/Q3 answers); legacy still clearly refused.');
 }
 
 /* 6. buildLiveLyricRequest — answers threading, including the title

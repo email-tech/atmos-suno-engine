@@ -539,13 +539,66 @@ const {ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette} = wi
 const {compactPart} = window.__ATMOS;
 const {slotFamily} = window.__ATMOS;
 
-// opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed }
+/* ---- HARMONY BRIGHTNESS WEIGHTING (John, 2026-08-13) ----------------------
+ * "Music played in a Major Key sounds too happy and sugary sweet... this key
+ * use must be controlled somehow, but not eliminated entirely... don't make
+ * it the only lever." Two levers, both scoped to the harmony role only —
+ * pads/bass/lead/etc. are instrument choices, not a tonality concern.
+ *
+ * Every harmony pool entry across the 4 resolver engines was read and hand-
+ * classified by its own text (not guessed from the key name) into one of 5
+ * brightness tags: minor, modal, neutral, resolves (the "minor-to-relative-
+ * major" entries — John's own suggested mechanism, which turned out to
+ * already exist as pool vocabulary), and major.
+ *
+ * LEVER 2 (general bias): DEFAULT_HARMONY_WEIGHT favours minor/modal over
+ * resolves/major, but every tag stays reachable — nothing is eliminated.
+ *
+ * LEVER 3 (structure-aware): when the caller passes structureHint indicating
+ * the selected structure preset has a genuine earned peak (energy 5 somewhere
+ * in its shape — a real chorus/drop/climax to resolve INTO), 'resolves' and
+ * 'major' get boosted, since there's an actual payoff moment for that arc to
+ * land on. When the structure has NO such peak (e.g. Downtempo/Ambient, which
+ * tops out at energy 4 — nothing to resolve onto), they're suppressed further
+ * instead, keeping flat/ambient structures honestly flat rather than faking a
+ * resolution that has nowhere to go. Omitting structureHint entirely (no
+ * structure selected) falls back to the Lever-2-only default — this keeps
+ * every existing call site working exactly as before, additive not breaking.
+ * ========================================================================*/
+const DEFAULT_HARMONY_WEIGHT   = { minor: 3,   modal: 3,   neutral: 2, resolves: 1.5, major: 1 };
+const PEAK_HARMONY_WEIGHT      = { minor: 3,   modal: 3,   neutral: 2, resolves: 3,   major: 1.5 };
+const NO_PEAK_HARMONY_WEIGHT   = { minor: 3.5, modal: 3.5, neutral: 2, resolves: 0.5, major: 0.5 };
+
+function harmonyWeightsFor(structureHint) {
+  if (!structureHint) return DEFAULT_HARMONY_WEIGHT;
+  return structureHint.hasResolutionPoint ? PEAK_HARMONY_WEIGHT : NO_PEAK_HARMONY_WEIGHT;
+}
+
+// Weighted pick over a pool using each item's `.bright` tag (unset/unknown
+// tags fall back to the 'neutral' weight). Same rand() stream as everything
+// else here, so a given seed still deterministically produces one answer —
+// weighting changes the DISTRIBUTION across seeds, not the determinism of
+// any single seed.
+function weightedPick(pool, weights, rand) {
+  const withWeights = pool.map(item => ({ item, w: weights[item.bright] ?? weights.neutral ?? 1 }));
+  const total = withWeights.reduce((sum, x) => sum + x.w, 0);
+  if (total <= 0) return pool[Math.floor(rand() * pool.length)]; // safety net, should not happen
+  let r = rand() * total;
+  for (const x of withWeights) {
+    if (r < x.w) return x.item;
+    r -= x.w;
+  }
+  return withWeights[withWeights.length - 1].item; // floating-point rounding safety
+}
+
+// opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed,
+//         structureHint:{hasResolutionPoint:boolean}|null }
 // locks drive all three control levels:
 //   randomize all  = locks {}
 //   lock some      = locks {pads:'...'}
 //   full manual    = every role locked
 function resolveArrangement(engine, opts) {
-  const { characterId, palette = 'electronic', locks = {}, seed = Date.now() } = opts;
+  const { characterId, palette = 'electronic', locks = {}, seed = Date.now(), structureHint = null } = opts;
   const c = engine.characters[characterId];
   if (!c) throw new Error(`unknown character ${characterId}`);
   const rand = rng(seed);
@@ -553,6 +606,9 @@ function resolveArrangement(engine, opts) {
     if (locks[role] != null) return locks[role];
     const pool = filterPalette(c.pools[role] || [], palette);
     if (!pool.length) return null;
+    if (role === 'harmony') {
+      return weightedPick(pool, harmonyWeightsFor(structureHint), rand).t;
+    }
     return pool[Math.floor(rand() * pool.length)].t;
   };
 
@@ -807,7 +863,7 @@ function build(engine, opts) {
            overLimit: style.length > CHAR_LIMIT };
 }
 
-Object.assign(window.__ATMOS, { resolveArrangement, renderStyle, renderNegative, build });
+Object.assign(window.__ATMOS, { resolveArrangement, renderStyle, renderNegative, build, DEFAULT_HARMONY_WEIGHT, PEAK_HARMONY_WEIGHT, NO_PEAK_HARMONY_WEIGHT });
 })();
 
 /* core/atom-composers.js */
@@ -3703,6 +3759,168 @@ function dnaFieldsFor(engine) {
 Object.assign(window.__ATMOS, { buildMusicalDNA, dnaFieldsFor, DNA_VERSION, DNA_CONSUMERS });
 })();
 
+/* core/dna-resolver.js */
+(function(){
+/* ==========================================================================
+ * dna-resolver.js — Musical DNA extractor for RESOLVER engines (P8, Phase 2).
+ *
+ * Companion to core/dna.js's buildMusicalDNA() (the atom-path producer). This
+ * is the SECOND producer of the same MusicalDNA shape, sourced from
+ * core/resolver.js's resolveArrangement()/build() output instead of
+ * buildAtoms(). Every downstream consumer (CIL, Lyric, Metatag) reads one
+ * shape regardless of which engine kind produced it — DNA_CONSUMERS and the
+ * rest of the contract from core/dna.js are reused untouched.
+ *
+ * SCOPING (docs/architecture/p8-dna-extractors-plan.md, approved by John
+ * 2026-08-13): resolver's arrangement model is structurally different from
+ * the atom model, not just differently named — flat one-string-per-role
+ * object vs. a tagged array of voice objects, and there is genuinely no
+ * musical key/mode concept anywhere in the resolver data (confirmed by
+ * reading every resolver engine file; "harmony" pool picks are harmonic-
+ * character descriptions, e.g. "a dark phrygian cadence", never a tonic
+ * pitch). Three decisions from that plan, each resolved by John before this
+ * was written:
+ *
+ *   Q1 (musical key): John confirmed (A) — extend the SAME rotating-pool
+ *      variety Balearic/Enigma already have, not invent a literal key value.
+ *      That variety mechanism lives in core/resolver.js's harmony-brightness
+ *      weighting (Levers 2+3, same session) — this module just reports
+ *      harmony.keyMode: null honestly, with provenance:'n/a' (a THIRD
+ *      provenance state, distinct from 'unknown' — 'n/a' means this engine
+ *      kind structurally cannot produce this field, not "could exist, not
+ *      resolved yet"). The actual selected harmony text still reaches the
+ *      Lyric Engine via the arrangement[] projection below, tagged role:
+ *      'harmony' — nothing useful is lost, only the (never-existing) literal
+ *      key value is honestly absent.
+ *   Q2 (arrangement fidelity for the Metatag Engine): John's own read, and it
+ *      simplified this significantly — by the time resolveArrangement() has
+ *      run, each voice's ROLE is already known by construction (arr.pads IS
+ *      definitionally the pad, arr.bass IS definitionally the bass — there is
+ *      no ambiguity to resolve). No bedId/behaviour functional-inference
+ *      equivalent is needed; role is carried straight through.
+ *   Q3 (mastering tail): traced. It's the shared MASTERING constant from
+ *      core/constants.js, identical across every engine/character/modifier —
+ *      confirmed by reading core/resolver.js's renderStyle() and every
+ *      Composer/Producer/Remixer modifier file. Not per-character, not
+ *      touched by any modifier.
+ *
+ * influences[] is sourced from the resolved overlay's `names` array
+ * (core/overlays.js's resolveOverlays() return shape — resolver engines use
+ * the legacy prose-per-slot overlay library, a different modifier data
+ * source than the atom path's gen-2 modifiers, traced while writing this).
+ * ========================================================================*/
+
+const {DNA_VERSION, DNA_CONSUMERS} = window.__ATMOS;
+const {OVERLAYS} = window.__ATMOS;
+const {MASTERING} = window.__ATMOS;
+
+const ROLE_ORDER = ['pads', 'harmony', 'bass', 'drums', 'voice', 'lead', 'color', 'movement'];
+
+/**
+ * buildResolverDNA(arrangement, overlay, opts)
+ *  - arrangement: the `arr` object resolveArrangement()/build() already
+ *    produced (NOT re-resolved here — this is a pure projection, same
+ *    discipline as buildMusicalDNA() never re-resolving buildAtoms()'s work).
+ *  - overlay: the resolved {roles, roleFamily, negative, names} object from
+ *    core/overlays.js's resolveOverlays() — the same object generate.js
+ *    already builds via overlayFor() and passes into build()'s opts.overlay.
+ *    Pass null/undefined when no overlay was applied.
+ *  - opts: { characterId, seed, palette }
+ * Returns a MusicalDNA object in the exact shape core/dna.js produces.
+ */
+function buildResolverDNA(arrangement, overlay, opts) {
+  const o = opts || {};
+  const arr = arrangement || {};
+
+  // arrangement[] projection: one entry per populated role, in canonical
+  // order. Role IS the functional answer here (Q2) — no bedId/behaviour
+  // equivalent exists or is needed for resolver-sourced DNA.
+  const arrangementProjection = ROLE_ORDER
+    .filter(role => arr[role])
+    .map(role => ({
+      role,
+      family: null,       // n/a — resolver doesn't compute an atom-style family
+      fn: null,            // n/a
+      voice: arr[role],
+      register: null,      // n/a
+      prominence: null,    // n/a
+      signature: false,    // n/a — resolver overlays don't carry a signature flag at this layer
+      priority: null,      // n/a
+      origin: 'engine',
+      bedId: null,          // n/a (Q2) — role itself disambiguates function, no tag needed
+      behaviour: null,      // n/a (Q2)
+    }));
+
+  // influences[]: sourced from the resolved overlay's `names` (e.g.
+  // ['composer:zimmer']), looked up against the legacy OVERLAYS library for
+  // a display label. Same renderPolicy:'never' contract as the atom path —
+  // generic fingerprint only, never a name in rendered output.
+  const influences = ((overlay && overlay.names) || []).map(nameStr => {
+    const [kind, id] = String(nameStr).split(':');
+    const ov = (OVERLAYS[kind] || {})[id];
+    return {
+      key: id,
+      kind,                                  // 'composer' | 'producer' | 'remixer'
+      label: ov ? ov.label : id,             // UI label only
+      nameClass: 'person',
+      renderPolicy: 'never',                 // generic fingerprint, never the name in output
+      applied: true,
+    };
+  });
+
+  const tempoSpec = arr.beatless
+    ? 'beatless'
+    : (Array.isArray(arr.bpm) ? `${arr.bpm[0]}-${arr.bpm[1]} BPM` : null);
+
+  return {
+    meta: {
+      dnaVersion: DNA_VERSION,
+      engineKind: 'resolver',
+      source: null,
+      characterId: o.characterId || null,
+      label: arr.character || null,
+      palette: o.palette || null,
+      seed: o.seed != null ? (o.seed >>> 0) : null,
+    },
+    identity: {
+      genreFamily: null,           // n/a — resolver has no separate family/subgenre split; genreAnchor carries both
+      subgenre: arr.character || null,
+      genreAnchor: arr.genre || null,
+    },
+    influences,
+    // Q1: no key/mode concept exists in this data model — see module header.
+    // Provenance 'n/a' below (not 'unknown') marks this as structurally
+    // absent, not merely unresolved.
+    harmony: { keyMode: null },
+    arrangement: arrangementProjection,
+    tempo: { spec: tempoSpec, tempoLock: !!arr.tempoLock },
+    dynamics: { arc: (arr.ip && arr.ip.arc) || null, beatless: !!arr.beatless },
+    // Q3: the mastering tail is a single shared constant across every
+    // engine/character/modifier — never per-character, never touched by a
+    // Composer/Producer/Remixer modifier. Traced, not guessed.
+    production: { masteringTail: MASTERING, characteristics: [] },
+    vocal: { mode: 'instrumental', characteristics: null, performanceStyle: null }, // lyric engine flips to 'vocal'; same as atom path
+    affect: { mood: null, emotionalAtmosphere: null },                              // lyric/metatag only; CIL fills later
+    provenance: {
+      identity: 'derived',
+      influences: influences.length ? 'derived' : 'n/a',
+      harmony: 'n/a',     // structurally absent for this engine kind (Q1) — distinct from 'unknown'
+      arrangement: 'derived',
+      tempo: 'derived',
+      dynamics: 'derived',
+      production: 'derived',
+      vocal: 'unknown',   // must be asked / inferred, same as atom path
+      affect: 'unknown',
+    },
+    consumers: DNA_CONSUMERS,
+    render: null,          // caller already has the rendered style from build(); not duplicated here
+    anchor: null,           // resolver engines don't currently support anchor identities
+  };
+}
+
+Object.assign(window.__ATMOS, { buildResolverDNA });
+})();
+
 /* core/profiles.js */
 (function(){
 /* ==========================================================================
@@ -5637,6 +5855,17 @@ function validateEnergyCoherence(structure) {
   return { ok: violations.length === 0, violations };
 }
 
+/* ---- Resolution-point check (2026-08-13) -----------------------------------
+ * Used by core/resolver.js's harmony-brightness Lever 3: does this structure
+ * have a genuine earned peak (energy 5 somewhere in its shape) for a
+ * minor-to-major harmonic resolution to land on? Downtempo/Ambient is the
+ * one shipped preset that tops out at energy 4 (no Chorus/Drop/Climax) — for
+ * that preset this correctly returns false. Lives here, not in resolver.js,
+ * so structure facts stay in exactly one place. */
+function structureHasResolutionPoint(structure) {
+  return !!(structure && Array.isArray(structure.energyShape) && structure.energyShape.some(e => e >= 5));
+}
+
 /* ---- Suno structural tag set (guide §6) ------------------------------------
  * Reliably-read bracket tags. Used by the metatag/lyric engine to confirm a
  * section label maps to a tag Suno actually recognises. */
@@ -5662,7 +5891,7 @@ function structureCallPayload(presetId) {
   };
 }
 
-Object.assign(window.__ATMOS, { resolveStructure, presetsForType, validateEnergyCoherence, structureCallPayload, SONG_TYPES, SECTION_ENERGY, COHERENCE_RULES, STRUCTURE_PRESETS, BEATLESS_ALLOWED_PRESETS, SUNO_STRUCTURE_TAGS });
+Object.assign(window.__ATMOS, { resolveStructure, presetsForType, validateEnergyCoherence, structureHasResolutionPoint, structureCallPayload, SONG_TYPES, SECTION_ENERGY, COHERENCE_RULES, STRUCTURE_PRESETS, BEATLESS_ALLOWED_PRESETS, SUNO_STRUCTURE_TAGS });
 })();
 
 /* core/lyric-controls.js */
@@ -6898,17 +7127,17 @@ const P = {
     bansuri:   { t: 'a bansuri bamboo-flute melody', d: 'A' },
   },
   harmony: {
-    minorModal:{ t: 'slow minor-modal chord changes', d: 'B' },
-    suspended: { t: 'suspended chords resolving on the chorus lift', d: 'B' },
-    droneTonic:{ t: 'an unresolved static drone-tonic', d: 'B' },
-    add9:      { t: 'lush add9 chord voicings', d: 'B' },
-    phrygian:  { t: 'a dark phrygian cadence', d: 'B' },
-    majorLift: { t: 'a major-key chord lift on the chorus', d: 'B' },
-    plagalCadence:{ t: 'a plagal cadence resolving to the tonic', d: 'B' },
-    modalResolve: { t: 'a modal cadence landing on the root', d: 'B' },
-    minorToMajor: { t: 'a minor-to-relative-major resolution on the chorus', d: 'B' },
-    risingProg:   { t: 'a rising chord progression that resolves upward', d: 'B' },
-    sacredCadence:{ t: 'a sacred choral cadence resolving on the final chord', d: 'B' },
+    minorModal:{ t: 'slow minor-modal chord changes', d: 'B', bright: 'minor' },
+    suspended: { t: 'suspended chords resolving on the chorus lift', d: 'B', bright: 'neutral' },
+    droneTonic:{ t: 'an unresolved static drone-tonic', d: 'B', bright: 'modal' },
+    add9:      { t: 'lush add9 chord voicings', d: 'B', bright: 'neutral' },
+    phrygian:  { t: 'a dark phrygian cadence', d: 'B', bright: 'modal' },
+    majorLift: { t: 'a major-key chord lift on the chorus', d: 'B', bright: 'major' },
+    plagalCadence:{ t: 'a plagal cadence resolving to the tonic', d: 'B', bright: 'neutral' },
+    modalResolve: { t: 'a modal cadence landing on the root', d: 'B', bright: 'modal' },
+    minorToMajor: { t: 'a minor-to-relative-major resolution on the chorus', d: 'B', bright: 'resolves' },
+    risingProg:   { t: 'a rising chord progression that resolves upward', d: 'B', bright: 'neutral' },
+    sacredCadence:{ t: 'a sacred choral cadence resolving on the final chord', d: 'B', bright: 'neutral' },
   },
   voice: {
     latinChant:   { t: 'distant monastic Latin chant', d: 'A' },
@@ -7190,17 +7419,17 @@ const P = {
     arpSynth:        { t: 'a climbing synth arpeggio lead', d: 'E' },
   },
   harmony: {
-    minorCinematic: { t: 'dark minor-key cinematic chord changes', d: 'B' },
-    carminaProg:    { t: 'a Carmina-Burana-style ostinato progression', d: 'A' },
-    suspendedLift:  { t: 'suspended chords resolving on the chorus lift', d: 'B' },
-    majorAnthem:    { t: 'a triumphant major-key anthem progression', d: 'B' },
-    modalGregorian: { t: 'a modal Gregorian chord movement', d: 'B' },
-    risingProg:     { t: 'a rising chord progression that resolves upward', d: 'B' },
-    minorToMajor:   { t: 'a minor-to-relative-major resolution on the chorus', d: 'B' },
-    plagalCadence:  { t: 'a plagal cadence resolving to the tonic', d: 'B' },
-    phrygianCadence:{ t: 'a dark phrygian cadence', d: 'B' },
-    sacredCadence:  { t: 'a sacred choral cadence resolving on the final chord', d: 'B' },
-    pedalTonic:     { t: 'a sustained tonic pedal under shifting harmony', d: 'B' },
+    minorCinematic: { t: 'dark minor-key cinematic chord changes', d: 'B', bright: 'minor' },
+    carminaProg:    { t: 'a Carmina-Burana-style ostinato progression', d: 'A', bright: 'minor' },
+    suspendedLift:  { t: 'suspended chords resolving on the chorus lift', d: 'B', bright: 'neutral' },
+    majorAnthem:    { t: 'a triumphant major-key anthem progression', d: 'B', bright: 'major' },
+    modalGregorian: { t: 'a modal Gregorian chord movement', d: 'B', bright: 'modal' },
+    risingProg:     { t: 'a rising chord progression that resolves upward', d: 'B', bright: 'neutral' },
+    minorToMajor:   { t: 'a minor-to-relative-major resolution on the chorus', d: 'B', bright: 'resolves' },
+    plagalCadence:  { t: 'a plagal cadence resolving to the tonic', d: 'B', bright: 'neutral' },
+    phrygianCadence:{ t: 'a dark phrygian cadence', d: 'B', bright: 'modal' },
+    sacredCadence:  { t: 'a sacred choral cadence resolving on the final chord', d: 'B', bright: 'neutral' },
+    pedalTonic:     { t: 'a sustained tonic pedal under shifting harmony', d: 'B', bright: 'modal' },
   },
   voice: {
     pseudoLatinChoir:{ t: 'a dramatic mixed choir chanting in a pseudo-Latin language', d: 'A' },
@@ -7499,17 +7728,17 @@ const P = {
     ocarinaLead:  { t: 'a hollow ocarina line', d: 'B' },
   },
   harmony: {
-    modalMinor:   { t: 'modal minor chord changes', d: 'B' },
-    suspendedLoop:{ t: 'a suspended two-chord loop that keeps turning', d: 'B' },
-    majorLift:    { t: 'a warm major-key progression lifting on the chorus', d: 'B' },
-    pentatonic:   { t: 'a pentatonic modal movement', d: 'B' },
-    romaniMinor:  { t: 'a Romani harmonic-minor progression', d: 'B' },
-    montuno:      { t: 'an Afro-Cuban montuno chord vamp', d: 'B' },
-    droneTonic:   { t: 'a static tonic drone under a shifting melody', d: 'B' },
-    plagalHome:   { t: 'a plagal cadence resolving home', d: 'B' },
-    risingProg:   { t: 'a rising progression that resolves upward', d: 'B' },
-    minorToMajor: { t: 'a minor-to-relative-major resolution on the lift', d: 'B' },
-    aeolianClose: { t: 'an aeolian cadence settling on the tonic', d: 'B' },
+    modalMinor:   { t: 'modal minor chord changes', d: 'B', bright: 'minor' },
+    suspendedLoop:{ t: 'a suspended two-chord loop that keeps turning', d: 'B', bright: 'neutral' },
+    majorLift:    { t: 'a warm major-key progression lifting on the chorus', d: 'B', bright: 'major' },
+    pentatonic:   { t: 'a pentatonic modal movement', d: 'B', bright: 'modal' },
+    romaniMinor:  { t: 'a Romani harmonic-minor progression', d: 'B', bright: 'minor' },
+    montuno:      { t: 'an Afro-Cuban montuno chord vamp', d: 'B', bright: 'neutral' },
+    droneTonic:   { t: 'a static tonic drone under a shifting melody', d: 'B', bright: 'modal' },
+    plagalHome:   { t: 'a plagal cadence resolving home', d: 'B', bright: 'neutral' },
+    risingProg:   { t: 'a rising progression that resolves upward', d: 'B', bright: 'neutral' },
+    minorToMajor: { t: 'a minor-to-relative-major resolution on the lift', d: 'B', bright: 'resolves' },
+    aeolianClose: { t: 'an aeolian cadence settling on the tonic', d: 'B', bright: 'minor' },
   },
   voice: {
     pygmyHocket:  { t: 'interlocking hocketed forest chant', d: 'A' },
@@ -7837,16 +8066,16 @@ const P = {
     housePiano:  { t: 'a stabbing house piano riff', d: 'B' },
   },
   harmony: {
-    modalMinor:   { t: 'modal minor chord changes', d: 'B' },
-    pentatonic:   { t: 'a pentatonic modal movement', d: 'B' },
-    droneTonic:   { t: 'a static tonic drone under a shifting melody', d: 'B' },
-    suspendedLoop:{ t: 'a suspended two-chord loop that keeps turning', d: 'B' },
-    majorLift:    { t: 'a warm major-key progression lifting on the chorus', d: 'B' },
-    minorToMajor: { t: 'a minor-to-relative-major resolution on the lift', d: 'B' },
-    plagalHome:   { t: 'a plagal cadence resolving home', d: 'B' },
-    risingProg:   { t: 'a rising progression that resolves upward', d: 'B' },
-    aeolianClose: { t: 'an aeolian cadence settling on the tonic', d: 'B' },
-    pedalHarmony: { t: 'a sustained tonic pedal under shifting harmony', d: 'B' },
+    modalMinor:   { t: 'modal minor chord changes', d: 'B', bright: 'minor' },
+    pentatonic:   { t: 'a pentatonic modal movement', d: 'B', bright: 'modal' },
+    droneTonic:   { t: 'a static tonic drone under a shifting melody', d: 'B', bright: 'modal' },
+    suspendedLoop:{ t: 'a suspended two-chord loop that keeps turning', d: 'B', bright: 'neutral' },
+    majorLift:    { t: 'a warm major-key progression lifting on the chorus', d: 'B', bright: 'major' },
+    minorToMajor: { t: 'a minor-to-relative-major resolution on the lift', d: 'B', bright: 'resolves' },
+    plagalHome:   { t: 'a plagal cadence resolving home', d: 'B', bright: 'neutral' },
+    risingProg:   { t: 'a rising progression that resolves upward', d: 'B', bright: 'neutral' },
+    aeolianClose: { t: 'an aeolian cadence settling on the tonic', d: 'B', bright: 'minor' },
+    pedalHarmony: { t: 'a sustained tonic pedal under shifting harmony', d: 'B', bright: 'modal' },
   },
   voice: {
     elderChant:   { t: 'a lone elder male ceremonial chant', d: 'A' },
@@ -10421,6 +10650,7 @@ Object.assign(window.__ATMOS, { newSeed, initState, setSongType, setStructurePre
 const {getEngine, legacyClassic} = window.__ATMOS;
 const {buildAtoms} = window.__ATMOS;
 const {buildMusicalDNA} = window.__ATMOS;
+const {buildResolverDNA} = window.__ATMOS;
 const {inferCIL} = window.__ATMOS;
 const {runLyricEngine} = window.__ATMOS;
 const {runMetatagEngine} = window.__ATMOS;
@@ -10432,7 +10662,7 @@ const {resolveOverlays} = window.__ATMOS;
 const {EngineExtras} = window.__ATMOS;
 const {MAX_MODE_STR} = window.__ATMOS;
 const {buildStylePrompt, buildNegativePrompt, buildLyricsField} = window.__ATMOS;
-const {resolveStructure} = window.__ATMOS;
+const {resolveStructure, structureHasResolutionPoint} = window.__ATMOS;
 const {makeClaudeTransport} = window.__ATMOS;
 const {makeGeminiTransport} = window.__ATMOS;
 
@@ -10521,9 +10751,19 @@ function generate(S) {
     const r = S.res;
     const locks = (r.level === 'random') ? {} : r.locks;
     const ch = eng.module.characters[r.characterId] || {};
+    // Harmony brightness Lever 3 (John, 2026-08-13): feed the already-resolved
+    // structure into resolveArrangement() so its harmony pick can favour a
+    // minor-to-major resolution when there's a genuine peak to land on, or
+    // stay flatter when there isn't. resolveStructure(S.structurePresetId)
+    // is the same call lyricStructure(S) makes below — computed once here to
+    // avoid resolving it twice.
+    const structureForHarmony = resolveStructure(S.structurePresetId);
+    const structureHint = structureForHarmony
+      ? { hasResolutionPoint: structureHasResolutionPoint(structureForHarmony) } : null;
     const out = build(eng.module, {
       characterId: r.characterId, palette: r.palette, locks, seed: S.seed,
       overlay: overlayFor(S, !!ch.beatless),
+      structureHint,
     });
     const style = applyMax(out.style, S.maxMode);
     return {
@@ -10555,25 +10795,49 @@ function generate(S) {
 // buildLiveLyricRequest() below and validate-live-lyric.mjs, which tests that
 // piece plus the full async flow with an injected fake transport.
 //
-// P8 GAP, STATED RATHER THAN HIDDEN: only 'atom' engines currently have
-// buildMusicalDNA() wired (DNA extractors for resolver/legacy engines are
-// P8, not yet built). Calling this for a resolver or legacy engine throws a
-// clear error rather than silently producing something wrong.
+// P8 PHASE 2 (2026-08-13, docs/architecture/p8-dna-extractors-plan.md):
+// resolver engines now produce Musical DNA too, via buildResolverDNA(). The
+// P8 gap narrows to legacy engines only (their DNA extractor is a separate,
+// not-yet-scoped future pass — legacy's cluster/preset/classic-slot model is
+// a THIRD data shape, deliberately not guessed at alongside this phase).
 function buildLiveLyricRequest(S) {
   const eng = getEngine(S.engineId);
-  if (eng.kind !== 'atom') {
+  if (eng.kind !== 'atom' && eng.kind !== 'resolver') {
     throw new Error(
-      `Live lyric generation needs Musical DNA, which only 'atom' engines currently produce ` +
-      `(P8 — DNA extractors for resolver/legacy engines — is not built yet). ` +
-      `Selected engine "${S.engineId}" is kind "${eng.kind}".`
+      `Live lyric generation needs Musical DNA. Atom and resolver engines produce it; ` +
+      `legacy engines don't yet (their DNA extractor is a separate future phase — see ` +
+      `docs/architecture/p8-dna-extractors-plan.md). Selected engine "${S.engineId}" is kind "${eng.kind}".`
     );
   }
-  const a = S.atom;
-  const palette = a.palette || 'electronic';
-  const baseChar = eng.module[a.characterId];
-  const dna = buildMusicalDNA(baseChar, palette, {
-    seed: S.seed, characterId: a.characterId, overlayId: a.overlayId || null,
-  });
+
+  let dna;
+  if (eng.kind === 'atom') {
+    const a = S.atom;
+    const palette = a.palette || 'electronic';
+    const baseChar = eng.module[a.characterId];
+    dna = buildMusicalDNA(baseChar, palette, {
+      seed: S.seed, characterId: a.characterId, overlayId: a.overlayId || null,
+    });
+  } else {
+    // resolver: resolve the arrangement the SAME way generate()'s resolver
+    // branch does (same overlayFor/structureHint inputs), then project it
+    // into Musical DNA via buildResolverDNA() rather than re-deriving style.
+    const r = S.res;
+    const locks = (r.level === 'random') ? {} : r.locks;
+    const ch = eng.module.characters[r.characterId] || {};
+    const structureForHarmony = resolveStructure(S.structurePresetId);
+    const structureHint = structureForHarmony
+      ? { hasResolutionPoint: structureHasResolutionPoint(structureForHarmony) } : null;
+    const overlay = overlayFor(S, !!ch.beatless);
+    const out = build(eng.module, {
+      characterId: r.characterId, palette: r.palette, locks, seed: S.seed,
+      overlay, structureHint,
+    });
+    dna = buildResolverDNA(out.arrangement, overlay, {
+      characterId: r.characterId, seed: S.seed, palette: r.palette,
+    });
+  }
+
   const cil = inferCIL(dna);
   const structure = lyricStructure(S);
   const l = S.lyric || {};

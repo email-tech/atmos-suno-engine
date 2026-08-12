@@ -2,13 +2,66 @@ import { ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette } f
 import { compactPart } from './compress.js';
 import { slotFamily } from './overlays.js';
 
-// opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed }
+/* ---- HARMONY BRIGHTNESS WEIGHTING (John, 2026-08-13) ----------------------
+ * "Music played in a Major Key sounds too happy and sugary sweet... this key
+ * use must be controlled somehow, but not eliminated entirely... don't make
+ * it the only lever." Two levers, both scoped to the harmony role only —
+ * pads/bass/lead/etc. are instrument choices, not a tonality concern.
+ *
+ * Every harmony pool entry across the 4 resolver engines was read and hand-
+ * classified by its own text (not guessed from the key name) into one of 5
+ * brightness tags: minor, modal, neutral, resolves (the "minor-to-relative-
+ * major" entries — John's own suggested mechanism, which turned out to
+ * already exist as pool vocabulary), and major.
+ *
+ * LEVER 2 (general bias): DEFAULT_HARMONY_WEIGHT favours minor/modal over
+ * resolves/major, but every tag stays reachable — nothing is eliminated.
+ *
+ * LEVER 3 (structure-aware): when the caller passes structureHint indicating
+ * the selected structure preset has a genuine earned peak (energy 5 somewhere
+ * in its shape — a real chorus/drop/climax to resolve INTO), 'resolves' and
+ * 'major' get boosted, since there's an actual payoff moment for that arc to
+ * land on. When the structure has NO such peak (e.g. Downtempo/Ambient, which
+ * tops out at energy 4 — nothing to resolve onto), they're suppressed further
+ * instead, keeping flat/ambient structures honestly flat rather than faking a
+ * resolution that has nowhere to go. Omitting structureHint entirely (no
+ * structure selected) falls back to the Lever-2-only default — this keeps
+ * every existing call site working exactly as before, additive not breaking.
+ * ========================================================================*/
+export const DEFAULT_HARMONY_WEIGHT   = { minor: 3,   modal: 3,   neutral: 2, resolves: 1.5, major: 1 };
+export const PEAK_HARMONY_WEIGHT      = { minor: 3,   modal: 3,   neutral: 2, resolves: 3,   major: 1.5 };
+export const NO_PEAK_HARMONY_WEIGHT   = { minor: 3.5, modal: 3.5, neutral: 2, resolves: 0.5, major: 0.5 };
+
+function harmonyWeightsFor(structureHint) {
+  if (!structureHint) return DEFAULT_HARMONY_WEIGHT;
+  return structureHint.hasResolutionPoint ? PEAK_HARMONY_WEIGHT : NO_PEAK_HARMONY_WEIGHT;
+}
+
+// Weighted pick over a pool using each item's `.bright` tag (unset/unknown
+// tags fall back to the 'neutral' weight). Same rand() stream as everything
+// else here, so a given seed still deterministically produces one answer —
+// weighting changes the DISTRIBUTION across seeds, not the determinism of
+// any single seed.
+function weightedPick(pool, weights, rand) {
+  const withWeights = pool.map(item => ({ item, w: weights[item.bright] ?? weights.neutral ?? 1 }));
+  const total = withWeights.reduce((sum, x) => sum + x.w, 0);
+  if (total <= 0) return pool[Math.floor(rand() * pool.length)]; // safety net, should not happen
+  let r = rand() * total;
+  for (const x of withWeights) {
+    if (r < x.w) return x.item;
+    r -= x.w;
+  }
+  return withWeights[withWeights.length - 1].item; // floating-point rounding safety
+}
+
+// opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed,
+//         structureHint:{hasResolutionPoint:boolean}|null }
 // locks drive all three control levels:
 //   randomize all  = locks {}
 //   lock some      = locks {pads:'...'}
 //   full manual    = every role locked
 export function resolveArrangement(engine, opts) {
-  const { characterId, palette = 'electronic', locks = {}, seed = Date.now() } = opts;
+  const { characterId, palette = 'electronic', locks = {}, seed = Date.now(), structureHint = null } = opts;
   const c = engine.characters[characterId];
   if (!c) throw new Error(`unknown character ${characterId}`);
   const rand = rng(seed);
@@ -16,6 +69,9 @@ export function resolveArrangement(engine, opts) {
     if (locks[role] != null) return locks[role];
     const pool = filterPalette(c.pools[role] || [], palette);
     if (!pool.length) return null;
+    if (role === 'harmony') {
+      return weightedPick(pool, harmonyWeightsFor(structureHint), rand).t;
+    }
     return pool[Math.floor(rand() * pool.length)].t;
   };
 

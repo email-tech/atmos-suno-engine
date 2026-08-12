@@ -265,6 +265,17 @@ export function validateEnergyCoherence(structure) {
   return { ok: violations.length === 0, violations };
 }
 
+/* ---- Resolution-point check (2026-08-13) -----------------------------------
+ * Used by core/resolver.js's harmony-brightness Lever 3: does this structure
+ * have a genuine earned peak (energy 5 somewhere in its shape) for a
+ * minor-to-major harmonic resolution to land on? Downtempo/Ambient is the
+ * one shipped preset that tops out at energy 4 (no Chorus/Drop/Climax) — for
+ * that preset this correctly returns false. Lives here, not in resolver.js,
+ * so structure facts stay in exactly one place. */
+export function structureHasResolutionPoint(structure) {
+  return !!(structure && Array.isArray(structure.energyShape) && structure.energyShape.some(e => e >= 5));
+}
+
 /* ---- Suno structural tag set (guide §6) ------------------------------------
  * Reliably-read bracket tags. Used by the metatag/lyric engine to confirm a
  * section label maps to a tag Suno actually recognises. */
