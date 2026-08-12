@@ -33,6 +33,7 @@ const files = [
   'core/atom-modifiers.js',
   'core/structure.js',
   'core/lyric-controls.js',
+  'core/lyric-validator.js',
   'core/lyric.js',
   'core/metatag.js',
   'engines/delerium.js',

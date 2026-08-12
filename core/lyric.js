@@ -27,6 +27,7 @@
 
 import { CONTROL_OPTIONS, STRUCTURE_TEMPLATES, TEMPLATE_FOR_SUBGENRE, templateById } from './lyric-controls.js';
 import { DNA_CONSUMERS } from './dna.js';
+import { validateLyrics, QUALITY_THRESHOLD, MAX_LYRIC_ATTEMPTS } from './lyric-validator.js';
 
 export const LYRIC_VERSION = '1.0';
 export const DEFAULT_LYRIC_MODEL = 'claude-opus-4-8'; // current; configurable by the client
@@ -143,6 +144,14 @@ export function assembleLyricBrief(dna, cil, answers, structure) {
     perspective:  a['song.perspective']  || 'First person',
     languageStyle:a['song.languageStyle']|| 'Poetic',
     titleSeed:    a['song.title'] || null,
+    // QUALITY SPEC (2026-08-12, added alongside the lyric-quality validator).
+    // CONTROL_OPTIONS.lineLength / rhymeDensity existed as vocabulary but were
+    // never read from answers or surfaced to the LLM — a prompt asking for a
+    // spec the model was never told, then silently graded against nothing.
+    // Wired here so the SAME value drives both the prompt instruction and the
+    // independent validator: one source of truth, not two things that can drift.
+    lineLength:   a['song.lineLength']   || 'Flexible',
+    rhymeDensity: a['song.rhymeDensity'] || 'Moderate',
     template,
     // structure-first pipeline section list (names + positions only). Null
     // when no structure was supplied — buildLyricPrompt() falls back to
@@ -185,13 +194,22 @@ export function buildLyricPrompt(brief) {
   return { instrumental: false, lyrics: null, prompt };
 }
 
-export function buildRepairPrompt(brief, initialResult) {
+// buildRepairPrompt: seeded with the INDEPENDENT validator's specific findings
+// (qualityResult, from core/lyric-validator.js's validateLyrics()) rather than
+// the LLM's own self-report. qualityResult is optional for callers that only
+// have the model's self-reported validation block (pre-quality-gate callers);
+// when present it always wins, since it's the real check.
+export function buildRepairPrompt(brief, initialResult, qualityResult) {
   const sectionNames = brief.structureSections || brief.template.sections;
   const labels = sectionNames.map(s => `[${s}]`);
+  const issues = qualityResult ? qualityResult.issues
+    : (initialResult.validation ? initialResult.validation.issues : []);
+  const score = qualityResult ? qualityResult.score
+    : (initialResult.validation ? initialResult.validation.score : 'n/a');
   return [
-    'You generated lyrics that failed validation. Rewrite only where needed; improve the score to 80+.',
-    `Validation score: ${initialResult.validation ? initialResult.validation.score : 'n/a'}`,
-    'Issues:', JSON.stringify(initialResult.validation ? initialResult.validation.issues : [], null, 2),
+    `You generated lyrics that failed independent quality validation (score ${score}, threshold ${QUALITY_THRESHOLD}). Rewrite only where needed to fix the specific issues below — do not start over.`,
+    'Specific issues found (fix these exactly, not general impressions):',
+    JSON.stringify(issues, null, 2),
     'Preserve the concept, structure, section labels, language settings, and originality rules.',
     lyricSchema(),
     contextBlock(brief, labels),
@@ -212,6 +230,15 @@ export function buildLyricBatch(dna, cil, answersList, structure) {
 }
 
 // --- runtime driver (transport injected; never called in headless tests) ----
+// ROUND-ROBIN QUALITY GATE (2026-08-12, John — 85% threshold, round-robin
+// repair on failure). `repair: true` enables the loop; false/omitted keeps the
+// old single-shot behaviour (one generation, no retry) for callers that don't
+// want the extra latency/cost. When looping: generate -> validate
+// INDEPENDENTLY (core/lyric-validator.js, not the model's self-report) ->
+// if below QUALITY_THRESHOLD, build a repair prompt seeded with the SPECIFIC
+// deterministic failures -> regenerate -> re-validate -> repeat, capped at
+// MAX_LYRIC_ATTEMPTS (initial + repairs). Returns the best-scoring attempt
+// seen even if the threshold is never crossed, flagged via thresholdMet.
 export async function runLyricEngine({ dna, cil, answers, structure, transport, model, temperature, maxTokens, repair }) {
   const brief = assembleLyricBrief(dna, cil, answers, structure);
   const built = buildLyricPrompt(brief);
@@ -219,13 +246,29 @@ export async function runLyricEngine({ dna, cil, answers, structure, transport, 
     return { instrumental: true, title: brief.titleSeed || null, lyrics: '[Instrumental]', brief };
   }
   if (typeof transport !== 'function') throw new Error('runLyricEngine needs a transport(prompt)->text function.');
-  const raw = await transport({ prompt: built.prompt, model: model || DEFAULT_LYRIC_MODEL, temperature, maxTokens });
-  let result = parseLyricJSON(raw);
-  if (repair && result && result.validation && result.validation.passed === false) {
-    const raw2 = await transport({ prompt: buildRepairPrompt(brief, result), model: model || DEFAULT_LYRIC_MODEL, temperature, maxTokens });
-    result = parseLyricJSON(raw2) || result;
+
+  const maxAttempts = repair ? MAX_LYRIC_ATTEMPTS : 1;
+  let prompt = built.prompt;
+  let best = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const raw = await transport({ prompt, model: model || DEFAULT_LYRIC_MODEL, temperature, maxTokens });
+    const result = parseLyricJSON(raw);
+    if (!result || typeof result.lyrics !== 'string') {
+      // malformed JSON — nothing to validate; retry the SAME prompt if attempts remain.
+      if (attempt === maxAttempts) {
+        return { instrumental: false, brief, attempts: attempt, thresholdMet: false, parseError: true };
+      }
+      continue;
+    }
+    const quality = validateLyrics(result.lyrics, brief);
+    const record = { ...result, brief, quality, attempts: attempt, thresholdMet: quality.passed };
+    if (!best || quality.score > best.quality.score) best = record;
+    if (quality.passed) return { instrumental: false, ...record };
+    if (attempt < maxAttempts) prompt = buildRepairPrompt(brief, result, quality);
   }
-  return { instrumental: false, ...result, brief };
+
+  return { instrumental: false, ...best };
 }
 
 export function parseLyricJSON(text) {
@@ -264,6 +307,8 @@ Perspective: ${brief.perspective}
 Language style: ${brief.languageStyle}
 Optional title seed: ${brief.titleSeed || 'none - create a suitable title from the subject/topic'}
 Vocal delivery: ${brief.deliveryClass || 'lead-melodic'}
+Line length target: ${brief.lineLength}
+Rhyme density target: ${brief.rhymeDensity}
 Structure: ${structureLabel}
 Required sections in order: ${labels.join(', ')}`;
 }
@@ -275,7 +320,8 @@ function conceptRules() {
 - Theme lens must change the angle of interpretation, not just wording.
 - Mood must be interpreted through the specific subject, never named as a bare adjective.
 - Energy must affect lyric density, section momentum, and how fast the emotional point arrives.
-- Perspective must control who is speaking in every section.`;
+- Perspective must control who is speaking in every section.
+- Line length target and rhyme density target are requirements, not suggestions — every line should land inside the requested syllable range, and end-rhyme frequency should match the requested density. These will be checked independently after generation.`;
 }
 function originalityRules() {
   return `Originality and safety rules (mandatory):
@@ -285,5 +331,6 @@ function originalityRules() {
 }
 function validationBlock() {
   return `Validation:
-Standard validation passes at 80+. Assess concept fidelity, source-type interpretation, theme lens, perspective consistency, energy match, structure/section-label compliance, integrated Suno metatags, chorus memorability, hook clarity, singability, rhyme naturalness, cliche avoidance, originality, and absence of explanatory text.`;
+Self-assess and report a score out of 100 in the JSON validation block. Aim for ${QUALITY_THRESHOLD}+. Assess concept fidelity, source-type interpretation, theme lens, perspective consistency, energy match, structure/section-label compliance, integrated Suno metatags, chorus memorability, hook clarity, singability, rhyme naturalness, cliche avoidance, originality, and absence of explanatory text.
+Note: an independent, deterministic check runs after this response (section labels, syllable count, rhyme density) — your self-assessment is a sanity check, not the final gate. Meeting the line-length and rhyme-density targets exactly matters more than a high self-reported score.`;
 }
