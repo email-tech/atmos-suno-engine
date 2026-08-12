@@ -37,7 +37,17 @@ Retention is not memory and not prose. Work through this list in order.
 
 5. **Query the Notion decision log** for state and open questions.
 
-6. **Confirm HEAD matches origin** before proposing work.
+6. **Confirm HEAD matches origin, AND matches what the log's most recent
+   entry thinks HEAD is.** These are two different checks — origin sync
+   catches a bad local clone; this one catches a STALE LOG. On 2026-08-12
+   the log's last entry was three weeks and ten commits behind actual HEAD:
+   a full session's work (a linking guide, a whole pipeline reorder, a
+   quality gate, live transport wiring, a second LLM provider, P8) had
+   shipped and pushed but never got logged. If this happens again: `git log
+   --oneline` on main back past the log's last referenced commit, then read
+   every unlogged commit's FULL message before writing or building anything
+   — they are written in decision-log detail already, so backfilling from
+   them loses little. Do this before step 7+ of any new work, not after.
 
 ## The rule that keeps this from happening again
 
