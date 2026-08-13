@@ -34,11 +34,15 @@ const bad = (m) => { console.log('  FAIL:', m); fail++; };
 const ok = (cond, m) => { if (!cond) bad(m); };
 
 const bundleCode = fs.readFileSync('./js/app.bundle.js', 'utf8');
+// Use the REAL index.html shell (not a bare <main id="app">) so this
+// validator tests the actual header markup the build marker renders into,
+// not a stand-in that happens to be missing it.
+const indexHtml = fs.readFileSync('./index.html', 'utf8');
 const jsErrors = [];
 const vc = new VirtualConsole();
 vc.on('jsdomError', (e) => jsErrors.push((e.detail && e.detail.stack) || e.message));
 
-const dom = new JSDOM('<!doctype html><html><body><main id="app"></main></body></html>', {
+const dom = new JSDOM(indexHtml, {
   url: 'http://localhost/', runScripts: 'dangerously', resources: 'usable', virtualConsole: vc,
 });
 // polyfills for browser APIs jsdom doesn't provide but every real browser does
@@ -52,10 +56,24 @@ await new Promise(r => setTimeout(r, 150));
 const doc = dom.window.document;
 const root = doc.getElementById('app');
 
-if (jsErrors.length) {
-  jsErrors.forEach(e => bad(`uncaught error on initial boot: ${e.split('\n')[0]}`));
+// "Could not load link/script" for css/styles.css and the index.html
+// <script src> tag are expected here — jsdom's `resources: 'usable'` can't
+// resolve local relative file:// paths in this harness, and the bundle is
+// injected separately below anyway (that's the actual code under test).
+// Real code errors are anything else jsdomError reports.
+const realErrors = jsErrors.filter(e => !/Could not load (link|script)/.test(e));
+if (realErrors.length) {
+  realErrors.forEach(e => bad(`uncaught error on initial boot: ${e.split('\n')[0]}`));
 }
 ok(root.innerHTML.length > 500, 'app should render substantial content on initial boot, got ' + root.innerHTML.length + ' chars');
+
+// ---- build marker (2026-08-13): must actually render, since this is the
+// whole mechanism that lets a stale local ZIP copy be spotted at a glance --
+{
+  const sub = doc.querySelector('.topbar .sub');
+  ok(!!sub, 'header .sub element should exist for the build marker to render into');
+  ok(!!sub && /build [0-9a-f]{6,}/.test(sub.textContent), `build marker should show a commit hash, got: "${sub && sub.textContent}"`);
+}
 
 // ---- every engine tab must boot without throwing ---------------------------
 const EXPECTED_TAB_COUNT = 7;

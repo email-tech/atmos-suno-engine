@@ -5,8 +5,30 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+
+// BUILD MARKER (2026-08-13, John): this app is distributed as a downloaded
+// ZIP snapshot ("Download-ZIP -> open index.html", per README.md), not a
+// live-synced folder — a browser hard refresh only clears cache for
+// whatever's already on disk, it can't pull in a commit that only exists on
+// GitHub. That gap caused two rounds of "this is still broken" over content
+// that had, in fact, already been fixed and pushed. This stamps the commit
+// this bundle was built from directly into the app, rendered in the header,
+// so a stale local copy is visible at a glance instead of requiring a fresh
+// round of investigation each time. Falls back gracefully if git isn't
+// available in whatever environment runs this build.
+function buildMarker() {
+  try {
+    const commit = execSync('git rev-parse --short HEAD', { cwd: root }).toString().trim();
+    const date = execSync('git log -1 --format=%cI', { cwd: root }).toString().trim().slice(0, 10);
+    return { commit, date };
+  } catch (e) {
+    return { commit: 'unknown', date: new Date().toISOString().slice(0, 10) };
+  }
+}
+const BUILD = buildMarker();
 
 // dependency SET — order is now computed automatically below (topological
 // sort over each file's actual `import` statements), not maintained by hand.
@@ -132,7 +154,7 @@ if (JSON.stringify(orderedFiles) !== JSON.stringify(files)) {
   console.log('build.mjs: computed order differs from the file list above (dependency-driven, not alphabetical/manual) — this is expected and fine.');
 }
 
-let out = '// GENERATED — do not edit. Build with: node build.mjs\nwindow.__ATMOS = window.__ATMOS || {};\n';
+let out = `// GENERATED — do not edit. Build with: node build.mjs\nwindow.__ATMOS = window.__ATMOS || {};\nwindow.__ATMOS_BUILD__ = ${JSON.stringify(BUILD)};\n`;
 
 for (const f of orderedFiles) {
   let src = fs.readFileSync(path.join(root, f), 'utf8');
