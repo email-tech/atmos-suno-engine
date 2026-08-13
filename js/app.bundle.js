@@ -11186,11 +11186,15 @@ function mount(state, root) { S = state; rootEl = root; renderAll(); }
 function renderAll() {
   rootEl.innerHTML = '';
 
-  // STRUCTURE-FIRST PANEL (Phase 1, docs/architecture/structure-first-pipeline-plan.md).
-  // Song type + structure preset are surfaced here, ahead of the engine tabs,
-  // matching John's confirmed decision order: song type -> structure -> style
-  // -> metatags. NOT YET WIRED into generate() (Phase 2/3) — selecting here
-  // stores the choice on state for the pipeline reorder to consume later.
+  // STRUCTURE-FIRST PANEL. Song type + structure preset are surfaced here,
+  // ahead of the engine tabs, matching John's confirmed decision order: song
+  // type -> structure -> style -> metatags. WIRED into generate() since
+  // Phase 2/3/4 (approved by John 2026-08-12, docs/architecture/structure-
+  // first-pipeline-plan.md) — this selection drives the song-type gate, the
+  // resolver harmony-brightness structure hint, and the lyric engine's
+  // section names/positions. (This comment previously said "not yet wired,"
+  // left over from when only Phase 1 had shipped — caught 2026-08-12 while
+  // confirming for John exactly what's reproducible live in the UI.)
   structurePanel(rootEl);
 
   rootEl.appendChild(el('div', { class: 'tabs' }, ENGINES.map(e => {
