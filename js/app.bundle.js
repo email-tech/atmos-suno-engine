@@ -2730,1599 +2730,6 @@ function evaluateCongruence(ov, char, rules) {
 Object.assign(window.__ATMOS, { genreProfile, overlayProfile, evaluateCongruence, CONGRUENCE_RULES });
 })();
 
-/* core/atoms.js */
-(function(){
-/* ==========================================================================
- * atoms.js — the atom ASSEMBLY engine (character-agnostic).
- * Promoted from proto/atom-proto.mjs. Pipeline is unchanged from the validated
- * prototype: atoms -> holding area (engine + overlay) -> reconcile -> compose.
- * Reconcile is pure data: one voice per family, priority wins (signature > core
- * > support > decorative); a foundational overlay bass DISPLACES; a colliding
- * overlay voice YIELDS; signature carriers hoist to the front (Lever 1).
- *
- * NEW (congruence, 2026-07-19 direction): overlays are congruent-by-default.
- * Each overlay carries a congruence profile; a congruence PRE-PASS runs before
- * the family contest. As of P2 this pre-pass is DATA-DRIVEN — the lean / engine /
- * takeover policy is authored as rules in core/rules.js and applied by
- * evaluateCongruence; congruenceGate() below is a thin delegator. The rules are:
- *   - lean gate: an electronic-only overlay on a non-electronic character is
- *     REFUSED entirely (Moroder-on-Balearic — a confirmed genre clash).
- *   - takeover gate: an overlay may only seize a genre-owned family (bass timbre,
- *     drum kit) if its profile permits AND the character's lean allows it. A
- *     classical/orchestral composer takes over none — it finesses lead / strings
- *     / texture / perc / colour over an intact engine foundation.
- * Genre-owned attributes can't be claimed by a cross-genre overlay regardless of
- * prompt craft or position — so we don't author a prompt that fights the prior.
- * ========================================================================*/
-const {CHAR_LIMIT, ALWAYS_BAN} = window.__ATMOS;
-const {evaluateCongruence} = window.__ATMOS;
-const {bedAtom, bedAllowed} = window.__ATMOS;
-const {selectNegatives} = window.__ATMOS;
-const {classifyInstrument, planePhrase, pairLink} = window.__ATMOS;
-const {modifierList} = window.__ATMOS;
-const {ATOM_COMPOSERS} = window.__ATMOS;
-const {ATOM_PRODUCERS} = window.__ATMOS;
-const {ATOM_REMIXERS} = window.__ATMOS;
-
-function mulberry32(a){let t=(a>>>0)||1;return()=>{t+=0x6D2B79F5;let r=Math.imul(t^(t>>>15),1|t);r^=r+Math.imul(r^(r>>>7),61|r);return((r^(r>>>14))>>>0)/4294967296;};}
-const RANK = { signature:0, core:1, support:2, decorative:3 };
-
-// ---- OVERLAY ATOM TABLES (ingredients + congruence profile) --------------
-// congruence.lean:'any'|'electronic'  — required character lean.
-// congruence.engines: compatible engine sources (null = any).
-// congruence.takeover: which genre-owned families this overlay may seize.
-// signature:true -> hoists to the front; foundational:true on a bass -> displaces.
-// All three overlay arms now live atom-native: Composers (./atom-composers.js, 19),
-// Producers (./atom-producers.js, 8), Remixers (./atom-remixers.js, 5) — each a
-// distinct signature-delta set. Overlay system complete on the atom path.
-const ATOM_OVERLAYS = { ...ATOM_COMPOSERS, ...ATOM_PRODUCERS, ...ATOM_REMIXERS };
-
-/* RELATIONSHIP LANGUAGE — John, 2026-07-22 (Suno test round 2).
- * Rewritten from literary to FUNCTIONAL. The standing project rule that
- * interplay language is mandatory still holds — every voice must say how it sits
- * against the others — but it now says so in plain, unambiguous terms Suno can
- * act on. Poetic phrasing ('swelling to meet and resolve it', 'stacking to a
- * lush peak then receding') gave Suno nothing actionable and burned characters. */
-const REL = {
-  foundation:    { needs:['bass','drums'], render:'locked tight together' },
-  arc:           { needs:['pad'],          render:'builds to a peak then thins out' },
-  harmonyResolve:{ needs:['lead','harmony'],render:'chords resolve behind the melody' },
-};
-
-// ---- CONGRUENCE PRE-PASS -------------------------------------------------
-// The pre-pass is now DATA-DRIVEN (P2): the lean / engine / takeover policy is
-// authored as rules in core/rules.js and evaluated by evaluateCongruence. This
-// wrapper keeps the call shape { ok, atoms, reason } the rest of atoms.js uses.
-// Decision is identical to the former inline gate — parity-safe.
-function congruenceGate(ov, char){
-  return evaluateCongruence(ov, char);
-}
-
-// ---- HOLDING AREA --------------------------------------------------------
-function collect(char, seed, overlayId, overlayDef){
-  const roll = mulberry32(seed);
-  const pick = a => Array.isArray(a) ? a[Math.floor(roll()*a.length)] : a;
-  const held = [];
-  const push = (key, a, source) => {
-    if (a.chance!=null && roll()>=a.chance) return;
-    held.push({ key, source, role:a.role, family:a.family||null, register:a.register||null, fn:a.fn||null,
-      priority:a.priority||'support', instrument:a.instrument?pick(a.instrument):null, text:a.text?pick(a.text):null,
-      timbre:(a.timbre||[]).slice(), prominence:a.prominence||'foreground', mix:a.mix||null,
-      dynamic:a.dynamic||null, density:a.density||null,
-      foundational:!!a.foundational, signature:!!a.signature,
-      // bed fields (Phase A): behaviour is how the pad MOVES and where it sits —
-      // compose states it explicitly because naming a pad does not make Suno
-      // render one. bedId is carried so DNA and the metatag engine can key off
-      // the functional pad test rather than a family label.
-      behaviour:a.behaviour||null, bedId:a.bedId||null });
-  };
-  for (const [k,a] of Object.entries(char.atoms)) push(k,a,'engine');
-  let overlayNote = null;
-  // A resolved TWO-TIER modifier (core + signature) may be passed directly as
-  // overlayDef; otherwise fall back to a gen-1 overlay looked up by id.
-  let ov = overlayDef || (overlayId ? ATOM_OVERLAYS[overlayId] : null);
-  // BED PALETTE GATE. A bed authored for the wrong palette would leak synthesis
-  // vocabulary onto an acoustic build (or an orchestral section onto a synth
-  // one) — the round-3 leak, applied to the pad layer. Swap to the palette-
-  // neutral hybrid rather than dropping it: a core with no bed has no body.
-  if (ov && char.palette) {
-    const bedKey = Object.keys(ov.atoms || {}).find(k => ov.atoms[k] && ov.atoms[k].bedId);
-    if (bedKey && !bedAllowed(ov.atoms[bedKey].bedId, char.palette)) {
-      const swap = bedAtom('hybrid_pad');
-      ov = Object.assign({}, ov, { atoms: Object.assign({}, ov.atoms, { [bedKey]: swap }) });
-    }
-  }
-  if (ov){
-    const gate = congruenceGate(ov, char);
-    overlayNote = gate.reason;
-    for (const [k,a] of Object.entries(gate.atoms)) push(k,a,'overlay');
-  }
-  return { held, overlayNote };
-}
-
-// ---- RECONCILE (pure data) ----------------------------------------------
-function reconcile(held){
-  const survivor = new Map();
-  for (const at of held){
-    if (!at.family) continue;
-    const cur = survivor.get(at.family);
-    // Higher priority wins. A FOUNDATIONAL overlay atom (e.g. a remixer's
-    // re-played bassline, where the bass IS the remix craft) also displaces an
-    // equal-ranked incumbent — the behaviour this file's header has always
-    // documented but which was never implemented, so overlay bass silently lost.
-    const outranks = RANK[at.priority] < RANK[cur ? cur.priority : 'decorative'];
-    const displaces = cur && at.foundational && !cur.foundational &&
-                      RANK[at.priority] <= RANK[cur.priority];
-    // OVERLAY WINS TIES outside the genre-owned families. The user picked the
-    // modifier deliberately, so its body should occupy the slot rather than lose
-    // an insertion-order tie to the character. bass/drums/harmony stay protected
-    // — those carry the genre identity and are governed by the takeover policy.
-    const PROTECTED = at.family==='bass'||at.family==='drums'||at.family==='harmony';
-    const overlayTie = cur && at.source==='overlay' && cur.source!=='overlay' &&
-                       !PROTECTED && RANK[at.priority] <= RANK[cur.priority];
-    if (!cur || outranks || displaces || overlayTie) survivor.set(at.family, at);
-  }
-  let kept = held.filter(at => !at.family || survivor.get(at.family)===at);
-
-  /* CROSS-FAMILY INSTRUMENT DE-DUPE (John, Suno test round 4).
-   * Family-based reconcile cannot see one voice named twice under DIFFERENT
-   * families. John heard 'French horn mentioned on 3 occasions': the strings-and-
-   * horns BED (family pad), the composer's body texture (family texture) and the
-   * character's counter line (family counter) all named the same horn, and
-   * reported the horn parts 'at odds with one another'. Three mentions of one
-   * instrument tells Suno to render three of them.
-   *
-   * PRECEDENCE, not array order: the SIGNATURE claims first (it is the
-   * fingerprint and must always survive), then the OVERLAY body (the modifier is
-   * the user's deliberate choice), then the character. A voice naming an
-   * instrument an earlier claimant already took is dropped. bass and drums are
-   * exempt — they carry the genre identity and must never vanish silently.
-   */
-  const claimed = new Set();
-  // Only the INSTRUMENT part of an atom counts. Atoms are authored as
-  // '<instrument> <behaviour>', so cut at the first behaviour/placement marker —
-  // otherwise trailing fragments like 'the melody' or 'the groove' get treated as
-  // instruments and every atom collides with every other one.
-  const STOP = /\b(answering|swelling|holding|ticking|sitting|building|opening|fading|rising|running|cycling|driving|punctuating|threading|floating|entering|carried|low|under|underneath|beneath|behind|below|quiet|quietly|soft|softly|hushed|distant|faint|through|across|over|in the|on the|between)\b/;
-  const heads = (txt) => {
-    let t = String(txt||'').toLowerCase().replace(/^(a|an|the) /,'');
-    const m = t.match(STOP);
-    if (m && m.index > 0) t = t.slice(0, m.index);
-    return t.split(/\s*(?:,| and | with )\s*/)
-      .map(x => x.replace(/[^a-z- ]/g,'').trim())
-      .filter(x => x && x.length > 3);
-  };
-  const rank = (at) => at.signature ? 0 : (at.source==='overlay' ? 1 : 2);
-  const doomed = new Set();
-  for (const at of [...kept].sort((a,b) => rank(a)-rank(b))) {
-    if (!at.instrument) continue;
-    if (at.family==='bass' || at.family==='drums') continue;
-    const h = heads(at.instrument);
-    if (!h.length) continue;
-    const clash = h.some(x => [...claimed].some(c => c.includes(x) || x.includes(c)));
-    if (clash && !at.signature) { doomed.add(at); continue; }
-    h.forEach(x => claimed.add(x));
-  }
-  kept = kept.filter(at => !doomed.has(at));
-  return kept;
-}
-
-// ---- COMPOSE -------------------------------------------------------------
-function wt(at){
-  if(!at.instrument) return at.text||'';
-  if(!at.timbre.length) return at.instrument;
-  const adj=at.timbre[0]; const s=at.instrument.replace(/^(a |an )/i,'');
-  const had=/^(a |an )/i.test(at.instrument); const art=/^[aeiou]/i.test(adj)?'an ':'a ';
-  return (had?art:'')+adj+' '+s;
-}
-function counterClause(c){
-  // Plain and non-duplicating: instrument, how loud, then ONE statement of how it
-  // answers the lead. The density field already carries frequency, so it replaces
-  // the generic tail rather than stacking a second 'answering' on top of it.
-  const bits=[c.instrument];
-  if(c.mix) bits.push(c.mix);
-  // density may already read as "answering only occasionally" — fold the lead
-  // reference into it rather than appending a second 'answering'.
-  const tail = !c.density ? 'answering the lead between phrases'
-             : /answer/i.test(c.density) ? c.density.replace(/^answering/i, 'answering the lead')
-             : `${c.density}, answering the lead`;
-  return `${bits.join(', ')}, ${tail}`;
-}
-function compose(held, mastering, o){
-  o=o||{};
-  const fams=new Set(held.map(a=>a.family).filter(Boolean));
-  const has=f=>fams.has(f);
-  const A=k=>held.find(a=>a.key===k);
-  const ownerOf=f=>held.find(a=>a.family===f);
-  const sig = f => { const o=ownerOf(f); return o&&o.signature?o:null; };
-  const cl=[];
-  cl.push(A('genre').text, A('tempo').text);
-
-  const sigBass=sig('bass'), sigHarm=sig('harmony');
-  if(sigBass) cl.push(sigBass.instrument);
-  if(sigHarm) cl.push(sigHarm.text||sigHarm.instrument);
-  // SIGNATURE PLACEMENT — John, 2026-07-22 (Suno test round 2).
-  // Lever 1 used to hoist the signature to the FRONT. That was correct when
-  // overlays were delta-only garnish that would otherwise be inaudible. With
-  // gen-2 modifiers carrying a real body it backfired: the tell landed in the
-  // hardest-weighted position and Suno read the exotic instrument as the GENRE
-  // ("modifier instruments dominate... alter Suno's understanding of what music
-  // it is trying to produce"). The signature is now DEFERRED and emitted after
-  // the core body, below — decoration, not identity.
-  const deferredSig=[];
-  const SIG_SLOTS=['lead','strings','texture','counter','colour'];
-  for(const f of SIG_SLOTS){ const x=sig(f); if(x) deferredSig.push(x.text||x.instrument); }
-
-  const bass=ownerOf('bass'), groove=A('groove');
-  if(groove){
-    if(sigBass) cl.push(`${groove.instrument} locked to the bassline`);
-    else if(bass) cl.push(`${wt(bass)} and ${groove.instrument}, ${REL.foundation.render}`);
-  } else if(bass && !sigBass){
-    // groove-absent (beatless) character: bass still anchors, no drum pocket.
-    cl.push(`${wt(bass)} holding the low end, no drums`);
-  }
-  const perc=ownerOf('perc'); if(perc) cl.push(`${perc.instrument} over the groove`);
-
-  const lead=ownerOf('lead'); if(lead && !lead.signature) cl.push(`${wt(lead)} on the melody out front`);
-
-  // FAMILY-PAIR LINKING (guide §3-§9). When the lead and the bed belong to two
-  // different orchestral families the guide has TESTED wording for how they sit
-  // together — e.g. 'string melody in the foreground with quiet brass harmonies
-  // in the background'. Using it replaces language that was previously invented.
-  const bedForLink=ownerOf('pad');
-  if(lead && bedForLink && !lead.signature){
-    const link=pairLink(classifyInstrument(lead.instrument),
-                        classifyInstrument(bedForLink.instrument), o.seed||0);
-    if(link) cl.push(link);
-  }
-
-  // THE BED. Round 3 showed that NAMING a pad does not make Suno render one —
-  // John's own definition is behavioural (sustained, slow attack and release,
-  // background placement, rich chords), so the behaviour is stated explicitly
-  // here rather than left implied by the instrument name. Mix placement stays
-  // LOW on purpose: sitting behind the lead is correct pad behaviour, and the
-  // answer to 'I could not tell what the pad comprised' is richer harmonic
-  // content and an audible swell, not more level.
-  const pads=ownerOf('pad'), harm=ownerOf('harmony');
-  if(pads||harm){ let h='';
-    if(pads){
-      h = pads.behaviour ? `${wt(pads)} ${pads.behaviour}` : wt(pads);
-      // PLANE OF TONE (docs/knowledge/instrument-family-linking-guide.md §13).
-      // John, round 4: a MODIFIER's bed came through 'too front and centre in
-      // the arrangement in volume'. Its own behaviour string says it sits low,
-      // but that was not enough against orchestral instrument names, which drag
-      // a cinematic front-and-centre mix with them. The guide's background-plane
-      // wording states the placement in the vocabulary Suno was trained on.
-      // Only modifier beds are pushed back; a character's own pad IS the genre
-      // and must not be buried.
-      if(pads.source==='overlay'){
-        const fam=classifyInstrument(pads.instrument);
-        if(fam){
-          // Replace the behaviour's own placement tail rather than stacking a
-          // second one — the bed already said 'well behind the melody' in round 4
-          // and still came through too front, so this swaps that wording for the
-          // guide's orchestration vocabulary instead of repeating it. The SWELL
-          // half of the behaviour is kept: slow attack is part of John's pad
-          // definition and carries no placement claim.
-          const swell=(pads.behaviour||'').split(/,?\s*(?:well )?(?:behind|under|underneath|beneath|low in the mix|far behind|back in the mix)\b/)[0].trim();
-          h = `${wt(pads)}${swell?' '+swell:''}, ${planePhrase('background','blend',fam)}`;
-        }
-      }
-    }
-    if(harm && !sigHarm) h=(h?`${h}, moving through `:'')+ (harm.text||harm.instrument);
-    if(h) cl.push(h); }
-
-  // MIDDLE PLANE (guide §13). John, round 4 A1: 'Couldn't hear the marimba, cello
-  // nor the French Horn (Might be too deep in the prompt)'. These are the
-  // character's own supporting voices — the genre's identity — and 'under the
-  // melody' alone left them inaudible. The middle-plane wording places them
-  // between the lead and the bed instead of merely below everything.
-  const strings=ownerOf('strings');
-  if(strings && !strings.signature){
-    // The guide writes '[Family] in the middle plane'; an instrument is a member
-    // of its family and reads naturally in the same slot, so the specific name is
-    // used rather than collapsing a cello into the word 'strings'.
-    const fam=classifyInstrument(strings.instrument);
-    cl.push(fam ? planePhrase('middle','support', wt(strings))
-                : `${wt(strings)} under the melody`);
-  }
-  const texture=ownerOf('texture'); if(texture && !texture.signature) cl.push(`${texture.instrument} sustained underneath`);
-
-  const counter=ownerOf('counter');
-  if(counter && lead && !counter.signature) cl.push(counterClause(counter));
-
-  // LIGHT TOUCH (John-approved default): the modifier contributes its body plus
-  // ONE signature statement. Extra signature voices are dropped unless the build
-  // explicitly asks for the full-strength application.
-  if(deferredSig.length) cl.push(...(o.fullModifier ? deferredSig : deferredSig.slice(0,1)));
-
-  // Phase B: decoration atoms now state their own mix placement, so the blanket
-  // 'in the gaps' suffix would double it ('low in the mix in the gaps'). Only add
-  // it when the atom has not already said where it sits.
-  const colour=ownerOf('colour')||ownerOf('perc-accent');
-  if(colour && !colour.signature){
-    const placed=/\b(under|underneath|beneath|behind|below|low\b|in the gaps|between the phrases|quiet|soft|hushed|distant|faint)/i.test(colour.instrument||'');
-    cl.push(placed ? colour.instrument : `${colour.instrument} in the gaps`);
-  }
-  const movement=A('movement'); if(movement) cl.push(movement.text);
-
-  // Find the overlay's arc by SOURCE+FN, not by a literal key: the two-tier
-  // resolver namespaces atom keys (core_/sig_), so the old A('ov_arc') lookup
-  // silently missed and every overlay arc line was dropped.
-  const ovArc=A('ov_arc')||held.find(a=>a.source==='overlay'&&a.fn==='arc');
-  if(ovArc) cl.push(ovArc.text);
-  else { if(REL.harmonyResolve.needs.every(has)) cl.push(REL.harmonyResolve.render);
-         if(REL.arc.needs.every(has)) cl.push(REL.arc.render); }
-  if(ovArc && REL.harmonyResolve.needs.every(has)) cl.push(REL.harmonyResolve.render);
-
-  cl.push(mastering);
-  return cl.filter(Boolean).join(', ').replace(/\s+/g,' ').replace(/\s*,\s*/g,', ').trim();
-}
-
-// ---- PUBLIC: build one atom character (+ optional overlay) ----------------
-// Returns the shell's uniform result shape. `arrangement` is the reconciled
-// atom list — the structured layer the Lyric/Metatag engine will read.
-function buildAtoms(char, opts){
-  const o = opts || {};
-  const { held, overlayNote } = collect(char, o.seed >>> 0, o.overlayId || null, o.overlayDef || null);
-  const kept = reconcile(held);
-  let style = compose(kept, char.mastering, o);
-  const over = style.length > CHAR_LIMIT;
-  if (o.maxMode) { /* atom path is already budget-safe; Max is a legacy-only directive */ }
-  // overlay-specific negatives merge in only when the overlay actually APPLIED
-  // (not refused). Engine-only + composer paths carry none, so their negative
-  // field is unchanged — ALWAYS_BAN only (parity-safe).
-  const ovDef = !overlayNote ? (o.overlayDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null)) : null;
-  const ovNeg = (ovDef && ovDef.negative) ? ovDef.negative : [];
-  // NEGATIVE CAP (John, round 4): the negative field loses effectiveness beyond
-  // about five elements, so an unranked list of 23 silently discarded the ones
-  // that mattered and John had to front-load them by hand. Negatives are now
-  // ranked by observed harm and truncated — genre-breaking bans first, cosmetic
-  // non-musical bans only if slots remain.
-  const negative = selectNegatives([...ovNeg, ...ALWAYS_BAN]).join(', ') + '.';
-  return { style, negative, lyrics:'', length:style.length, over,
-           arrangement:kept, overlayNote };
-}
-
-/* GEN-1 RETIRED — John signed off the gen-2 two-tier modifier set on 2026-07-22.
- * The gen-1 signature-delta overlays in ATOM_OVERLAYS are kept ONLY so the
- * existing harnesses (validate-dna, validate-overlays) keep exercising the
- * legacy path; they are no longer offered to the user. The UI list is now the
- * gen-2 modifiers, each carrying its 3 cores and 3 signatures. */
-const GEN1_OVERLAYS_RETIRED = true;
-
-function atomOverlayList(){
-  return modifierList();   // gen-2: { id, label, kind, cores[], signatures[] }
-}
-
-// Explicit accessor for the retired gen-1 sets (harnesses only).
-function legacyOverlayList(){
-  return Object.keys(ATOM_OVERLAYS).map(id => ({ id, label:ATOM_OVERLAYS[id].label, kind:ATOM_OVERLAYS[id].kind }));
-}
-
-function atomCharacters(module){
-  return Object.keys(module).map(id => ({ id, label:module[id].label, source:module[id].source,
-    tempo: module[id].atoms.tempo ? module[id].atoms.tempo.text : '' }));
-}
-
-Object.assign(window.__ATMOS, { buildAtoms, atomOverlayList, legacyOverlayList, atomCharacters, ATOM_OVERLAYS, GEN1_OVERLAYS_RETIRED });
-})();
-
-/* engines/atom-pools.js */
-(function(){
-/* ==========================================================================
- * atom-pools.js — corrected instrument pools for the atom model (Balearic set).
- *
- * Rebuilt from scratch (legacy engine-extras Balearic pools were 68% defective).
- * RUBRIC (locked with John, 2026-07-20):
- *  - Palette = sound source. electronic = synthesized/sequenced. acoustic =
- *    acoustically sounded. Electro-acoustic (Rhodes, Wurlitzer, Hammond, clavinet,
- *    electric guitar, lap-steel guitar, fretless bass, mellotron) are the only
- *    instruments allowed in either palette, where the genre supports them.
- *  - Instrument roles hold a PURE INSTRUMENT NAME. harmony = key/mode/progression.
- *    movement = production directives. Both structural, not prose.
- *  - Theory-appropriate + complementary per cluster; an instrument appears in at
- *    most one role per cluster+palette so draws don't self-collide.
- *
- * 2026-07-20 revision: clarinet removed everywhere (too dominant) -> French horn /
- * flugelhorn / cor anglais; fretless bass added across acoustic bass pools;
- * lap-steel guitar added (Guitar del Mar strand); thin pools deepened for batch
- * variety.
- * ========================================================================*/
-
-const ATOM_POOLS_BALEARIC = {
-
-  'organic-warm-downtempo': {
-    label: 'Organic warm downtempo', genre: 'Balearic downtempo', tempo: '80-100 BPM, low-mid energy', beatless: false,
-    harmony: ['minor key', 'Dorian mode', 'minor 7th and add9 voicings', 'ii-V-i in a minor key', 'a suspended-to-major resolution'],
-    movement: ['wide stereo panning', 'slow low-pass filter sweeps', 'tape-saturated warmth', 'tempo-synced delay throws', 'gentle sidechain movement'],
-    electronic: {
-      bass: ['analog synth bass', 'sub bass', 'FM bass'],
-      rhythm: ['soft downtempo kit', 'dusty boom-bap kit', 'drum machine'],
-      perc: ['drum-machine hi-hats', 'rimshot clicks', 'synth clap', 'electro shaker'],
-      pads: ['analog synth pads', 'string-machine pad', 'mellotron', 'choir pad'],
-      strings: ['synth strings', 'string-machine ensemble'],
-      texture: ['drone synth', 'granular synth'],
-      motif: ['Rhodes', 'synth lead', 'synth pluck'],
-      counter: ['Wurlitzer', 'synth counter-line'],
-      color: ['synth bells', 'glassy mallet synth', 'synth marimba'],
-    },
-    acoustic: {
-      bass: ['upright bass', 'double bass', 'fretless bass'],
-      rhythm: ['brushed drum kit', 'soft jazz kit', 'live drum kit'],
-      perc: ['shakers', 'congas', 'bongos', 'cabasa', 'frame drum', 'hang drum'],
-      pads: ['harmonium', 'bowed string pad'],
-      strings: ['cello', 'viola', 'string ensemble'],
-      texture: ['felt piano', 'harp', 'bowed metallophone'],
-      motif: ['nylon guitar', 'lap-steel guitar', 'flugelhorn'],
-      counter: ['muted trumpet', 'French horn', 'cor anglais'],
-      color: ['glockenspiel', 'vibraphone', 'kalimba', 'celeste'],
-    },
-  },
-
-  'lush-cinematic-chillout': {
-    label: 'Lush cinematic chillout', genre: 'Balearic downtempo', tempo: '85-105 BPM, medium energy', beatless: false,
-    harmony: ['minor-to-relative-major over eight-bar cycles', 'add9 voicings into a major-seventh resolution', 'wide sus2 voicings with a delayed resolve', 'Aeolian mode', 'a Picardy-third lift'],
-    movement: ['wide stereo panning', 'slow filter modulation on the pads', 'orchestral swells rising and receding', 'long reverb tails', 'LFO and chorus movement on the synths'],
-    electronic: {
-      bass: ['sub bass', 'FM sub-bass'],
-      rhythm: ['soft downtempo kit', 'lounge kit'],
-      perc: ['electro shaker', 'synth triangle', 'drum-machine hi-hats'],
-      pads: ['analog synth pads', 'layered synth pads', 'choir pad'],
-      strings: ['synth strings', 'string-machine ensemble'],
-      texture: ['drone synth', 'mellotron'],
-      motif: ['Rhodes', 'synth lead'],
-      counter: ['synth counter-line'],
-      color: ['synth bells', 'glassy mallet synth'],
-    },
-    acoustic: {
-      bass: ['double bass', 'upright bass', 'fretless bass'],
-      rhythm: ['brushed drum kit'],
-      perc: ['shakers', 'frame drum', 'triangle'],
-      pads: ['pipe organ', 'harmonium', 'bowed string pad'],
-      strings: ['cello', 'string ensemble', 'violin', 'viola'],
-      texture: ['cor anglais', 'lap-steel guitar'],
-      motif: ['grand piano', 'felt piano', 'flute'],
-      counter: ['French horn', 'flugelhorn', 'muted trumpet'],
-      color: ['glockenspiel', 'tubular bells', 'harp', 'celeste'],
-    },
-  },
-
-  'dreamy-analog-electronic': {
-    label: 'Dreamy analog electronic', genre: 'dreamy analog electronic', tempo: '90-110 BPM, medium energy', beatless: false,
-    harmony: ['major key with modal color', 'Lydian mode', 'slow major-seventh pads', 'a plagal cadence', 'suspended major voicings'],
-    movement: ['slow pitch drift', 'slow filter sweeps', 'wide stereo panning', 'chorus and phaser on the synths', 'tempo-synced delay'],
-    electronic: {
-      bass: ['Moog bass', 'analog synth bass', 'sub bass'],
-      rhythm: ['soft drum machine', 'LinnDrum-style kit'],
-      perc: ['drum-machine hi-hats', 'synth clap', 'electro shaker', 'rimshot clicks'],
-      pads: ['detuned analog pads', 'analog synth pads', 'mellotron', 'choir pad'],
-      strings: ['synth strings', 'string-machine ensemble'],
-      texture: ['granular synth', 'drone synth'],
-      motif: ['synth lead', 'synth arp', 'synth pluck'],
-      counter: ['Wurlitzer', 'synth counter-line'],
-      color: ['synth bells', 'glassy mallet synth', 'synth marimba'],
-    },
-    acoustic: {
-      bass: [],
-      rhythm: [],
-      perc: [],
-      pads: ['harmonium'],
-      strings: [],
-      texture: ['harp', 'lap-steel guitar'],
-      motif: ['Rhodes', 'grand piano'],
-      counter: ['French horn'],
-      color: ['glockenspiel', 'celeste', 'kalimba'],
-    },
-  },
-
-  'dub-space-downtempo': {
-    label: 'Dub-space downtempo', genre: 'dub-space downtempo', tempo: '70-95 BPM, low-mid energy', beatless: false,
-    harmony: ['minor key', 'a modal minor vamp', 'short dominant-seventh dub chords', 'a two-chord minor rock', 'Phrygian color'],
-    movement: ['spring reverb', 'tempo-synced dub delay throws', 'wide stereo panning', 'low-pass filter sweeps', 'echo feedback swells'],
-    electronic: {
-      bass: ['dub sub bass', 'sine sub bass', 'analog synth bass'],
-      rhythm: ['dub kit', 'soft drum machine', 'one-drop kit'],
-      perc: ['rimshot clicks', 'drum-machine hi-hats', 'electro shaker'],
-      pads: ['analog synth pads', 'clipped organ synth'],
-      strings: ['synth strings', 'string-machine ensemble'],
-      texture: ['drone synth', 'granular synth'],
-      motif: ['clipped synth chords', 'synth lead', 'Rhodes'],
-      counter: ['Wurlitzer', 'synth counter-line'],
-      color: ['synth bells', 'glassy mallet synth'],
-    },
-    acoustic: {
-      bass: ['upright bass', 'fretless bass'],
-      rhythm: ['brushed drum kit'],
-      perc: ['congas', 'bongos', 'shakers', 'frame drum', 'hang drum'],
-      pads: ['harmonium'],
-      strings: ['cello'],
-      texture: ['lap-steel guitar'],
-      motif: ['melodica', 'muted trumpet'],
-      counter: ['trombone', 'French horn'],
-      color: ['glockenspiel', 'kalimba'],
-    },
-  },
-
-  'deep-nocturnal-balearic': {
-    label: 'Deep nocturnal Balearic', genre: 'Balearic downtempo', tempo: '100-115 BPM, medium energy', beatless: false,
-    harmony: ['minor key', 'Aeolian mode', 'a minor-seventh vamp', 'add9 and sus4 voicings', 'Phrygian color'],
-    movement: ['low-pass filter sweeps', 'wide stereo panning', 'long reverb tails', 'sidechain movement', 'tempo-synced delay'],
-    electronic: {
-      bass: ['sub bass', 'analog synth bass', 'FM bass'],
-      rhythm: ['downtempo kit', 'deep house kit', 'soft four-on-the-floor kit'],
-      perc: ['drum-machine hi-hats', 'electro shaker', 'rimshot clicks', 'synth clap'],
-      pads: ['analog synth pads', 'clipped organ synth', 'choir pad'],
-      strings: ['synth strings', 'string-machine ensemble'],
-      texture: ['drone synth', 'granular synth'],
-      motif: ['synth lead', 'synth pluck', 'Rhodes'],
-      counter: ['synth counter-line', 'Wurlitzer'],
-      color: ['synth bells', 'glassy mallet synth'],
-    },
-    acoustic: {
-      bass: ['upright bass', 'fretless bass'],
-      rhythm: ['brushed drum kit'],
-      perc: ['congas', 'bongos', 'shakers', 'cabasa', 'frame drum'],
-      pads: ['harmonium'],
-      strings: ['cello', 'viola'],
-      texture: ['felt piano', 'lap-steel guitar', 'duduk'],
-      motif: ['nylon guitar', 'ney'],
-      counter: ['French horn', 'flugelhorn'],
-      color: ['vibraphone', 'kalimba'],
-    },
-  },
-
-  'sunlit-mediterranean': {
-    label: 'Sunlit Mediterranean', genre: 'Balearic downtempo', tempo: '100-118 BPM, medium energy', beatless: false,
-    harmony: ['major key', 'Mixolydian mode', 'I-V-vi-IV', 'Andalusian cadence', 'sus2 into major voicings'],
-    movement: ['wide stereo panning', 'slow filter sweeps', 'tape-saturated warmth', 'tempo-synced delay', 'bright reverb'],
-    electronic: {
-      bass: ['analog synth bass', 'sub bass'],
-      rhythm: ['soft house kit', 'downtempo kit'],
-      perc: ['drum-machine hi-hats', 'electro shaker', 'synth clap'],
-      pads: ['analog synth pads', 'choir pad'],
-      strings: ['synth strings', 'string-machine ensemble'],
-      texture: ['drone synth'],
-      motif: ['synth pluck', 'synth lead', 'Rhodes'],
-      counter: ['synth counter-line', 'Hammond organ'],
-      color: ['synth marimba', 'synth bells'],
-    },
-    acoustic: {
-      bass: ['upright bass', 'fretless bass'],
-      rhythm: ['brushed drum kit', 'cajón kit'],
-      perc: ['shakers', 'congas', 'tambourine', 'cabasa', 'frame drum'],
-      pads: ['accordion', 'harmonium'],
-      strings: ['string ensemble', 'cello'],
-      texture: ['nylon guitar', 'lap-steel guitar'],
-      motif: ['flamenco guitar', 'pan flute', 'flugelhorn', 'mandolin'],
-      counter: ['muted trumpet', 'French horn', 'saxophone'],
-      color: ['marimba', 'glockenspiel', 'vibraphone'],
-    },
-  },
-
-  'ambient-beatless-atmospheric': {
-    label: 'Ambient / beatless atmospheric', genre: 'ambient atmospheric', tempo: 'free, very low energy', beatless: true,
-    harmony: ['a static major-seventh drone', 'Lydian mode', 'slow suspended-chord shifts', 'an open-fifth pedal', 'minor-to-major cross-fades'],
-    movement: ['very long reverb tails', 'slow granular clouds', 'wide stereo panning', 'slow filter drift', 'cross-faded layer swells'],
-    electronic: {
-      bass: ['sub drone'],
-      rhythm: [],
-      perc: [],
-      pads: ['analog synth pads', 'choir pad'],
-      strings: ['synth strings', 'string-machine ensemble'],
-      texture: ['granular synth', 'drone synth', 'mellotron'],
-      motif: ['synth lead', 'Rhodes'],
-      counter: ['synth counter-line'],
-      color: ['synth bells', 'glassy mallet synth'],
-    },
-    acoustic: {
-      bass: ['bowed double bass'],
-      rhythm: [],
-      perc: [],
-      pads: ['pipe organ', 'harmonium', 'bowed string pad'],
-      strings: ['cello', 'string ensemble', 'violin'],
-      texture: ['felt piano', 'glass harmonica', 'bowed metallophone', 'lap-steel guitar'],
-      motif: ['flute', 'cor anglais'],
-      counter: ['French horn'],
-      color: ['glockenspiel', 'celeste', 'tubular bells', 'harp'],
-    },
-  },
-
-  'moody-trip-hop-downbeat': {
-    label: 'Moody trip-hop downbeat', genre: 'trip-hop downbeat', tempo: '70-90 BPM, low-mid energy', beatless: false,
-    harmony: ['minor key', 'a minor-seventh vamp', 'Phrygian color', 'chromatic descending bass', 'add9 and minor-sixth voicings'],
-    movement: ['tape-saturated warmth', 'low-pass filter sweeps', 'tempo-synced delay', 'wide stereo panning', 'spring reverb'],
-    electronic: {
-      bass: ['sub bass', 'analog synth bass'],
-      rhythm: ['trip-hop breakbeat kit', 'dusty boom-bap kit', 'drum machine'],
-      perc: ['drum-machine hi-hats', 'rimshot clicks', 'electro shaker'],
-      pads: ['analog synth pads', 'detuned analog pads'],
-      strings: ['synth strings', 'string-machine ensemble'],
-      texture: ['drone synth', 'granular synth', 'mellotron'],
-      motif: ['Rhodes', 'synth lead', 'clipped synth chords'],
-      counter: ['Wurlitzer', 'synth counter-line'],
-      color: ['synth bells', 'glassy mallet synth'],
-    },
-    acoustic: {
-      bass: ['upright bass', 'fretless bass'],
-      rhythm: ['brushed drum kit', 'live break kit'],
-      perc: ['congas', 'shakers', 'tambourine'],
-      pads: ['harmonium', 'bowed string pad'],
-      strings: ['cello', 'viola', 'string ensemble'],
-      texture: ['felt piano', 'lap-steel guitar'],
-      motif: ['muted trumpet', 'flugelhorn', 'Rhodes'],
-      counter: ['French horn', 'cor anglais'],
-      color: ['vibraphone', 'glockenspiel', 'harp'],
-    },
-  },
-
-  'balearic-house': {
-    label: 'Balearic house', genre: 'Balearic house', tempo: '118-124 BPM, medium-high energy', beatless: false,
-    harmony: ['minor key', 'a minor-seventh vamp', 'add9 and sus4 voicings', 'Dorian mode', 'I-V-vi-IV in a minor key'],
-    movement: ['sidechain pump', 'low-pass filter sweeps', 'wide stereo panning', 'tempo-synced delay', 'long reverb tails'],
-    electronic: {
-      bass: ['analog synth bass', 'sub bass', 'plucked synth bass'],
-      rhythm: ['four-on-the-floor house kit', 'soft house kit'],
-      perc: ['drum-machine hi-hats', 'electro shaker', 'synth clap', 'rimshot clicks'],
-      pads: ['analog synth pads', 'clipped organ synth', 'choir pad'],
-      strings: ['synth strings', 'string-machine ensemble'],
-      texture: ['drone synth', 'granular synth'],
-      motif: ['synth pluck', 'synth lead', 'filtered saw lead'],
-      counter: ['synth counter-line', 'Wurlitzer'],
-      color: ['synth bells', 'synth marimba'],
-    },
-    acoustic: {
-      bass: ['upright bass', 'fretless bass'],
-      rhythm: ['live house kit'],
-      perc: ['congas', 'bongos', 'shakers', 'tambourine', 'cabasa'],
-      pads: ['harmonium'],
-      strings: ['string ensemble', 'cello'],
-      texture: ['nylon guitar', 'lap-steel guitar'],
-      motif: ['saxophone', 'flute', 'Rhodes'],
-      counter: ['muted trumpet', 'French horn', 'flugelhorn'],
-      color: ['vibraphone', 'marimba', 'glockenspiel'],
-    },
-  },
-
-  'nu-disco-slo-mo': {
-    label: 'Nu-disco / slo-mo disco', genre: 'nu-disco', tempo: '100-120 BPM, medium-high energy', beatless: false,
-    harmony: ['major key', 'ii-V-I with secondary dominants', 'a funk-minor vamp', 'seventh and ninth chords', 'I-vi-ii-V'],
-    movement: ['sidechain pump', 'wide stereo panning', 'tempo-synced delay', 'filter sweeps on the strings', 'tape-saturated warmth'],
-    electronic: {
-      bass: ['analog synth bass', 'Moog bass', 'sub bass'],
-      rhythm: ['disco four-on-the-floor kit', 'drum machine'],
-      perc: ['drum-machine hi-hats', 'synth clap', 'electro shaker'],
-      pads: ['analog synth pads', 'string-machine pad'],
-      strings: ['synth strings', 'string-machine ensemble'],
-      texture: ['clavinet', 'drone synth'],
-      motif: ['synth arp', 'synth lead', 'Rhodes'],
-      counter: ['synth brass', 'Hammond organ'],
-      color: ['synth bells', 'glassy mallet synth'],
-    },
-    acoustic: {
-      bass: ['fretless bass', 'electric bass'],
-      rhythm: ['live disco kit'],
-      perc: ['congas', 'bongos', 'tambourine', 'shakers'],
-      pads: ['string ensemble'],
-      strings: ['cello', 'violin'],
-      texture: ['electric guitar', 'clavinet'],
-      motif: ['saxophone', 'flute', 'grand piano'],
-      counter: ['muted trumpet', 'trombone', 'French horn'],
-      color: ['vibraphone', 'marimba', 'glockenspiel'],
-    },
-  },
-
-  'melodic-deep-house': {
-    label: 'Melodic deep house', genre: 'melodic deep house', tempo: '120-124 BPM, medium-high energy', beatless: false,
-    harmony: ['minor key', 'add9 and sus2 voicings', 'a minor-seventh arpeggio cycle', 'Aeolian mode', 'i-VI-III-VII'],
-    movement: ['sidechain pump', 'long reverb tails', 'wide stereo panning', 'filter sweeps on the arp', 'tempo-synced delay'],
-    electronic: {
-      bass: ['sub bass', 'plucked synth bass', 'analog synth bass'],
-      rhythm: ['deep house kit', 'four-on-the-floor house kit'],
-      perc: ['drum-machine hi-hats', 'electro shaker', 'synth clap', 'rimshot clicks'],
-      pads: ['analog synth pads', 'layered synth pads', 'choir pad'],
-      strings: ['synth strings', 'string-machine ensemble'],
-      texture: ['drone synth', 'granular synth'],
-      motif: ['synth arp', 'synth lead', 'synth pluck'],
-      counter: ['synth counter-line', 'Rhodes'],
-      color: ['synth bells', 'glassy mallet synth'],
-    },
-    acoustic: {
-      bass: ['fretless bass'],
-      rhythm: [],
-      perc: ['shakers', 'congas'],
-      pads: ['harmonium'],
-      strings: ['string ensemble'],
-      texture: ['grand piano'],
-      motif: ['Rhodes'],
-      counter: ['cello'],
-      color: ['glockenspiel', 'vibraphone'],
-    },
-  },
-
-  'lounge-house': {
-    label: 'Lounge House', genre: 'lounge house', tempo: '100-120 BPM, medium energy', beatless: false,
-    harmony: ['ii-V-I with jazz sevenths', 'a minor-seventh and ninth vamp', 'bossa-nova major-seventh changes', 'Dorian mode', 'add9 and thirteenth voicings'],
-    movement: ['sidechain pump', 'wide stereo panning', 'tape-saturated warmth', 'tempo-synced delay', 'filter sweeps on the pads'],
-    electronic: {
-      bass: ['sub bass', 'analog synth bass'],
-      rhythm: ['soft house kit', 'four-on-the-floor house kit'],
-      perc: ['drum-machine hi-hats', 'electro shaker', 'synth clap'],
-      pads: ['analog synth pads', 'clipped organ synth', 'choir pad'],
-      strings: ['synth strings', 'string-machine ensemble'],
-      texture: ['drone synth'],
-      motif: ['Rhodes', 'synth lead', 'Wurlitzer'],
-      counter: ['Hammond organ', 'synth counter-line'],
-      color: ['synth bells', 'glassy mallet synth'],
-    },
-    acoustic: {
-      bass: ['upright bass', 'double bass', 'fretless bass'],
-      rhythm: ['brushed drum kit', 'jazz drum kit'],
-      perc: ['congas', 'bongos', 'shakers', 'cabasa'],
-      pads: ['Hammond organ'],
-      strings: ['string ensemble', 'cello'],
-      texture: ['jazz guitar', 'nylon guitar'],
-      motif: ['grand piano', 'saxophone', 'flugelhorn'],
-      counter: ['muted trumpet', 'French horn', 'flute'],
-      color: ['vibraphone', 'marimba', 'glockenspiel'],
-    },
-  },
-
-};
-
-Object.assign(window.__ATMOS, { ATOM_POOLS_BALEARIC });
-})();
-
-/* engines/atom-characters.js */
-(function(){
-/* ==========================================================================
- * atom-characters.js — the 12 Balearic clusters WIRED as atom characters.
- *
- * Each cluster in atom-pools.js becomes ONE atom character (John, 2026-07-20:
- * "one cluster = one character"). Palette (electronic | acoustic) is an AXIS,
- * not a separate character — collect() draws per role FROM THE SELECTED PALETTE.
- *
- * ATOMS HOLD PURE INSTRUMENT NAMES ONLY. All timbre / level / interplay language
- * is assembled at compose (core/atoms.js) from the structured attribute fields
- * below — never fused into the instrument string. The pools are already bare
- * names, so an atom's `instrument` is just that role's pool array for the palette
- * and `timbre` stays empty; compose supplies the relational/interaction language.
- *
- * The Suno-validated reference character still lives in atom-balearic.js and is
- * the seed-parity anchor for the harness; migrating IT onto this substrate
- * (staying byte-identical) is a separate open item.
- * ========================================================================*/
-const {ATOM_POOLS_BALEARIC} = window.__ATMOS;
-
-const MASTERING = 'Polished Dolby Atmos-Master Atmos -2dB';
-
-// House-family + the one explicitly-electronic cluster lean electronic; these
-// accept an electronic-only overlay (Moroder). Everything else is downtempo /
-// acoustic-leaning and REFUSES it (2026-07-17 congruence finding).
-const ELECTRONIC_LEAN = new Set([
-  'dreamy-analog-electronic', 'balearic-house', 'nu-disco-slo-mo',
-  'melodic-deep-house', 'lounge-house',
-]);
-
-// Pool role -> atom key + family + the structural (non-prose) attributes compose
-// reads. instrument is filled per palette from the pool; timbre stays [] (pure
-// identity — compose adds the language). Order here is documentation only;
-// compose fixes clause order.
-const ROLE_SPEC = {
-  bass:    { key:'bass',    family:'bass',    register:'sub',      fn:'foundation-weight', priority:'core' },
-  rhythm:  { key:'groove',  family:'drums',   register:'low-mid',  fn:'groove',            priority:'core' },
-  perc:    { key:'perc',    family:'perc',    register:'high',     fn:'groove-thread',     priority:'decorative' },
-  pads:    { key:'pads',    family:'pad',     register:'mid',      fn:'harmony-bed',       priority:'core' },
-  strings: { key:'strings', family:'strings', register:'mid',      fn:'support-bed',       priority:'support' },
-  texture: { key:'texture', family:'texture', register:'low-mid',  fn:'sustain-under',     priority:'decorative' },
-  motif:   { key:'lead',    family:'lead',    register:'upper-mid',fn:'foreground-melody', priority:'core' },
-  // counter carries the hard-won "answer without dominating" LEVEL as structured
-  // attributes (not baked into the name) so a counter voice never over-renders.
-  counter: { key:'counter', family:'counter', register:'low',     fn:'answer',            priority:'support',
-             prominence:'background', mix:'faint and buried well under the mix',
-             dynamic:'pianissimo', density:'answering only occasionally' },
-  // pool role is spelled 'color'; compose owns the 'colour' family.
-  color:   { key:'colour',  family:'colour',  register:'high',     fn:'accent',            priority:'decorative', chance:0.5 },
-};
-
-function paletteAtoms(cluster, pal) {
-  const src = cluster[pal] || {};
-  const atoms = {
-    genre: { role:'genre', text: cluster.genre },
-    tempo: { role:'tempo', text: cluster.tempo },
-  };
-  for (const [poolRole, spec] of Object.entries(ROLE_SPEC)) {
-    // beatless characters emit no drum kit; skip empty pool roles entirely.
-    if (cluster.beatless && poolRole === 'rhythm') continue;
-    const names = src[poolRole];
-    if (!names || !names.length) continue;
-    const a = { role: spec.family === 'drums' ? 'rhythm' : poolRole,
-                family: spec.family, register: spec.register, fn: spec.fn,
-                instrument: names.slice(), timbre: [], priority: spec.priority };
-    if (spec.prominence) a.prominence = spec.prominence;
-    if (spec.mix) a.mix = spec.mix;
-    if (spec.dynamic) a.dynamic = spec.dynamic;
-    if (spec.density) a.density = spec.density;
-    if (spec.chance != null) a.chance = spec.chance;
-    atoms[spec.key] = a;
-  }
-  // harmony + movement are structural TEXT atoms drawn from cluster metadata.
-  if (cluster.harmony && cluster.harmony.length)
-    atoms.harmony = { role:'harmony', family:'harmony', register:'mid', fn:'chord-movement',
-                      text: cluster.harmony.slice(), priority:'core' };
-  if (cluster.movement && cluster.movement.length) {
-    // PALETTE-APPROPRIATE MOVEMENT — John, round 3: an ACOUSTIC ambient build
-    // (pipe organ, flute, string ensemble, French horn) was still emitting
-    // "slow granular clouds", which is a synthesis term with no acoustic
-    // meaning ("I've never seen these in an orchestra"). Electronic-only
-    // production vocabulary is suppressed on acoustic palettes; if that would
-    // empty the pool, the acoustic-safe terms are used instead.
-    const ELECTRONIC_ONLY = /granular|filter|sidechain|vocoder|bitcrush|resonan|LFO|synth/i;
-    let mv = cluster.movement.slice();
-    if (pal !== 'electronic') {
-      const safe = mv.filter(t => !ELECTRONIC_ONLY.test(t));
-      mv = safe.length ? safe : ['very long reverb tails', 'wide stereo panning'];
-    }
-    atoms.movement = { role:'movement', family:'production', register:'n/a', fn:'movement',
-                       text: mv, priority:'support' };
-  }
-  return atoms;
-}
-
-function buildCharacters() {
-  const out = {};
-  for (const [key, cluster] of Object.entries(ATOM_POOLS_BALEARIC)) {
-    const electronic = paletteAtoms(cluster, 'electronic');
-    const acoustic   = paletteAtoms(cluster, 'acoustic');
-    out[key] = {
-      label: cluster.label,
-      source: 'Balearic',
-      electronicLean: ELECTRONIC_LEAN.has(key),
-      genreOwned: ['bass', 'drums'],
-      beatless: !!cluster.beatless,
-      mastering: MASTERING,
-      // palette axis: generate resolves char.atoms = palettes[palette].
-      palettes: { electronic, acoustic },
-      // default so any code reading char.atoms.tempo (lists/validation) works.
-      atoms: electronic,
-    };
-  }
-  return out;
-}
-
-const ATOM_POOL_CHARACTERS = buildCharacters();
-
-// Resolve a character's atom table for a palette (generate calls this).
-function atomCharacterForPalette(char, palette) {
-  if (!char.palettes) return char;                       // e.g. the validated ref
-  const pal = char.palettes[palette] ? palette : 'electronic';
-  const atoms = char.palettes[pal];
-  // record the resolved palette so downstream (the bed layer) can gate on it
-  return Object.assign({}, char, { atoms, palette: pal });
-}
-
-Object.assign(window.__ATMOS, { atomCharacterForPalette, ATOM_POOL_CHARACTERS });
-})();
-
-/* core/dna.js */
-(function(){
-/* ==========================================================================
- * dna.js — Musical DNA (P0 of the Composition Workbench).
- *
- * Formalizes the atom holding-area into a serialized, versioned MusicalDNA object
- * that BOTH engines read: Style compose (already) and the future Lyric/Metatag
- * engine. It is NOT a second source of truth — it is a read-only projection of
- * what buildAtoms already resolves, plus seed (reproducibility) and per-field
- * CONSUMER CONTRACTS. Purely additive: it calls buildAtoms and never alters
- * rendering, so style output stays byte-identical (parity-safe).
- *
- * CONSUMER CONTRACTS enforce the standing rules structurally: `affect` (mood /
- * emotional atmosphere) is readable by the lyric + metatag engines and FORBIDDEN
- * to style compose — so mood words can never leak into the style prompt. Artist/
- * overlay influences render generic (renderPolicy), never as names in output.
- * ========================================================================*/
-
-const {resolveModifier} = window.__ATMOS;
-const {applyAnchor, anchorCongruent} = window.__ATMOS;
-const {buildAtoms, ATOM_OVERLAYS} = window.__ATMOS;
-const {atomCharacterForPalette} = window.__ATMOS;
-
-const DNA_VERSION = '1.0';
-
-// which engines may READ each DNA field. 'style' deliberately absent from affect.
-const DNA_CONSUMERS = Object.freeze({
-  identity:    ['style', 'lyric', 'metatag'],
-  influences:  ['style', 'lyric', 'metatag'],
-  harmony:     ['style', 'lyric', 'metatag'],
-  arrangement: ['style', 'metatag'],
-  tempo:       ['style', 'lyric', 'metatag'],
-  dynamics:    ['style', 'metatag'],
-  production:  ['style', 'metatag'],
-  vocal:       ['lyric', 'metatag'],
-  affect:      ['lyric', 'metatag'],   // NOT style — no mood words in the style prompt
-});
-
-const byRole   = (arr, role)   => arr.find(a => a.role === role);
-const byFamily = (arr, family) => arr.find(a => a.family === family);
-
-/**
- * buildMusicalDNA(baseChar, palette, opts)
- *  - baseChar: a pool character (from ATOM_POOL_CHARACTERS) or the validated ref
- *  - palette : 'electronic' | 'acoustic'
- *  - opts    : { seed, characterId, modifierId, coreId, signatureId }
- *              modifierId/coreId/signatureId select a gen-2 two-tier modifier and
- *              are the LIVE path. overlayId/overlayDef remain for the harnesses
- *              and the retired gen-1 sets.
- * Returns a serializable MusicalDNA object.
- */
-function buildMusicalDNA(baseChar, palette, opts) {
-  const o = opts || {};
-  const seed = o.seed >>> 0;
-  const char = atomCharacterForPalette(baseChar, palette);
-  // Gen-2 two-tier modifier (live path) resolves to an overlay definition.
-  const modDef = o.modifierId ? resolveModifier(o.modifierId, o.coreId, o.signatureId) : null;
-  const useDef = modDef || o.overlayDef || null;
-  const r = buildAtoms(char, { seed, overlayId: useDef ? null : (o.overlayId || null), overlayDef: useDef });
-
-  const arr = r.arrangement;
-  const refused = !!r.overlayNote;
-  const overlayDef = useDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null);
-
-  const genreAnchor = (byRole(arr, 'genre') || {}).text || null;
-  const tempoSpec   = (byRole(arr, 'tempo') || {}).text || null;
-  const keyMode     = (byFamily(arr, 'harmony') || {}).text || null;
-  const arc         = (byRole(arr, 'arc') || {}).text || null;
-  const movement    = arr.filter(a => a.role === 'movement').map(a => a.text || a.instrument).filter(Boolean);
-
-  // arrangement projection: every surviving voice, tagged engine vs overlay.
-  const arrangement = arr
-    .filter(a => a.role !== 'genre' && a.role !== 'tempo')
-    .map(a => ({
-      role: a.role || null,
-      family: a.family || null,
-      fn: a.fn || null,
-      voice: a.instrument || a.text || null,
-      register: a.register || null,
-      prominence: a.prominence || null,
-      signature: !!a.signature,
-      priority: a.priority || null,
-      origin: a.source === 'overlay' ? 'overlay' : 'engine',
-      // BED FIELDS (Phase A). The metatag engine's pad cue previously keyed off
-      // the family LABEL ('pads only' whenever a pad-family voice existed), which
-      // is why it announced pads over arrangements that had none. Carrying bedId
-      // and behaviour lets it key off the FUNCTIONAL test instead: a voice is a
-      // pad because it sustains, swells slowly and sits behind the lead.
-      bedId: a.bedId || null,
-      behaviour: a.behaviour || null,
-    }));
-
-  return {
-    meta: {
-      dnaVersion: DNA_VERSION,
-      engineKind: 'atom',
-      source: char.source || null,
-      characterId: o.characterId || null,
-      label: char.label || null,
-      palette,
-      seed,
-      overlayId: o.modifierId || o.overlayId || (o.overlayDef ? o.overlayDef.label : null),
-      overlayApplied: !!(o.modifierId || o.overlayId || o.overlayDef) && !refused,
-      overlayCoreId: (o.overlayDef && o.overlayDef.coreId) || null,
-      overlaySignatureId: (o.overlayDef && o.overlayDef.signatureId) || null,
-      overlayVariantLabel: (o.overlayDef && o.overlayDef.variantLabel) || null,
-      overlayRefused: refused ? r.overlayNote : null,
-    },
-    identity: { genreFamily: char.source || null, subgenre: char.label || null, genreAnchor },
-    influences: overlayDef ? [{
-      key: o.overlayId,
-      kind: overlayDef.kind,          // composer | producer | remixer
-      label: overlayDef.label,        // UI label only
-      nameClass: 'person',
-      renderPolicy: 'never',          // generic fingerprint, never the name in output
-      applied: !refused,
-    }] : [],
-    harmony: { keyMode },
-    arrangement,
-    tempo: { spec: tempoSpec, tempoLock: true },
-    dynamics: { arc, beatless: !!char.beatless },
-    production: { masteringTail: char.mastering || null, characteristics: movement },
-    vocal: { mode: 'instrumental', characteristics: null, performanceStyle: null }, // lyric engine flips to 'vocal'
-    affect: { mood: null, emotionalAtmosphere: null },                              // lyric/metatag only; CIL fills later
-    provenance: {
-      identity: 'derived',
-      influences: overlayDef ? 'derived' : 'n/a',
-      harmony: 'derived',
-      arrangement: 'derived',
-      tempo: 'derived',
-      dynamics: 'derived',
-      production: 'derived',
-      vocal: 'unknown',   // must be asked / inferred
-      affect: 'unknown',
-    },
-    consumers: DNA_CONSUMERS,
-    // ANCHOR IDENTITY (opt-in, default OFF so existing output is byte-identical):
-    // a scene/compilation anchor is inserted directly AFTER the genre anchor,
-    // never in place of it. Non-congruent anchors are ignored, not forced.
-    render: (() => {
-      const st = applyAnchor(r.style, o.anchorId || null, palette);
-      return { style: st, negative: r.negative, length: st.length };  // reference only
-    })(),
-    anchor: o.anchorId && anchorCongruent(o.anchorId, palette) ? o.anchorId : null,
-  };
-}
-
-/** Fields a given engine is contractually allowed to read. */
-function dnaFieldsFor(engine) {
-  return Object.keys(DNA_CONSUMERS).filter(f => DNA_CONSUMERS[f].includes(engine));
-}
-
-Object.assign(window.__ATMOS, { buildMusicalDNA, dnaFieldsFor, DNA_VERSION, DNA_CONSUMERS });
-})();
-
-/* core/dna-resolver.js */
-(function(){
-/* ==========================================================================
- * dna-resolver.js — Musical DNA extractor for RESOLVER engines (P8, Phase 2).
- *
- * Companion to core/dna.js's buildMusicalDNA() (the atom-path producer). This
- * is the SECOND producer of the same MusicalDNA shape, sourced from
- * core/resolver.js's resolveArrangement()/build() output instead of
- * buildAtoms(). Every downstream consumer (CIL, Lyric, Metatag) reads one
- * shape regardless of which engine kind produced it — DNA_CONSUMERS and the
- * rest of the contract from core/dna.js are reused untouched.
- *
- * SCOPING (docs/architecture/p8-dna-extractors-plan.md, approved by John
- * 2026-08-13): resolver's arrangement model is structurally different from
- * the atom model, not just differently named — flat one-string-per-role
- * object vs. a tagged array of voice objects, and there is genuinely no
- * musical key/mode concept anywhere in the resolver data (confirmed by
- * reading every resolver engine file; "harmony" pool picks are harmonic-
- * character descriptions, e.g. "a dark phrygian cadence", never a tonic
- * pitch). Three decisions from that plan, each resolved by John before this
- * was written:
- *
- *   Q1 (musical key): John confirmed (A) — extend the SAME rotating-pool
- *      variety Balearic/Enigma already have, not invent a literal key value.
- *      That variety mechanism lives in core/resolver.js's harmony-brightness
- *      weighting (Levers 2+3, same session) — this module just reports
- *      harmony.keyMode: null honestly, with provenance:'n/a' (a THIRD
- *      provenance state, distinct from 'unknown' — 'n/a' means this engine
- *      kind structurally cannot produce this field, not "could exist, not
- *      resolved yet"). The actual selected harmony text still reaches the
- *      Lyric Engine via the arrangement[] projection below, tagged role:
- *      'harmony' — nothing useful is lost, only the (never-existing) literal
- *      key value is honestly absent.
- *   Q2 (arrangement fidelity for the Metatag Engine): John's own read, and it
- *      simplified this significantly — by the time resolveArrangement() has
- *      run, each voice's ROLE is already known by construction (arr.pads IS
- *      definitionally the pad, arr.bass IS definitionally the bass — there is
- *      no ambiguity to resolve). No bedId/behaviour functional-inference
- *      equivalent is needed; role is carried straight through.
- *   Q3 (mastering tail): traced. It's the shared MASTERING constant from
- *      core/constants.js, identical across every engine/character/modifier —
- *      confirmed by reading core/resolver.js's renderStyle() and every
- *      Composer/Producer/Remixer modifier file. Not per-character, not
- *      touched by any modifier.
- *
- * influences[] is sourced from the resolved overlay's `names` array
- * (core/overlays.js's resolveOverlays() return shape — resolver engines use
- * the legacy prose-per-slot overlay library, a different modifier data
- * source than the atom path's gen-2 modifiers, traced while writing this).
- * ========================================================================*/
-
-const {DNA_VERSION, DNA_CONSUMERS} = window.__ATMOS;
-const {OVERLAYS} = window.__ATMOS;
-const {MASTERING} = window.__ATMOS;
-
-const ROLE_ORDER = ['pads', 'harmony', 'bass', 'drums', 'voice', 'lead', 'color', 'movement'];
-
-/* resolveInfluencesFromNames(names) — shared between the resolver and legacy
- * DNA producers (2026-08-12), both of which source their overlay from the
- * SAME core/overlays.js resolveOverlays() call (generate.js's overlayFor()),
- * unlike the atom path which has its own gen-2 modifier system entirely.
- * Extracted here rather than duplicated in core/dna-legacy.js, per the
- * project's one-source-of-truth rule — a fix to this logic (e.g. the
- * known applied:true-always limitation noted below) now only needs making
- * once for both engine kinds. */
-function resolveInfluencesFromNames(names) {
-  return (names || []).map(nameStr => {
-    const [kind, id] = String(nameStr).split(':');
-    const ov = (OVERLAYS[kind] || {})[id];
-    return {
-      key: id,
-      kind,                                  // 'composer' | 'producer' | 'remixer'
-      label: ov ? ov.label : id,             // UI label only
-      nameClass: 'person',
-      renderPolicy: 'never',                 // generic fingerprint, never the name in output
-      // NOTE: always true — neither this nor the legacy producer checks
-      // whether the overlay's tags were banned or whether any role actually
-      // landed (unlike the atom path's real refusal check via
-      // fresh.overlayNote). Flagged, not fixed, in the P8 Phase 2 log entry.
-      applied: true,
-    };
-  });
-}
-
-/**
- * buildResolverDNA(arrangement, overlay, opts)
- *  - arrangement: the `arr` object resolveArrangement()/build() already
- *    produced (NOT re-resolved here — this is a pure projection, same
- *    discipline as buildMusicalDNA() never re-resolving buildAtoms()'s work).
- *  - overlay: the resolved {roles, roleFamily, negative, names} object from
- *    core/overlays.js's resolveOverlays() — the same object generate.js
- *    already builds via overlayFor() and passes into build()'s opts.overlay.
- *    Pass null/undefined when no overlay was applied.
- *  - opts: { characterId, seed, palette }
- * Returns a MusicalDNA object in the exact shape core/dna.js produces.
- */
-function buildResolverDNA(arrangement, overlay, opts) {
-  const o = opts || {};
-  const arr = arrangement || {};
-
-  // arrangement[] projection: one entry per populated role, in canonical
-  // order. Role IS the functional answer here (Q2) — no bedId/behaviour
-  // equivalent exists or is needed for resolver-sourced DNA.
-  const arrangementProjection = ROLE_ORDER
-    .filter(role => arr[role])
-    .map(role => ({
-      role,
-      family: null,       // n/a — resolver doesn't compute an atom-style family
-      fn: null,            // n/a
-      voice: arr[role],
-      register: null,      // n/a
-      prominence: null,    // n/a
-      signature: false,    // n/a — resolver overlays don't carry a signature flag at this layer
-      priority: null,      // n/a
-      origin: 'engine',
-      bedId: null,          // n/a (Q2) — role itself disambiguates function, no tag needed
-      behaviour: null,      // n/a (Q2)
-    }));
-
-  // influences[]: sourced from the resolved overlay's `names` (e.g.
-  // ['composer:zimmer']), via the shared helper above.
-  const influences = resolveInfluencesFromNames(overlay && overlay.names);
-
-  const tempoSpec = arr.beatless
-    ? 'beatless'
-    : (Array.isArray(arr.bpm) ? `${arr.bpm[0]}-${arr.bpm[1]} BPM` : null);
-
-  return {
-    meta: {
-      dnaVersion: DNA_VERSION,
-      engineKind: 'resolver',
-      source: null,
-      characterId: o.characterId || null,
-      label: arr.character || null,
-      palette: o.palette || null,
-      seed: o.seed != null ? (o.seed >>> 0) : null,
-    },
-    identity: {
-      genreFamily: null,           // n/a — resolver has no separate family/subgenre split; genreAnchor carries both
-      subgenre: arr.character || null,
-      genreAnchor: arr.genre || null,
-    },
-    influences,
-    // Q1: no key/mode concept exists in this data model — see module header.
-    // Provenance 'n/a' below (not 'unknown') marks this as structurally
-    // absent, not merely unresolved.
-    harmony: { keyMode: null },
-    arrangement: arrangementProjection,
-    tempo: { spec: tempoSpec, tempoLock: !!arr.tempoLock },
-    dynamics: { arc: (arr.ip && arr.ip.arc) || null, beatless: !!arr.beatless },
-    // Q3: the mastering tail is a single shared constant across every
-    // engine/character/modifier — never per-character, never touched by a
-    // Composer/Producer/Remixer modifier. Traced, not guessed.
-    production: { masteringTail: MASTERING, characteristics: [] },
-    vocal: { mode: 'instrumental', characteristics: null, performanceStyle: null }, // lyric engine flips to 'vocal'; same as atom path
-    affect: { mood: null, emotionalAtmosphere: null },                              // lyric/metatag only; CIL fills later
-    provenance: {
-      identity: 'derived',
-      influences: influences.length ? 'derived' : 'n/a',
-      harmony: 'n/a',     // structurally absent for this engine kind (Q1) — distinct from 'unknown'
-      arrangement: 'derived',
-      tempo: 'derived',
-      dynamics: 'derived',
-      production: 'derived',
-      vocal: 'unknown',   // must be asked / inferred, same as atom path
-      affect: 'unknown',
-    },
-    consumers: DNA_CONSUMERS,
-    render: null,          // caller already has the rendered style from build(); not duplicated here
-    anchor: null,           // resolver engines don't currently support anchor identities
-  };
-}
-
-Object.assign(window.__ATMOS, { resolveInfluencesFromNames, buildResolverDNA });
-})();
-
-/* core/profiles.js */
-(function(){
-/* ==========================================================================
- * profiles.js — INFERENCE PROFILES (data) for the CIL (P3).
- *
- * Subgenre-keyed affect + vocal disposition, read ONLY by core/cil.js — which is
- * a lyric/metatag consumer. NEVER read by style compose, so no affect vocabulary
- * can reach the style prompt (upholds the standing "no mood/affect words in the
- * style path" rule structurally).
- *
- * moodClass is an ABSTRACT CLASS, not Suno prose. The lyric engine (P4) realizes
- * prose from {class + user answers}; keeping CIL prose-free means these values
- * never touch a rendered prompt, so this table is safe to author ahead of John's
- * empirical sign-off. FIRST-PASS musical mapping — flagged for review.
- *
- * This is the "author genre/artist profiles as data" step P2 deferred until a
- * consumer needed it. It keys on SUBGENRE (real differentiation across the 12
- * characters), not a single-entry genre registry, so it is not premature config.
- * ========================================================================*/
-
-// Abstract mood classes (CIL vocabulary; realized to prose later by the lyric engine).
-const MOOD_CLASSES = Object.freeze([
-  'contemplative', 'ethereal', 'warm', 'nocturnal',
-  'brooding', 'euphoric', 'driving', 'hypnotic', 'wistful',
-]);
-
-// How a subgenre disposes toward vocals (a suggestion; the user always decides).
-const VOCAL_DISPOSITIONS = Object.freeze([
-  'instrumental-leaning', 'vocal-capable', 'either',
-]);
-
-const INFERENCE_PROFILES = Object.freeze({
-  // genre-level fallback (only 'Balearic' on the atom path today)
-  bySource: {
-    Balearic: { moodClass: 'warm', vocalDisposition: 'vocal-capable' },
-  },
-  // subgenre refinement, keyed by dna.meta.characterId
-  bySubgenre: {
-    'organic-warm-downtempo':       { moodClass: 'warm',          vocalDisposition: 'vocal-capable' },
-    'lush-cinematic-chillout':      { moodClass: 'ethereal',      vocalDisposition: 'vocal-capable' },
-    'dreamy-analog-electronic':     { moodClass: 'hypnotic',      vocalDisposition: 'vocal-capable' },
-    'dub-space-downtempo':          { moodClass: 'hypnotic',      vocalDisposition: 'vocal-capable' },
-    'deep-nocturnal-balearic':      { moodClass: 'nocturnal',     vocalDisposition: 'vocal-capable' },
-    'sunlit-mediterranean':         { moodClass: 'warm',          vocalDisposition: 'vocal-capable' },
-    'ambient-beatless-atmospheric': { moodClass: 'contemplative', vocalDisposition: 'vocal-capable' },
-    'moody-trip-hop-downbeat':      { moodClass: 'brooding',      vocalDisposition: 'vocal-capable' },
-    'balearic-house':               { moodClass: 'euphoric',      vocalDisposition: 'vocal-capable' },
-    'nu-disco-slo-mo':              { moodClass: 'warm',          vocalDisposition: 'vocal-capable' },
-    'melodic-deep-house':           { moodClass: 'driving',       vocalDisposition: 'vocal-capable' },
-    'lounge-house':                 { moodClass: 'warm',          vocalDisposition: 'vocal-capable' },
-  },
-});
-
-// Resolve the best profile for a DNA: subgenre first, then genre fallback.
-function profileFor(dna) {
-  const bySub = INFERENCE_PROFILES.bySubgenre;
-  const id = dna.meta && dna.meta.characterId;
-  const src = dna.identity && dna.identity.genreFamily;
-  return (id && bySub[id]) || INFERENCE_PROFILES.bySource[src] || null;
-}
-
-Object.assign(window.__ATMOS, { profileFor, MOOD_CLASSES, VOCAL_DISPOSITIONS, INFERENCE_PROFILES });
-})();
-
-/* core/cil.js */
-(function(){
-/* ==========================================================================
- * cil.js — Compositional Inference Layer (P3 of the Composition Workbench).
- *
- * A PURE CONSUMER of MusicalDNA (+ inference profiles). It fills the lyric /
- * performance fields the DNA leaves 'unknown' (affect, vocal), tags each with a
- * PROVENANCE TIER, and computes the RESIDUE: the low-confidence / unknown items
- * the Lyric engine (P4) will ask about. Default mode surfaces at most 5.
- *
- * Guarantees (all proven headless in validate-cil.mjs):
- *   - NEVER mutates the DNA and NEVER touches render/style. Style output is
- *     unaffected — CIL is downstream of compose, not part of it.
- *   - CONSUMER-CONTRACT SAFE: only emits into DNA fields whose consumer set
- *     includes lyric/metatag and EXCLUDES style (affect, vocal). Affect is an
- *     abstract CLASS, never Suno prose, so nothing here can leak into a prompt.
- *   - Deterministic: no RNG; identical DNA in → identical inference out.
- *
- * PROVENANCE TIERS (winning-evidence order): a concrete signal from THIS
- * composition beats a generic genre default, so:
- *     derived  > inferred > profile > unknown
- * Only 'derived' is silent; everything below is surfaced in the residue as a
- * pre-filled SUGGESTION the user can override. (Ordering lives in the rule table
- * and TIERS below — trivially flippable to strict profile>inferred if John
- * prefers.) The `ruleId` recorded per field is the provenance hook seeded in P2.
- * ========================================================================*/
-
-const {profileFor, MOOD_CLASSES} = window.__ATMOS;
-
-const CIL_VERSION = '1.0';
-const TIERS = Object.freeze(['derived', 'inferred', 'profile', 'unknown']);
-const SILENT = new Set(['derived']); // never asked
-
-// ---- DNA signal readers (defensive: text fields may be null) --------------
-const hasWord = (t, w) => !!t && String(t).toLowerCase().includes(w);
-function bpmMid(dna) {
-  const s = dna.tempo && dna.tempo.spec;
-  if (!s) return null;
-  const m = String(s).match(/(\d{2,3})\s*[-\u2013]\s*(\d{2,3})/);
-  if (m) return (Number(m[1]) + Number(m[2])) / 2;
-  const one = String(s).match(/(\d{2,3})/);
-  return one ? Number(one[1]) : null;
-}
-
-// ---- affect.moodClass inference (data-driven; first strong signal wins) ----
-// Each rule returns a moodClass when its DNA signal is unambiguous. Order below
-// = evidence priority. Falls through to the profile default, then 'unknown'.
-const MOOD_RULES = [
-  { id: 'beatless-contemplative', value: 'contemplative',
-    test: d => !!(d.dynamics && d.dynamics.beatless) },
-  { id: 'darkminor-brooding', value: 'brooding',
-    test: d => hasWord(d.harmony && d.harmony.keyMode, 'minor') || hasWord(d.harmony && d.harmony.keyMode, 'dark') },
-  { id: 'uptempo-euphoric', value: 'euphoric',
-    test: d => { const b = bpmMid(d); return b != null && b >= 118; } },
-];
-
-function inferMoodClass(dna) {
-  for (const r of MOOD_RULES) {
-    if (r.test(dna)) return { value: r.value, tier: 'inferred', ruleId: r.id };
-  }
-  const p = profileFor(dna);
-  if (p && p.moodClass) return { value: p.moodClass, tier: 'profile', ruleId: 'profile-default' };
-  return { value: null, tier: 'unknown', ruleId: null };
-}
-
-// ---- vocal.mode inference --------------------------------------------------
-// Genuinely a user choice, so always residue — but pre-filled with a suggestion
-// from disposition + beatless signal.
-function inferVocalMode(dna) {
-  const p = profileFor(dna);
-  const disposition = p ? p.vocalDisposition : 'either';
-  let suggest = 'instrumental';
-  if (disposition === 'vocal-capable') suggest = 'vocal';
-  if (dna.dynamics && dna.dynamics.beatless) suggest = 'instrumental';
-  return { value: suggest, tier: 'inferred', ruleId: 'vocal-disposition', disposition };
-}
-
-// ---- residue question templates -------------------------------------------
-const QUESTIONS = {
-  'vocal.mode':          { priority: 1, question: 'Vocal or instrumental?', options: ['instrumental', 'vocal'] },
-  'affect.moodClass':    { priority: 2, question: 'Overall mood class?', options: MOOD_CLASSES },
-  'vocal.deliveryClass': { priority: 3, question: 'Vocal delivery?', options: ['lead-melodic', 'spoken/chant', 'wordless/textural', 'choir/pad'] },
-};
-
-function buildQuestion(field, res) {
-  const q = QUESTIONS[field] || { priority: 99, question: field, options: [] };
-  return {
-    field,
-    priority: q.priority,
-    question: q.question,
-    options: q.options,
-    suggested: res.value,
-    tier: res.tier,
-    source: res.ruleId,
-  };
-}
-
-// ---- light conflict scan (full recommendation engine is P6) ---------------
-function scanConflicts(dna, fields) {
-  const out = [];
-  const v = fields['vocal.mode'];
-  if (v && v.value === 'vocal' && dna.dynamics && dna.dynamics.beatless) {
-    out.push({
-      id: 'vocal-on-beatless',
-      severity: 'note',
-      message: 'Beatless ambient character — a vocal will need sparse, textural delivery to stay in-genre.',
-    });
-  }
-  return out;
-}
-
-// ---- entry point -----------------------------------------------------------
-// Pure: reads dna, returns a fresh inference object; never writes back.
-function inferCIL(dna) {
-  const mood = inferMoodClass(dna);
-  const vmode = inferVocalMode(dna);
-
-  const fields = {
-    'affect.moodClass': mood,
-    'vocal.mode': vmode,
-  };
-  // delivery only matters once a vocal is plausible
-  if (vmode.value === 'vocal' || (vmode.disposition && vmode.disposition !== 'instrumental-leaning')) {
-    fields['vocal.deliveryClass'] = { value: null, tier: 'unknown', ruleId: null };
-  }
-
-  const residueFull = [];
-  const provenance = {};
-  for (const [field, res] of Object.entries(fields)) {
-    provenance[field] = res.tier;
-    if (!SILENT.has(res.tier)) residueFull.push(buildQuestion(field, res));
-  }
-  residueFull.sort((a, b) => a.priority - b.priority);
-
-  return {
-    cilVersion: CIL_VERSION,
-    fields,
-    provenance,
-    residue: residueFull.slice(0, 5),   // Default mode: <=5
-    residueFull,
-    recommendations: scanConflicts(dna, fields),
-  };
-}
-
-Object.assign(window.__ATMOS, { inferCIL, CIL_VERSION, TIERS });
-})();
-
-/* core/anchors.js */
-(function(){
-/* ==========================================================================
- * anchors.js — ANCHOR IDENTITIES (scene / compilation anchors).
- *
- * WHY (John, 2026-07-22): the style prompts stated only GENRE and SUBGENRE.
- * Stronger scene identities — Cafe del Mar, Milchbar and the like — were used as
- * RESEARCH GROUNDING when the Balearic instrument pools were rebuilt, but never
- * reached the prompt text. This module puts them in front of Suno.
- *
- * WHY THESE ARE NOT ARTIST NAMES (the rule they must not break)
- *   Artist names are excluded because Suno rejects/ignores them. An anchor here
- *   is a COMPILATION SERIES, VENUE or SCENE — a catalogue identifier, not a
- *   person. 'Cafe del Mar' names a room and a record series the way 'Motown' or
- *   'Balearic' names a scene. NO ANCHOR MAY BE A PERSON OR A BAND, and the
- *   validator enforces that against the modifier roster and a denylist.
- *
- * PLACEMENT — alongside, never instead of
- *   The genre anchor is the strongest lever John has empirically proven, so an
- *   anchor identity is appended DIRECTLY AFTER it at the front of the prompt
- *   ("Balearic house, Cafe del Mar sunset-terrace lineage, 118-124 BPM, ...").
- *   It never replaces the genre anchor and never moves it from position one.
- *
- * OPT-IN — this is UNTESTED IN SUNO
- *   Default OFF. John A/B tests anchor-on vs anchor-off and his result decides,
- *   per the standing rule that his empirical test beats theory. Because it is
- *   off by default, existing style output stays byte-identical.
- *
- * BUDGET
- *   Anchors are short (a few words). The 1,000-char positive-prompt ceiling is
- *   checked by the validator with the anchor applied.
- * ========================================================================*/
-
-// Anchors are grouped by engine. Each carries the engines/subgenres it suits, so
-// the UI can offer only anchors congruent with the current character.
-const ANCHOR_IDENTITIES = {
-
-  /* ---- Balearic / downtempo scene anchors ------------------------------ */
-  cafe_del_mar: {
-    label: 'Café del Mar', engine: 'Balearic',
-    text: 'Café del Mar sunset-terrace lineage',
-    note: 'Ibiza sunset terrace: unhurried, melodic, warm — the founding chillout series.',
-    lean: 'any',
-  },
-  milchbar: {
-    label: 'Milchbar', engine: 'Balearic',
-    text: 'Milchbar seaside-lounge lineage',
-    note: 'Polished seaside lounge — songful, downtempo, vocal-friendly.',
-    lean: 'any',
-  },
-  balearic_sunset: {
-    label: 'Balearic sunset session', engine: 'Balearic',
-    text: 'Balearic sunset-session lineage',
-    note: 'Generic scene anchor for when a named series is too specific.',
-    lean: 'any',
-  },
-  hotel_costes: {
-    label: 'Hotel Costes', engine: 'Balearic',
-    text: 'Hotel Costes late-lounge lineage',
-    note: 'Parisian after-dark lounge — smokier, more nocturnal than Café del Mar.',
-    lean: 'any',
-  },
-  buddha_bar: {
-    label: 'Buddha-Bar', engine: 'Balearic',
-    text: 'Buddha-Bar world-lounge lineage',
-    note: 'Ethnic-instrument lounge; pairs with world/ethnic-leaning characters.',
-    lean: 'any',
-  },
-  ibiza_terrace: {
-    label: 'Ibiza terrace house', engine: 'Balearic',
-    text: 'Ibiza terrace-house lineage',
-    note: 'The club-side of the island — for the house-leaning characters.',
-    lean: 'electronic',
-  },
-
-  /* ---- Enigma / ethereal-ethnic anchors --------------------------------- */
-  gregorian_ambient: {
-    label: 'Gregorian ambient', engine: 'Enigma',
-    text: 'Gregorian-ambient crossover lineage',
-    note: 'Plainchant over downtempo beats — the founding Enigma formula.',
-    lean: 'any',
-  },
-  ethno_ambient: {
-    label: 'Ethno-ambient', engine: 'Enigma',
-    text: 'ethno-ambient crossover lineage',
-    note: 'World vocal samples over ambient electronics.',
-    lean: 'any',
-  },
-  sacred_chant: {
-    label: 'Sacred chant crossover', engine: 'Enigma',
-    text: 'sacred-chant crossover lineage',
-    note: 'Ceremonial/devotional vocal material in a modern production frame.',
-    lean: 'any',
-  },
-
-  /* ---- Delerium / ethereal-vocal anchors -------------------------------- */
-  ethereal_vocal: {
-    label: 'Ethereal vocal trance', engine: 'Delerium',
-    text: 'ethereal vocal-trance lineage',
-    note: 'Soaring female lead over lush electronic beds.',
-    lean: 'electronic',
-  },
-  dreampop_electronic: {
-    label: 'Electronic dream-pop', engine: 'Delerium',
-    text: 'electronic dream-pop lineage',
-    note: 'Songful, hazy, vocal-forward.',
-    lean: 'any',
-  },
-
-  /* ---- Era / choral-cinematic anchors ----------------------------------- */
-  choral_cinematic: {
-    label: 'Choral cinematic', engine: 'Era',
-    text: 'choral-cinematic crossover lineage',
-    note: 'Massed choir over orchestral-electronic drive.',
-    lean: 'any',
-  },
-  neo_medieval: {
-    label: 'Neo-medieval', engine: 'Era',
-    text: 'neo-medieval crossover lineage',
-    note: 'Imagined-liturgical language over modern production.',
-    lean: 'any',
-  },
-
-  /* ---- Deep Forest / world-electronic anchors --------------------------- */
-  world_electronic: {
-    label: 'World-electronic', engine: 'Deep Forest',
-    text: 'world-electronic crossover lineage',
-    note: 'Field-recorded vocal traditions reframed electronically.',
-    lean: 'any',
-  },
-  tribal_ambient: {
-    label: 'Tribal ambient', engine: 'Deep Forest',
-    text: 'tribal-ambient crossover lineage',
-    note: 'Percussion-led world ambience.',
-    lean: 'any',
-  },
-};
-
-// Anchors that must never appear — these ARE people/bands, and Suno rejects
-// artist names. Kept explicit so the rule is testable rather than assumed.
-const ANCHOR_DENYLIST = Object.freeze([
-  'Blank & Jones', 'Enigma', 'Delerium', 'Deep Forest', 'Era', 'Sacred Spirit',
-  'Chicane', 'Jose Padilla', 'José Padilla', 'Schiller', 'Moby',
-]);
-
-function anchorList(engine) {
-  return Object.entries(ANCHOR_IDENTITIES)
-    .filter(([, a]) => !engine || a.engine === engine)
-    .map(([id, a]) => ({ id, label: a.label, engine: a.engine, note: a.note, lean: a.lean }));
-}
-
-/* Is this anchor congruent with the character/palette in play? An
- * electronic-lean anchor is refused on an acoustic palette, mirroring the
- * modifier lean gate. */
-function anchorCongruent(anchorId, palette) {
-  const a = ANCHOR_IDENTITIES[anchorId];
-  if (!a) return false;
-  if (a.lean === 'electronic' && palette !== 'electronic') return false;
-  return true;
-}
-
-/* applyAnchor — insert the anchor text directly AFTER the genre anchor at the
- * front of a rendered style string. Returns the style unchanged when no anchor
- * is selected or the anchor is not congruent, so default output is untouched. */
-function applyAnchor(style, anchorId, palette) {
-  if (!style || !anchorId) return style;
-  const a = ANCHOR_IDENTITIES[anchorId];
-  if (!a || !anchorCongruent(anchorId, palette)) return style;
-  if (style.includes(a.text)) return style;   // idempotent: never double-anchor
-  const i = style.indexOf(',');
-  if (i < 0) return `${style}, ${a.text}`;
-  return `${style.slice(0, i)}, ${a.text}${style.slice(i)}`;
-}
-
-Object.assign(window.__ATMOS, { anchorList, anchorCongruent, applyAnchor, ANCHOR_IDENTITIES, ANCHOR_DENYLIST });
-})();
-
 /* core/atom-modifiers.js */
 (function(){
 /* ==========================================================================
@@ -5598,6 +4005,1599 @@ function modifierVariants(modId) {
 }
 
 Object.assign(window.__ATMOS, { modifierCores, modifierSignatures, modifierList, resolveModifier, modifierVariants, ATOM_MODIFIERS });
+})();
+
+/* core/atoms.js */
+(function(){
+/* ==========================================================================
+ * atoms.js — the atom ASSEMBLY engine (character-agnostic).
+ * Promoted from proto/atom-proto.mjs. Pipeline is unchanged from the validated
+ * prototype: atoms -> holding area (engine + overlay) -> reconcile -> compose.
+ * Reconcile is pure data: one voice per family, priority wins (signature > core
+ * > support > decorative); a foundational overlay bass DISPLACES; a colliding
+ * overlay voice YIELDS; signature carriers hoist to the front (Lever 1).
+ *
+ * NEW (congruence, 2026-07-19 direction): overlays are congruent-by-default.
+ * Each overlay carries a congruence profile; a congruence PRE-PASS runs before
+ * the family contest. As of P2 this pre-pass is DATA-DRIVEN — the lean / engine /
+ * takeover policy is authored as rules in core/rules.js and applied by
+ * evaluateCongruence; congruenceGate() below is a thin delegator. The rules are:
+ *   - lean gate: an electronic-only overlay on a non-electronic character is
+ *     REFUSED entirely (Moroder-on-Balearic — a confirmed genre clash).
+ *   - takeover gate: an overlay may only seize a genre-owned family (bass timbre,
+ *     drum kit) if its profile permits AND the character's lean allows it. A
+ *     classical/orchestral composer takes over none — it finesses lead / strings
+ *     / texture / perc / colour over an intact engine foundation.
+ * Genre-owned attributes can't be claimed by a cross-genre overlay regardless of
+ * prompt craft or position — so we don't author a prompt that fights the prior.
+ * ========================================================================*/
+const {CHAR_LIMIT, ALWAYS_BAN} = window.__ATMOS;
+const {evaluateCongruence} = window.__ATMOS;
+const {bedAtom, bedAllowed} = window.__ATMOS;
+const {selectNegatives} = window.__ATMOS;
+const {classifyInstrument, planePhrase, pairLink} = window.__ATMOS;
+const {modifierList} = window.__ATMOS;
+const {ATOM_COMPOSERS} = window.__ATMOS;
+const {ATOM_PRODUCERS} = window.__ATMOS;
+const {ATOM_REMIXERS} = window.__ATMOS;
+
+function mulberry32(a){let t=(a>>>0)||1;return()=>{t+=0x6D2B79F5;let r=Math.imul(t^(t>>>15),1|t);r^=r+Math.imul(r^(r>>>7),61|r);return((r^(r>>>14))>>>0)/4294967296;};}
+const RANK = { signature:0, core:1, support:2, decorative:3 };
+
+// ---- OVERLAY ATOM TABLES (ingredients + congruence profile) --------------
+// congruence.lean:'any'|'electronic'  — required character lean.
+// congruence.engines: compatible engine sources (null = any).
+// congruence.takeover: which genre-owned families this overlay may seize.
+// signature:true -> hoists to the front; foundational:true on a bass -> displaces.
+// All three overlay arms now live atom-native: Composers (./atom-composers.js, 19),
+// Producers (./atom-producers.js, 8), Remixers (./atom-remixers.js, 5) — each a
+// distinct signature-delta set. Overlay system complete on the atom path.
+const ATOM_OVERLAYS = { ...ATOM_COMPOSERS, ...ATOM_PRODUCERS, ...ATOM_REMIXERS };
+
+/* RELATIONSHIP LANGUAGE — John, 2026-07-22 (Suno test round 2).
+ * Rewritten from literary to FUNCTIONAL. The standing project rule that
+ * interplay language is mandatory still holds — every voice must say how it sits
+ * against the others — but it now says so in plain, unambiguous terms Suno can
+ * act on. Poetic phrasing ('swelling to meet and resolve it', 'stacking to a
+ * lush peak then receding') gave Suno nothing actionable and burned characters. */
+const REL = {
+  foundation:    { needs:['bass','drums'], render:'locked tight together' },
+  arc:           { needs:['pad'],          render:'builds to a peak then thins out' },
+  harmonyResolve:{ needs:['lead','harmony'],render:'chords resolve behind the melody' },
+};
+
+// ---- CONGRUENCE PRE-PASS -------------------------------------------------
+// The pre-pass is now DATA-DRIVEN (P2): the lean / engine / takeover policy is
+// authored as rules in core/rules.js and evaluated by evaluateCongruence. This
+// wrapper keeps the call shape { ok, atoms, reason } the rest of atoms.js uses.
+// Decision is identical to the former inline gate — parity-safe.
+function congruenceGate(ov, char){
+  return evaluateCongruence(ov, char);
+}
+
+// ---- HOLDING AREA --------------------------------------------------------
+function collect(char, seed, overlayId, overlayDef){
+  const roll = mulberry32(seed);
+  const pick = a => Array.isArray(a) ? a[Math.floor(roll()*a.length)] : a;
+  const held = [];
+  const push = (key, a, source) => {
+    if (a.chance!=null && roll()>=a.chance) return;
+    held.push({ key, source, role:a.role, family:a.family||null, register:a.register||null, fn:a.fn||null,
+      priority:a.priority||'support', instrument:a.instrument?pick(a.instrument):null, text:a.text?pick(a.text):null,
+      timbre:(a.timbre||[]).slice(), prominence:a.prominence||'foreground', mix:a.mix||null,
+      dynamic:a.dynamic||null, density:a.density||null,
+      foundational:!!a.foundational, signature:!!a.signature,
+      // bed fields (Phase A): behaviour is how the pad MOVES and where it sits —
+      // compose states it explicitly because naming a pad does not make Suno
+      // render one. bedId is carried so DNA and the metatag engine can key off
+      // the functional pad test rather than a family label.
+      behaviour:a.behaviour||null, bedId:a.bedId||null });
+  };
+  for (const [k,a] of Object.entries(char.atoms)) push(k,a,'engine');
+  let overlayNote = null;
+  // A resolved TWO-TIER modifier (core + signature) may be passed directly as
+  // overlayDef; otherwise fall back to a gen-1 overlay looked up by id.
+  let ov = overlayDef || (overlayId ? ATOM_OVERLAYS[overlayId] : null);
+  // BED PALETTE GATE. A bed authored for the wrong palette would leak synthesis
+  // vocabulary onto an acoustic build (or an orchestral section onto a synth
+  // one) — the round-3 leak, applied to the pad layer. Swap to the palette-
+  // neutral hybrid rather than dropping it: a core with no bed has no body.
+  if (ov && char.palette) {
+    const bedKey = Object.keys(ov.atoms || {}).find(k => ov.atoms[k] && ov.atoms[k].bedId);
+    if (bedKey && !bedAllowed(ov.atoms[bedKey].bedId, char.palette)) {
+      const swap = bedAtom('hybrid_pad');
+      ov = Object.assign({}, ov, { atoms: Object.assign({}, ov.atoms, { [bedKey]: swap }) });
+    }
+  }
+  if (ov){
+    const gate = congruenceGate(ov, char);
+    overlayNote = gate.reason;
+    for (const [k,a] of Object.entries(gate.atoms)) push(k,a,'overlay');
+  }
+  return { held, overlayNote };
+}
+
+// ---- RECONCILE (pure data) ----------------------------------------------
+function reconcile(held){
+  const survivor = new Map();
+  for (const at of held){
+    if (!at.family) continue;
+    const cur = survivor.get(at.family);
+    // Higher priority wins. A FOUNDATIONAL overlay atom (e.g. a remixer's
+    // re-played bassline, where the bass IS the remix craft) also displaces an
+    // equal-ranked incumbent — the behaviour this file's header has always
+    // documented but which was never implemented, so overlay bass silently lost.
+    const outranks = RANK[at.priority] < RANK[cur ? cur.priority : 'decorative'];
+    const displaces = cur && at.foundational && !cur.foundational &&
+                      RANK[at.priority] <= RANK[cur.priority];
+    // OVERLAY WINS TIES outside the genre-owned families. The user picked the
+    // modifier deliberately, so its body should occupy the slot rather than lose
+    // an insertion-order tie to the character. bass/drums/harmony stay protected
+    // — those carry the genre identity and are governed by the takeover policy.
+    const PROTECTED = at.family==='bass'||at.family==='drums'||at.family==='harmony';
+    const overlayTie = cur && at.source==='overlay' && cur.source!=='overlay' &&
+                       !PROTECTED && RANK[at.priority] <= RANK[cur.priority];
+    if (!cur || outranks || displaces || overlayTie) survivor.set(at.family, at);
+  }
+  let kept = held.filter(at => !at.family || survivor.get(at.family)===at);
+
+  /* CROSS-FAMILY INSTRUMENT DE-DUPE (John, Suno test round 4).
+   * Family-based reconcile cannot see one voice named twice under DIFFERENT
+   * families. John heard 'French horn mentioned on 3 occasions': the strings-and-
+   * horns BED (family pad), the composer's body texture (family texture) and the
+   * character's counter line (family counter) all named the same horn, and
+   * reported the horn parts 'at odds with one another'. Three mentions of one
+   * instrument tells Suno to render three of them.
+   *
+   * PRECEDENCE, not array order: the SIGNATURE claims first (it is the
+   * fingerprint and must always survive), then the OVERLAY body (the modifier is
+   * the user's deliberate choice), then the character. A voice naming an
+   * instrument an earlier claimant already took is dropped. bass and drums are
+   * exempt — they carry the genre identity and must never vanish silently.
+   */
+  const claimed = new Set();
+  // Only the INSTRUMENT part of an atom counts. Atoms are authored as
+  // '<instrument> <behaviour>', so cut at the first behaviour/placement marker —
+  // otherwise trailing fragments like 'the melody' or 'the groove' get treated as
+  // instruments and every atom collides with every other one.
+  const STOP = /\b(answering|swelling|holding|ticking|sitting|building|opening|fading|rising|running|cycling|driving|punctuating|threading|floating|entering|carried|low|under|underneath|beneath|behind|below|quiet|quietly|soft|softly|hushed|distant|faint|through|across|over|in the|on the|between)\b/;
+  const heads = (txt) => {
+    let t = String(txt||'').toLowerCase().replace(/^(a|an|the) /,'');
+    const m = t.match(STOP);
+    if (m && m.index > 0) t = t.slice(0, m.index);
+    return t.split(/\s*(?:,| and | with )\s*/)
+      .map(x => x.replace(/[^a-z- ]/g,'').trim())
+      .filter(x => x && x.length > 3);
+  };
+  const rank = (at) => at.signature ? 0 : (at.source==='overlay' ? 1 : 2);
+  const doomed = new Set();
+  for (const at of [...kept].sort((a,b) => rank(a)-rank(b))) {
+    if (!at.instrument) continue;
+    if (at.family==='bass' || at.family==='drums') continue;
+    const h = heads(at.instrument);
+    if (!h.length) continue;
+    const clash = h.some(x => [...claimed].some(c => c.includes(x) || x.includes(c)));
+    if (clash && !at.signature) { doomed.add(at); continue; }
+    h.forEach(x => claimed.add(x));
+  }
+  kept = kept.filter(at => !doomed.has(at));
+  return kept;
+}
+
+// ---- COMPOSE -------------------------------------------------------------
+function wt(at){
+  if(!at.instrument) return at.text||'';
+  if(!at.timbre.length) return at.instrument;
+  const adj=at.timbre[0]; const s=at.instrument.replace(/^(a |an )/i,'');
+  const had=/^(a |an )/i.test(at.instrument); const art=/^[aeiou]/i.test(adj)?'an ':'a ';
+  return (had?art:'')+adj+' '+s;
+}
+function counterClause(c){
+  // Plain and non-duplicating: instrument, how loud, then ONE statement of how it
+  // answers the lead. The density field already carries frequency, so it replaces
+  // the generic tail rather than stacking a second 'answering' on top of it.
+  const bits=[c.instrument];
+  if(c.mix) bits.push(c.mix);
+  // density may already read as "answering only occasionally" — fold the lead
+  // reference into it rather than appending a second 'answering'.
+  const tail = !c.density ? 'answering the lead between phrases'
+             : /answer/i.test(c.density) ? c.density.replace(/^answering/i, 'answering the lead')
+             : `${c.density}, answering the lead`;
+  return `${bits.join(', ')}, ${tail}`;
+}
+function compose(held, mastering, o){
+  o=o||{};
+  const fams=new Set(held.map(a=>a.family).filter(Boolean));
+  const has=f=>fams.has(f);
+  const A=k=>held.find(a=>a.key===k);
+  const ownerOf=f=>held.find(a=>a.family===f);
+  const sig = f => { const o=ownerOf(f); return o&&o.signature?o:null; };
+  const cl=[];
+  cl.push(A('genre').text, A('tempo').text);
+
+  const sigBass=sig('bass'), sigHarm=sig('harmony');
+  if(sigBass) cl.push(sigBass.instrument);
+  if(sigHarm) cl.push(sigHarm.text||sigHarm.instrument);
+  // SIGNATURE PLACEMENT — John, 2026-07-22 (Suno test round 2).
+  // Lever 1 used to hoist the signature to the FRONT. That was correct when
+  // overlays were delta-only garnish that would otherwise be inaudible. With
+  // gen-2 modifiers carrying a real body it backfired: the tell landed in the
+  // hardest-weighted position and Suno read the exotic instrument as the GENRE
+  // ("modifier instruments dominate... alter Suno's understanding of what music
+  // it is trying to produce"). The signature is now DEFERRED and emitted after
+  // the core body, below — decoration, not identity.
+  const deferredSig=[];
+  const SIG_SLOTS=['lead','strings','texture','counter','colour'];
+  for(const f of SIG_SLOTS){ const x=sig(f); if(x) deferredSig.push(x.text||x.instrument); }
+
+  const bass=ownerOf('bass'), groove=A('groove');
+  if(groove){
+    if(sigBass) cl.push(`${groove.instrument} locked to the bassline`);
+    else if(bass) cl.push(`${wt(bass)} and ${groove.instrument}, ${REL.foundation.render}`);
+  } else if(bass && !sigBass){
+    // groove-absent (beatless) character: bass still anchors, no drum pocket.
+    cl.push(`${wt(bass)} holding the low end, no drums`);
+  }
+  const perc=ownerOf('perc'); if(perc) cl.push(`${perc.instrument} over the groove`);
+
+  const lead=ownerOf('lead'); if(lead && !lead.signature) cl.push(`${wt(lead)} on the melody out front`);
+
+  // FAMILY-PAIR LINKING (guide §3-§9). When the lead and the bed belong to two
+  // different orchestral families the guide has TESTED wording for how they sit
+  // together — e.g. 'string melody in the foreground with quiet brass harmonies
+  // in the background'. Using it replaces language that was previously invented.
+  const bedForLink=ownerOf('pad');
+  if(lead && bedForLink && !lead.signature){
+    const link=pairLink(classifyInstrument(lead.instrument),
+                        classifyInstrument(bedForLink.instrument), o.seed||0);
+    if(link) cl.push(link);
+  }
+
+  // THE BED. Round 3 showed that NAMING a pad does not make Suno render one —
+  // John's own definition is behavioural (sustained, slow attack and release,
+  // background placement, rich chords), so the behaviour is stated explicitly
+  // here rather than left implied by the instrument name. Mix placement stays
+  // LOW on purpose: sitting behind the lead is correct pad behaviour, and the
+  // answer to 'I could not tell what the pad comprised' is richer harmonic
+  // content and an audible swell, not more level.
+  const pads=ownerOf('pad'), harm=ownerOf('harmony');
+  if(pads||harm){ let h='';
+    if(pads){
+      h = pads.behaviour ? `${wt(pads)} ${pads.behaviour}` : wt(pads);
+      // PLANE OF TONE (docs/knowledge/instrument-family-linking-guide.md §13).
+      // John, round 4: a MODIFIER's bed came through 'too front and centre in
+      // the arrangement in volume'. Its own behaviour string says it sits low,
+      // but that was not enough against orchestral instrument names, which drag
+      // a cinematic front-and-centre mix with them. The guide's background-plane
+      // wording states the placement in the vocabulary Suno was trained on.
+      // Only modifier beds are pushed back; a character's own pad IS the genre
+      // and must not be buried.
+      if(pads.source==='overlay'){
+        const fam=classifyInstrument(pads.instrument);
+        if(fam){
+          // Replace the behaviour's own placement tail rather than stacking a
+          // second one — the bed already said 'well behind the melody' in round 4
+          // and still came through too front, so this swaps that wording for the
+          // guide's orchestration vocabulary instead of repeating it. The SWELL
+          // half of the behaviour is kept: slow attack is part of John's pad
+          // definition and carries no placement claim.
+          const swell=(pads.behaviour||'').split(/,?\s*(?:well )?(?:behind|under|underneath|beneath|low in the mix|far behind|back in the mix)\b/)[0].trim();
+          h = `${wt(pads)}${swell?' '+swell:''}, ${planePhrase('background','blend',fam)}`;
+        }
+      }
+    }
+    if(harm && !sigHarm) h=(h?`${h}, moving through `:'')+ (harm.text||harm.instrument);
+    if(h) cl.push(h); }
+
+  // MIDDLE PLANE (guide §13). John, round 4 A1: 'Couldn't hear the marimba, cello
+  // nor the French Horn (Might be too deep in the prompt)'. These are the
+  // character's own supporting voices — the genre's identity — and 'under the
+  // melody' alone left them inaudible. The middle-plane wording places them
+  // between the lead and the bed instead of merely below everything.
+  const strings=ownerOf('strings');
+  if(strings && !strings.signature){
+    // The guide writes '[Family] in the middle plane'; an instrument is a member
+    // of its family and reads naturally in the same slot, so the specific name is
+    // used rather than collapsing a cello into the word 'strings'.
+    const fam=classifyInstrument(strings.instrument);
+    cl.push(fam ? planePhrase('middle','support', wt(strings))
+                : `${wt(strings)} under the melody`);
+  }
+  const texture=ownerOf('texture'); if(texture && !texture.signature) cl.push(`${texture.instrument} sustained underneath`);
+
+  const counter=ownerOf('counter');
+  if(counter && lead && !counter.signature) cl.push(counterClause(counter));
+
+  // LIGHT TOUCH (John-approved default): the modifier contributes its body plus
+  // ONE signature statement. Extra signature voices are dropped unless the build
+  // explicitly asks for the full-strength application.
+  if(deferredSig.length) cl.push(...(o.fullModifier ? deferredSig : deferredSig.slice(0,1)));
+
+  // Phase B: decoration atoms now state their own mix placement, so the blanket
+  // 'in the gaps' suffix would double it ('low in the mix in the gaps'). Only add
+  // it when the atom has not already said where it sits.
+  const colour=ownerOf('colour')||ownerOf('perc-accent');
+  if(colour && !colour.signature){
+    const placed=/\b(under|underneath|beneath|behind|below|low\b|in the gaps|between the phrases|quiet|soft|hushed|distant|faint)/i.test(colour.instrument||'');
+    cl.push(placed ? colour.instrument : `${colour.instrument} in the gaps`);
+  }
+  const movement=A('movement'); if(movement) cl.push(movement.text);
+
+  // Find the overlay's arc by SOURCE+FN, not by a literal key: the two-tier
+  // resolver namespaces atom keys (core_/sig_), so the old A('ov_arc') lookup
+  // silently missed and every overlay arc line was dropped.
+  const ovArc=A('ov_arc')||held.find(a=>a.source==='overlay'&&a.fn==='arc');
+  if(ovArc) cl.push(ovArc.text);
+  else { if(REL.harmonyResolve.needs.every(has)) cl.push(REL.harmonyResolve.render);
+         if(REL.arc.needs.every(has)) cl.push(REL.arc.render); }
+  if(ovArc && REL.harmonyResolve.needs.every(has)) cl.push(REL.harmonyResolve.render);
+
+  cl.push(mastering);
+  return cl.filter(Boolean).join(', ').replace(/\s+/g,' ').replace(/\s*,\s*/g,', ').trim();
+}
+
+// ---- PUBLIC: build one atom character (+ optional overlay) ----------------
+// Returns the shell's uniform result shape. `arrangement` is the reconciled
+// atom list — the structured layer the Lyric/Metatag engine will read.
+function buildAtoms(char, opts){
+  const o = opts || {};
+  const { held, overlayNote } = collect(char, o.seed >>> 0, o.overlayId || null, o.overlayDef || null);
+  const kept = reconcile(held);
+  let style = compose(kept, char.mastering, o);
+  const over = style.length > CHAR_LIMIT;
+  if (o.maxMode) { /* atom path is already budget-safe; Max is a legacy-only directive */ }
+  // overlay-specific negatives merge in only when the overlay actually APPLIED
+  // (not refused). Engine-only + composer paths carry none, so their negative
+  // field is unchanged — ALWAYS_BAN only (parity-safe).
+  const ovDef = !overlayNote ? (o.overlayDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null)) : null;
+  const ovNeg = (ovDef && ovDef.negative) ? ovDef.negative : [];
+  // NEGATIVE CAP (John, round 4): the negative field loses effectiveness beyond
+  // about five elements, so an unranked list of 23 silently discarded the ones
+  // that mattered and John had to front-load them by hand. Negatives are now
+  // ranked by observed harm and truncated — genre-breaking bans first, cosmetic
+  // non-musical bans only if slots remain.
+  const negative = selectNegatives([...ovNeg, ...ALWAYS_BAN]).join(', ') + '.';
+  return { style, negative, lyrics:'', length:style.length, over,
+           arrangement:kept, overlayNote };
+}
+
+/* GEN-1 RETIRED — John signed off the gen-2 two-tier modifier set on 2026-07-22.
+ * The gen-1 signature-delta overlays in ATOM_OVERLAYS are kept ONLY so the
+ * existing harnesses (validate-dna, validate-overlays) keep exercising the
+ * legacy path; they are no longer offered to the user. The UI list is now the
+ * gen-2 modifiers, each carrying its 3 cores and 3 signatures. */
+const GEN1_OVERLAYS_RETIRED = true;
+
+function atomOverlayList(){
+  return modifierList();   // gen-2: { id, label, kind, cores[], signatures[] }
+}
+
+// Explicit accessor for the retired gen-1 sets (harnesses only).
+function legacyOverlayList(){
+  return Object.keys(ATOM_OVERLAYS).map(id => ({ id, label:ATOM_OVERLAYS[id].label, kind:ATOM_OVERLAYS[id].kind }));
+}
+
+function atomCharacters(module){
+  return Object.keys(module).map(id => ({ id, label:module[id].label, source:module[id].source,
+    tempo: module[id].atoms.tempo ? module[id].atoms.tempo.text : '' }));
+}
+
+Object.assign(window.__ATMOS, { buildAtoms, atomOverlayList, legacyOverlayList, atomCharacters, ATOM_OVERLAYS, GEN1_OVERLAYS_RETIRED });
+})();
+
+/* engines/atom-pools.js */
+(function(){
+/* ==========================================================================
+ * atom-pools.js — corrected instrument pools for the atom model (Balearic set).
+ *
+ * Rebuilt from scratch (legacy engine-extras Balearic pools were 68% defective).
+ * RUBRIC (locked with John, 2026-07-20):
+ *  - Palette = sound source. electronic = synthesized/sequenced. acoustic =
+ *    acoustically sounded. Electro-acoustic (Rhodes, Wurlitzer, Hammond, clavinet,
+ *    electric guitar, lap-steel guitar, fretless bass, mellotron) are the only
+ *    instruments allowed in either palette, where the genre supports them.
+ *  - Instrument roles hold a PURE INSTRUMENT NAME. harmony = key/mode/progression.
+ *    movement = production directives. Both structural, not prose.
+ *  - Theory-appropriate + complementary per cluster; an instrument appears in at
+ *    most one role per cluster+palette so draws don't self-collide.
+ *
+ * 2026-07-20 revision: clarinet removed everywhere (too dominant) -> French horn /
+ * flugelhorn / cor anglais; fretless bass added across acoustic bass pools;
+ * lap-steel guitar added (Guitar del Mar strand); thin pools deepened for batch
+ * variety.
+ * ========================================================================*/
+
+const ATOM_POOLS_BALEARIC = {
+
+  'organic-warm-downtempo': {
+    label: 'Organic warm downtempo', genre: 'Balearic downtempo', tempo: '80-100 BPM, low-mid energy', beatless: false,
+    harmony: ['minor key', 'Dorian mode', 'minor 7th and add9 voicings', 'ii-V-i in a minor key', 'a suspended-to-major resolution'],
+    movement: ['wide stereo panning', 'slow low-pass filter sweeps', 'tape-saturated warmth', 'tempo-synced delay throws', 'gentle sidechain movement'],
+    electronic: {
+      bass: ['analog synth bass', 'sub bass', 'FM bass'],
+      rhythm: ['soft downtempo kit', 'dusty boom-bap kit', 'drum machine'],
+      perc: ['drum-machine hi-hats', 'rimshot clicks', 'synth clap', 'electro shaker'],
+      pads: ['analog synth pads', 'string-machine pad', 'mellotron', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'granular synth'],
+      motif: ['Rhodes', 'synth lead', 'synth pluck'],
+      counter: ['Wurlitzer', 'synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth', 'synth marimba'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'double bass', 'fretless bass'],
+      rhythm: ['brushed drum kit', 'soft jazz kit', 'live drum kit'],
+      perc: ['shakers', 'congas', 'bongos', 'cabasa', 'frame drum', 'hang drum'],
+      pads: ['harmonium', 'bowed string pad'],
+      strings: ['cello', 'viola', 'string ensemble'],
+      texture: ['felt piano', 'harp', 'bowed metallophone'],
+      motif: ['nylon guitar', 'lap-steel guitar', 'flugelhorn'],
+      counter: ['muted trumpet', 'French horn', 'cor anglais'],
+      color: ['glockenspiel', 'vibraphone', 'kalimba', 'celeste'],
+    },
+  },
+
+  'lush-cinematic-chillout': {
+    label: 'Lush cinematic chillout', genre: 'Balearic downtempo', tempo: '85-105 BPM, medium energy', beatless: false,
+    harmony: ['minor-to-relative-major over eight-bar cycles', 'add9 voicings into a major-seventh resolution', 'wide sus2 voicings with a delayed resolve', 'Aeolian mode', 'a Picardy-third lift'],
+    movement: ['wide stereo panning', 'slow filter modulation on the pads', 'orchestral swells rising and receding', 'long reverb tails', 'LFO and chorus movement on the synths'],
+    electronic: {
+      bass: ['sub bass', 'FM sub-bass'],
+      rhythm: ['soft downtempo kit', 'lounge kit'],
+      perc: ['electro shaker', 'synth triangle', 'drum-machine hi-hats'],
+      pads: ['analog synth pads', 'layered synth pads', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'mellotron'],
+      motif: ['Rhodes', 'synth lead'],
+      counter: ['synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['double bass', 'upright bass', 'fretless bass'],
+      rhythm: ['brushed drum kit'],
+      perc: ['shakers', 'frame drum', 'triangle'],
+      pads: ['pipe organ', 'harmonium', 'bowed string pad'],
+      strings: ['cello', 'string ensemble', 'violin', 'viola'],
+      texture: ['cor anglais', 'lap-steel guitar'],
+      motif: ['grand piano', 'felt piano', 'flute'],
+      counter: ['French horn', 'flugelhorn', 'muted trumpet'],
+      color: ['glockenspiel', 'tubular bells', 'harp', 'celeste'],
+    },
+  },
+
+  'dreamy-analog-electronic': {
+    label: 'Dreamy analog electronic', genre: 'dreamy analog electronic', tempo: '90-110 BPM, medium energy', beatless: false,
+    harmony: ['major key with modal color', 'Lydian mode', 'slow major-seventh pads', 'a plagal cadence', 'suspended major voicings'],
+    movement: ['slow pitch drift', 'slow filter sweeps', 'wide stereo panning', 'chorus and phaser on the synths', 'tempo-synced delay'],
+    electronic: {
+      bass: ['Moog bass', 'analog synth bass', 'sub bass'],
+      rhythm: ['soft drum machine', 'LinnDrum-style kit'],
+      perc: ['drum-machine hi-hats', 'synth clap', 'electro shaker', 'rimshot clicks'],
+      pads: ['detuned analog pads', 'analog synth pads', 'mellotron', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['granular synth', 'drone synth'],
+      motif: ['synth lead', 'synth arp', 'synth pluck'],
+      counter: ['Wurlitzer', 'synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth', 'synth marimba'],
+    },
+    acoustic: {
+      bass: [],
+      rhythm: [],
+      perc: [],
+      pads: ['harmonium'],
+      strings: [],
+      texture: ['harp', 'lap-steel guitar'],
+      motif: ['Rhodes', 'grand piano'],
+      counter: ['French horn'],
+      color: ['glockenspiel', 'celeste', 'kalimba'],
+    },
+  },
+
+  'dub-space-downtempo': {
+    label: 'Dub-space downtempo', genre: 'dub-space downtempo', tempo: '70-95 BPM, low-mid energy', beatless: false,
+    harmony: ['minor key', 'a modal minor vamp', 'short dominant-seventh dub chords', 'a two-chord minor rock', 'Phrygian color'],
+    movement: ['spring reverb', 'tempo-synced dub delay throws', 'wide stereo panning', 'low-pass filter sweeps', 'echo feedback swells'],
+    electronic: {
+      bass: ['dub sub bass', 'sine sub bass', 'analog synth bass'],
+      rhythm: ['dub kit', 'soft drum machine', 'one-drop kit'],
+      perc: ['rimshot clicks', 'drum-machine hi-hats', 'electro shaker'],
+      pads: ['analog synth pads', 'clipped organ synth'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'granular synth'],
+      motif: ['clipped synth chords', 'synth lead', 'Rhodes'],
+      counter: ['Wurlitzer', 'synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'fretless bass'],
+      rhythm: ['brushed drum kit'],
+      perc: ['congas', 'bongos', 'shakers', 'frame drum', 'hang drum'],
+      pads: ['harmonium'],
+      strings: ['cello'],
+      texture: ['lap-steel guitar'],
+      motif: ['melodica', 'muted trumpet'],
+      counter: ['trombone', 'French horn'],
+      color: ['glockenspiel', 'kalimba'],
+    },
+  },
+
+  'deep-nocturnal-balearic': {
+    label: 'Deep nocturnal Balearic', genre: 'Balearic downtempo', tempo: '100-115 BPM, medium energy', beatless: false,
+    harmony: ['minor key', 'Aeolian mode', 'a minor-seventh vamp', 'add9 and sus4 voicings', 'Phrygian color'],
+    movement: ['low-pass filter sweeps', 'wide stereo panning', 'long reverb tails', 'sidechain movement', 'tempo-synced delay'],
+    electronic: {
+      bass: ['sub bass', 'analog synth bass', 'FM bass'],
+      rhythm: ['downtempo kit', 'deep house kit', 'soft four-on-the-floor kit'],
+      perc: ['drum-machine hi-hats', 'electro shaker', 'rimshot clicks', 'synth clap'],
+      pads: ['analog synth pads', 'clipped organ synth', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'granular synth'],
+      motif: ['synth lead', 'synth pluck', 'Rhodes'],
+      counter: ['synth counter-line', 'Wurlitzer'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'fretless bass'],
+      rhythm: ['brushed drum kit'],
+      perc: ['congas', 'bongos', 'shakers', 'cabasa', 'frame drum'],
+      pads: ['harmonium'],
+      strings: ['cello', 'viola'],
+      texture: ['felt piano', 'lap-steel guitar', 'duduk'],
+      motif: ['nylon guitar', 'ney'],
+      counter: ['French horn', 'flugelhorn'],
+      color: ['vibraphone', 'kalimba'],
+    },
+  },
+
+  'sunlit-mediterranean': {
+    label: 'Sunlit Mediterranean', genre: 'Balearic downtempo', tempo: '100-118 BPM, medium energy', beatless: false,
+    harmony: ['major key', 'Mixolydian mode', 'I-V-vi-IV', 'Andalusian cadence', 'sus2 into major voicings'],
+    movement: ['wide stereo panning', 'slow filter sweeps', 'tape-saturated warmth', 'tempo-synced delay', 'bright reverb'],
+    electronic: {
+      bass: ['analog synth bass', 'sub bass'],
+      rhythm: ['soft house kit', 'downtempo kit'],
+      perc: ['drum-machine hi-hats', 'electro shaker', 'synth clap'],
+      pads: ['analog synth pads', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth'],
+      motif: ['synth pluck', 'synth lead', 'Rhodes'],
+      counter: ['synth counter-line', 'Hammond organ'],
+      color: ['synth marimba', 'synth bells'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'fretless bass'],
+      rhythm: ['brushed drum kit', 'cajón kit'],
+      perc: ['shakers', 'congas', 'tambourine', 'cabasa', 'frame drum'],
+      pads: ['accordion', 'harmonium'],
+      strings: ['string ensemble', 'cello'],
+      texture: ['nylon guitar', 'lap-steel guitar'],
+      motif: ['flamenco guitar', 'pan flute', 'flugelhorn', 'mandolin'],
+      counter: ['muted trumpet', 'French horn', 'saxophone'],
+      color: ['marimba', 'glockenspiel', 'vibraphone'],
+    },
+  },
+
+  'ambient-beatless-atmospheric': {
+    label: 'Ambient / beatless atmospheric', genre: 'ambient atmospheric', tempo: 'free, very low energy', beatless: true,
+    harmony: ['a static major-seventh drone', 'Lydian mode', 'slow suspended-chord shifts', 'an open-fifth pedal', 'minor-to-major cross-fades'],
+    movement: ['very long reverb tails', 'slow granular clouds', 'wide stereo panning', 'slow filter drift', 'cross-faded layer swells'],
+    electronic: {
+      bass: ['sub drone'],
+      rhythm: [],
+      perc: [],
+      pads: ['analog synth pads', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['granular synth', 'drone synth', 'mellotron'],
+      motif: ['synth lead', 'Rhodes'],
+      counter: ['synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['bowed double bass'],
+      rhythm: [],
+      perc: [],
+      pads: ['pipe organ', 'harmonium', 'bowed string pad'],
+      strings: ['cello', 'string ensemble', 'violin'],
+      texture: ['felt piano', 'glass harmonica', 'bowed metallophone', 'lap-steel guitar'],
+      motif: ['flute', 'cor anglais'],
+      counter: ['French horn'],
+      color: ['glockenspiel', 'celeste', 'tubular bells', 'harp'],
+    },
+  },
+
+  'moody-trip-hop-downbeat': {
+    label: 'Moody trip-hop downbeat', genre: 'trip-hop downbeat', tempo: '70-90 BPM, low-mid energy', beatless: false,
+    harmony: ['minor key', 'a minor-seventh vamp', 'Phrygian color', 'chromatic descending bass', 'add9 and minor-sixth voicings'],
+    movement: ['tape-saturated warmth', 'low-pass filter sweeps', 'tempo-synced delay', 'wide stereo panning', 'spring reverb'],
+    electronic: {
+      bass: ['sub bass', 'analog synth bass'],
+      rhythm: ['trip-hop breakbeat kit', 'dusty boom-bap kit', 'drum machine'],
+      perc: ['drum-machine hi-hats', 'rimshot clicks', 'electro shaker'],
+      pads: ['analog synth pads', 'detuned analog pads'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'granular synth', 'mellotron'],
+      motif: ['Rhodes', 'synth lead', 'clipped synth chords'],
+      counter: ['Wurlitzer', 'synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'fretless bass'],
+      rhythm: ['brushed drum kit', 'live break kit'],
+      perc: ['congas', 'shakers', 'tambourine'],
+      pads: ['harmonium', 'bowed string pad'],
+      strings: ['cello', 'viola', 'string ensemble'],
+      texture: ['felt piano', 'lap-steel guitar'],
+      motif: ['muted trumpet', 'flugelhorn', 'Rhodes'],
+      counter: ['French horn', 'cor anglais'],
+      color: ['vibraphone', 'glockenspiel', 'harp'],
+    },
+  },
+
+  'balearic-house': {
+    label: 'Balearic house', genre: 'Balearic house', tempo: '118-124 BPM, medium-high energy', beatless: false,
+    harmony: ['minor key', 'a minor-seventh vamp', 'add9 and sus4 voicings', 'Dorian mode', 'I-V-vi-IV in a minor key'],
+    movement: ['sidechain pump', 'low-pass filter sweeps', 'wide stereo panning', 'tempo-synced delay', 'long reverb tails'],
+    electronic: {
+      bass: ['analog synth bass', 'sub bass', 'plucked synth bass'],
+      rhythm: ['four-on-the-floor house kit', 'soft house kit'],
+      perc: ['drum-machine hi-hats', 'electro shaker', 'synth clap', 'rimshot clicks'],
+      pads: ['analog synth pads', 'clipped organ synth', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'granular synth'],
+      motif: ['synth pluck', 'synth lead', 'filtered saw lead'],
+      counter: ['synth counter-line', 'Wurlitzer'],
+      color: ['synth bells', 'synth marimba'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'fretless bass'],
+      rhythm: ['live house kit'],
+      perc: ['congas', 'bongos', 'shakers', 'tambourine', 'cabasa'],
+      pads: ['harmonium'],
+      strings: ['string ensemble', 'cello'],
+      texture: ['nylon guitar', 'lap-steel guitar'],
+      motif: ['saxophone', 'flute', 'Rhodes'],
+      counter: ['muted trumpet', 'French horn', 'flugelhorn'],
+      color: ['vibraphone', 'marimba', 'glockenspiel'],
+    },
+  },
+
+  'nu-disco-slo-mo': {
+    label: 'Nu-disco / slo-mo disco', genre: 'nu-disco', tempo: '100-120 BPM, medium-high energy', beatless: false,
+    harmony: ['major key', 'ii-V-I with secondary dominants', 'a funk-minor vamp', 'seventh and ninth chords', 'I-vi-ii-V'],
+    movement: ['sidechain pump', 'wide stereo panning', 'tempo-synced delay', 'filter sweeps on the strings', 'tape-saturated warmth'],
+    electronic: {
+      bass: ['analog synth bass', 'Moog bass', 'sub bass'],
+      rhythm: ['disco four-on-the-floor kit', 'drum machine'],
+      perc: ['drum-machine hi-hats', 'synth clap', 'electro shaker'],
+      pads: ['analog synth pads', 'string-machine pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['clavinet', 'drone synth'],
+      motif: ['synth arp', 'synth lead', 'Rhodes'],
+      counter: ['synth brass', 'Hammond organ'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['fretless bass', 'electric bass'],
+      rhythm: ['live disco kit'],
+      perc: ['congas', 'bongos', 'tambourine', 'shakers'],
+      pads: ['string ensemble'],
+      strings: ['cello', 'violin'],
+      texture: ['electric guitar', 'clavinet'],
+      motif: ['saxophone', 'flute', 'grand piano'],
+      counter: ['muted trumpet', 'trombone', 'French horn'],
+      color: ['vibraphone', 'marimba', 'glockenspiel'],
+    },
+  },
+
+  'melodic-deep-house': {
+    label: 'Melodic deep house', genre: 'melodic deep house', tempo: '120-124 BPM, medium-high energy', beatless: false,
+    harmony: ['minor key', 'add9 and sus2 voicings', 'a minor-seventh arpeggio cycle', 'Aeolian mode', 'i-VI-III-VII'],
+    movement: ['sidechain pump', 'long reverb tails', 'wide stereo panning', 'filter sweeps on the arp', 'tempo-synced delay'],
+    electronic: {
+      bass: ['sub bass', 'plucked synth bass', 'analog synth bass'],
+      rhythm: ['deep house kit', 'four-on-the-floor house kit'],
+      perc: ['drum-machine hi-hats', 'electro shaker', 'synth clap', 'rimshot clicks'],
+      pads: ['analog synth pads', 'layered synth pads', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth', 'granular synth'],
+      motif: ['synth arp', 'synth lead', 'synth pluck'],
+      counter: ['synth counter-line', 'Rhodes'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['fretless bass'],
+      rhythm: [],
+      perc: ['shakers', 'congas'],
+      pads: ['harmonium'],
+      strings: ['string ensemble'],
+      texture: ['grand piano'],
+      motif: ['Rhodes'],
+      counter: ['cello'],
+      color: ['glockenspiel', 'vibraphone'],
+    },
+  },
+
+  'lounge-house': {
+    label: 'Lounge House', genre: 'lounge house', tempo: '100-120 BPM, medium energy', beatless: false,
+    harmony: ['ii-V-I with jazz sevenths', 'a minor-seventh and ninth vamp', 'bossa-nova major-seventh changes', 'Dorian mode', 'add9 and thirteenth voicings'],
+    movement: ['sidechain pump', 'wide stereo panning', 'tape-saturated warmth', 'tempo-synced delay', 'filter sweeps on the pads'],
+    electronic: {
+      bass: ['sub bass', 'analog synth bass'],
+      rhythm: ['soft house kit', 'four-on-the-floor house kit'],
+      perc: ['drum-machine hi-hats', 'electro shaker', 'synth clap'],
+      pads: ['analog synth pads', 'clipped organ synth', 'choir pad'],
+      strings: ['synth strings', 'string-machine ensemble'],
+      texture: ['drone synth'],
+      motif: ['Rhodes', 'synth lead', 'Wurlitzer'],
+      counter: ['Hammond organ', 'synth counter-line'],
+      color: ['synth bells', 'glassy mallet synth'],
+    },
+    acoustic: {
+      bass: ['upright bass', 'double bass', 'fretless bass'],
+      rhythm: ['brushed drum kit', 'jazz drum kit'],
+      perc: ['congas', 'bongos', 'shakers', 'cabasa'],
+      pads: ['Hammond organ'],
+      strings: ['string ensemble', 'cello'],
+      texture: ['jazz guitar', 'nylon guitar'],
+      motif: ['grand piano', 'saxophone', 'flugelhorn'],
+      counter: ['muted trumpet', 'French horn', 'flute'],
+      color: ['vibraphone', 'marimba', 'glockenspiel'],
+    },
+  },
+
+};
+
+Object.assign(window.__ATMOS, { ATOM_POOLS_BALEARIC });
+})();
+
+/* engines/atom-characters.js */
+(function(){
+/* ==========================================================================
+ * atom-characters.js — the 12 Balearic clusters WIRED as atom characters.
+ *
+ * Each cluster in atom-pools.js becomes ONE atom character (John, 2026-07-20:
+ * "one cluster = one character"). Palette (electronic | acoustic) is an AXIS,
+ * not a separate character — collect() draws per role FROM THE SELECTED PALETTE.
+ *
+ * ATOMS HOLD PURE INSTRUMENT NAMES ONLY. All timbre / level / interplay language
+ * is assembled at compose (core/atoms.js) from the structured attribute fields
+ * below — never fused into the instrument string. The pools are already bare
+ * names, so an atom's `instrument` is just that role's pool array for the palette
+ * and `timbre` stays empty; compose supplies the relational/interaction language.
+ *
+ * The Suno-validated reference character still lives in atom-balearic.js and is
+ * the seed-parity anchor for the harness; migrating IT onto this substrate
+ * (staying byte-identical) is a separate open item.
+ * ========================================================================*/
+const {ATOM_POOLS_BALEARIC} = window.__ATMOS;
+
+const MASTERING = 'Polished Dolby Atmos-Master Atmos -2dB';
+
+// House-family + the one explicitly-electronic cluster lean electronic; these
+// accept an electronic-only overlay (Moroder). Everything else is downtempo /
+// acoustic-leaning and REFUSES it (2026-07-17 congruence finding).
+const ELECTRONIC_LEAN = new Set([
+  'dreamy-analog-electronic', 'balearic-house', 'nu-disco-slo-mo',
+  'melodic-deep-house', 'lounge-house',
+]);
+
+// Pool role -> atom key + family + the structural (non-prose) attributes compose
+// reads. instrument is filled per palette from the pool; timbre stays [] (pure
+// identity — compose adds the language). Order here is documentation only;
+// compose fixes clause order.
+const ROLE_SPEC = {
+  bass:    { key:'bass',    family:'bass',    register:'sub',      fn:'foundation-weight', priority:'core' },
+  rhythm:  { key:'groove',  family:'drums',   register:'low-mid',  fn:'groove',            priority:'core' },
+  perc:    { key:'perc',    family:'perc',    register:'high',     fn:'groove-thread',     priority:'decorative' },
+  pads:    { key:'pads',    family:'pad',     register:'mid',      fn:'harmony-bed',       priority:'core' },
+  strings: { key:'strings', family:'strings', register:'mid',      fn:'support-bed',       priority:'support' },
+  texture: { key:'texture', family:'texture', register:'low-mid',  fn:'sustain-under',     priority:'decorative' },
+  motif:   { key:'lead',    family:'lead',    register:'upper-mid',fn:'foreground-melody', priority:'core' },
+  // counter carries the hard-won "answer without dominating" LEVEL as structured
+  // attributes (not baked into the name) so a counter voice never over-renders.
+  counter: { key:'counter', family:'counter', register:'low',     fn:'answer',            priority:'support',
+             prominence:'background', mix:'faint and buried well under the mix',
+             dynamic:'pianissimo', density:'answering only occasionally' },
+  // pool role is spelled 'color'; compose owns the 'colour' family.
+  color:   { key:'colour',  family:'colour',  register:'high',     fn:'accent',            priority:'decorative', chance:0.5 },
+};
+
+function paletteAtoms(cluster, pal) {
+  const src = cluster[pal] || {};
+  const atoms = {
+    genre: { role:'genre', text: cluster.genre },
+    tempo: { role:'tempo', text: cluster.tempo },
+  };
+  for (const [poolRole, spec] of Object.entries(ROLE_SPEC)) {
+    // beatless characters emit no drum kit; skip empty pool roles entirely.
+    if (cluster.beatless && poolRole === 'rhythm') continue;
+    const names = src[poolRole];
+    if (!names || !names.length) continue;
+    const a = { role: spec.family === 'drums' ? 'rhythm' : poolRole,
+                family: spec.family, register: spec.register, fn: spec.fn,
+                instrument: names.slice(), timbre: [], priority: spec.priority };
+    if (spec.prominence) a.prominence = spec.prominence;
+    if (spec.mix) a.mix = spec.mix;
+    if (spec.dynamic) a.dynamic = spec.dynamic;
+    if (spec.density) a.density = spec.density;
+    if (spec.chance != null) a.chance = spec.chance;
+    atoms[spec.key] = a;
+  }
+  // harmony + movement are structural TEXT atoms drawn from cluster metadata.
+  if (cluster.harmony && cluster.harmony.length)
+    atoms.harmony = { role:'harmony', family:'harmony', register:'mid', fn:'chord-movement',
+                      text: cluster.harmony.slice(), priority:'core' };
+  if (cluster.movement && cluster.movement.length) {
+    // PALETTE-APPROPRIATE MOVEMENT — John, round 3: an ACOUSTIC ambient build
+    // (pipe organ, flute, string ensemble, French horn) was still emitting
+    // "slow granular clouds", which is a synthesis term with no acoustic
+    // meaning ("I've never seen these in an orchestra"). Electronic-only
+    // production vocabulary is suppressed on acoustic palettes; if that would
+    // empty the pool, the acoustic-safe terms are used instead.
+    const ELECTRONIC_ONLY = /granular|filter|sidechain|vocoder|bitcrush|resonan|LFO|synth/i;
+    let mv = cluster.movement.slice();
+    if (pal !== 'electronic') {
+      const safe = mv.filter(t => !ELECTRONIC_ONLY.test(t));
+      mv = safe.length ? safe : ['very long reverb tails', 'wide stereo panning'];
+    }
+    atoms.movement = { role:'movement', family:'production', register:'n/a', fn:'movement',
+                       text: mv, priority:'support' };
+  }
+  return atoms;
+}
+
+function buildCharacters() {
+  const out = {};
+  for (const [key, cluster] of Object.entries(ATOM_POOLS_BALEARIC)) {
+    const electronic = paletteAtoms(cluster, 'electronic');
+    const acoustic   = paletteAtoms(cluster, 'acoustic');
+    out[key] = {
+      label: cluster.label,
+      source: 'Balearic',
+      electronicLean: ELECTRONIC_LEAN.has(key),
+      genreOwned: ['bass', 'drums'],
+      beatless: !!cluster.beatless,
+      mastering: MASTERING,
+      // palette axis: generate resolves char.atoms = palettes[palette].
+      palettes: { electronic, acoustic },
+      // default so any code reading char.atoms.tempo (lists/validation) works.
+      atoms: electronic,
+    };
+  }
+  return out;
+}
+
+const ATOM_POOL_CHARACTERS = buildCharacters();
+
+// Resolve a character's atom table for a palette (generate calls this).
+function atomCharacterForPalette(char, palette) {
+  if (!char.palettes) return char;                       // e.g. the validated ref
+  const pal = char.palettes[palette] ? palette : 'electronic';
+  const atoms = char.palettes[pal];
+  // record the resolved palette so downstream (the bed layer) can gate on it
+  return Object.assign({}, char, { atoms, palette: pal });
+}
+
+Object.assign(window.__ATMOS, { atomCharacterForPalette, ATOM_POOL_CHARACTERS });
+})();
+
+/* core/profiles.js */
+(function(){
+/* ==========================================================================
+ * profiles.js — INFERENCE PROFILES (data) for the CIL (P3).
+ *
+ * Subgenre-keyed affect + vocal disposition, read ONLY by core/cil.js — which is
+ * a lyric/metatag consumer. NEVER read by style compose, so no affect vocabulary
+ * can reach the style prompt (upholds the standing "no mood/affect words in the
+ * style path" rule structurally).
+ *
+ * moodClass is an ABSTRACT CLASS, not Suno prose. The lyric engine (P4) realizes
+ * prose from {class + user answers}; keeping CIL prose-free means these values
+ * never touch a rendered prompt, so this table is safe to author ahead of John's
+ * empirical sign-off. FIRST-PASS musical mapping — flagged for review.
+ *
+ * This is the "author genre/artist profiles as data" step P2 deferred until a
+ * consumer needed it. It keys on SUBGENRE (real differentiation across the 12
+ * characters), not a single-entry genre registry, so it is not premature config.
+ * ========================================================================*/
+
+// Abstract mood classes (CIL vocabulary; realized to prose later by the lyric engine).
+const MOOD_CLASSES = Object.freeze([
+  'contemplative', 'ethereal', 'warm', 'nocturnal',
+  'brooding', 'euphoric', 'driving', 'hypnotic', 'wistful',
+]);
+
+// How a subgenre disposes toward vocals (a suggestion; the user always decides).
+const VOCAL_DISPOSITIONS = Object.freeze([
+  'instrumental-leaning', 'vocal-capable', 'either',
+]);
+
+const INFERENCE_PROFILES = Object.freeze({
+  // genre-level fallback (only 'Balearic' on the atom path today)
+  bySource: {
+    Balearic: { moodClass: 'warm', vocalDisposition: 'vocal-capable' },
+  },
+  // subgenre refinement, keyed by dna.meta.characterId
+  bySubgenre: {
+    'organic-warm-downtempo':       { moodClass: 'warm',          vocalDisposition: 'vocal-capable' },
+    'lush-cinematic-chillout':      { moodClass: 'ethereal',      vocalDisposition: 'vocal-capable' },
+    'dreamy-analog-electronic':     { moodClass: 'hypnotic',      vocalDisposition: 'vocal-capable' },
+    'dub-space-downtempo':          { moodClass: 'hypnotic',      vocalDisposition: 'vocal-capable' },
+    'deep-nocturnal-balearic':      { moodClass: 'nocturnal',     vocalDisposition: 'vocal-capable' },
+    'sunlit-mediterranean':         { moodClass: 'warm',          vocalDisposition: 'vocal-capable' },
+    'ambient-beatless-atmospheric': { moodClass: 'contemplative', vocalDisposition: 'vocal-capable' },
+    'moody-trip-hop-downbeat':      { moodClass: 'brooding',      vocalDisposition: 'vocal-capable' },
+    'balearic-house':               { moodClass: 'euphoric',      vocalDisposition: 'vocal-capable' },
+    'nu-disco-slo-mo':              { moodClass: 'warm',          vocalDisposition: 'vocal-capable' },
+    'melodic-deep-house':           { moodClass: 'driving',       vocalDisposition: 'vocal-capable' },
+    'lounge-house':                 { moodClass: 'warm',          vocalDisposition: 'vocal-capable' },
+  },
+});
+
+// Resolve the best profile for a DNA: subgenre first, then genre fallback.
+function profileFor(dna) {
+  const bySub = INFERENCE_PROFILES.bySubgenre;
+  const id = dna.meta && dna.meta.characterId;
+  const src = dna.identity && dna.identity.genreFamily;
+  return (id && bySub[id]) || INFERENCE_PROFILES.bySource[src] || null;
+}
+
+Object.assign(window.__ATMOS, { profileFor, MOOD_CLASSES, VOCAL_DISPOSITIONS, INFERENCE_PROFILES });
+})();
+
+/* core/cil.js */
+(function(){
+/* ==========================================================================
+ * cil.js — Compositional Inference Layer (P3 of the Composition Workbench).
+ *
+ * A PURE CONSUMER of MusicalDNA (+ inference profiles). It fills the lyric /
+ * performance fields the DNA leaves 'unknown' (affect, vocal), tags each with a
+ * PROVENANCE TIER, and computes the RESIDUE: the low-confidence / unknown items
+ * the Lyric engine (P4) will ask about. Default mode surfaces at most 5.
+ *
+ * Guarantees (all proven headless in validate-cil.mjs):
+ *   - NEVER mutates the DNA and NEVER touches render/style. Style output is
+ *     unaffected — CIL is downstream of compose, not part of it.
+ *   - CONSUMER-CONTRACT SAFE: only emits into DNA fields whose consumer set
+ *     includes lyric/metatag and EXCLUDES style (affect, vocal). Affect is an
+ *     abstract CLASS, never Suno prose, so nothing here can leak into a prompt.
+ *   - Deterministic: no RNG; identical DNA in → identical inference out.
+ *
+ * PROVENANCE TIERS (winning-evidence order): a concrete signal from THIS
+ * composition beats a generic genre default, so:
+ *     derived  > inferred > profile > unknown
+ * Only 'derived' is silent; everything below is surfaced in the residue as a
+ * pre-filled SUGGESTION the user can override. (Ordering lives in the rule table
+ * and TIERS below — trivially flippable to strict profile>inferred if John
+ * prefers.) The `ruleId` recorded per field is the provenance hook seeded in P2.
+ * ========================================================================*/
+
+const {profileFor, MOOD_CLASSES} = window.__ATMOS;
+
+const CIL_VERSION = '1.0';
+const TIERS = Object.freeze(['derived', 'inferred', 'profile', 'unknown']);
+const SILENT = new Set(['derived']); // never asked
+
+// ---- DNA signal readers (defensive: text fields may be null) --------------
+const hasWord = (t, w) => !!t && String(t).toLowerCase().includes(w);
+function bpmMid(dna) {
+  const s = dna.tempo && dna.tempo.spec;
+  if (!s) return null;
+  const m = String(s).match(/(\d{2,3})\s*[-\u2013]\s*(\d{2,3})/);
+  if (m) return (Number(m[1]) + Number(m[2])) / 2;
+  const one = String(s).match(/(\d{2,3})/);
+  return one ? Number(one[1]) : null;
+}
+
+// ---- affect.moodClass inference (data-driven; first strong signal wins) ----
+// Each rule returns a moodClass when its DNA signal is unambiguous. Order below
+// = evidence priority. Falls through to the profile default, then 'unknown'.
+const MOOD_RULES = [
+  { id: 'beatless-contemplative', value: 'contemplative',
+    test: d => !!(d.dynamics && d.dynamics.beatless) },
+  { id: 'darkminor-brooding', value: 'brooding',
+    test: d => hasWord(d.harmony && d.harmony.keyMode, 'minor') || hasWord(d.harmony && d.harmony.keyMode, 'dark') },
+  { id: 'uptempo-euphoric', value: 'euphoric',
+    test: d => { const b = bpmMid(d); return b != null && b >= 118; } },
+];
+
+function inferMoodClass(dna) {
+  for (const r of MOOD_RULES) {
+    if (r.test(dna)) return { value: r.value, tier: 'inferred', ruleId: r.id };
+  }
+  const p = profileFor(dna);
+  if (p && p.moodClass) return { value: p.moodClass, tier: 'profile', ruleId: 'profile-default' };
+  return { value: null, tier: 'unknown', ruleId: null };
+}
+
+// ---- vocal.mode inference --------------------------------------------------
+// Genuinely a user choice, so always residue — but pre-filled with a suggestion
+// from disposition + beatless signal.
+function inferVocalMode(dna) {
+  const p = profileFor(dna);
+  const disposition = p ? p.vocalDisposition : 'either';
+  let suggest = 'instrumental';
+  if (disposition === 'vocal-capable') suggest = 'vocal';
+  if (dna.dynamics && dna.dynamics.beatless) suggest = 'instrumental';
+  return { value: suggest, tier: 'inferred', ruleId: 'vocal-disposition', disposition };
+}
+
+// ---- residue question templates -------------------------------------------
+const QUESTIONS = {
+  'vocal.mode':          { priority: 1, question: 'Vocal or instrumental?', options: ['instrumental', 'vocal'] },
+  'affect.moodClass':    { priority: 2, question: 'Overall mood class?', options: MOOD_CLASSES },
+  'vocal.deliveryClass': { priority: 3, question: 'Vocal delivery?', options: ['lead-melodic', 'spoken/chant', 'wordless/textural', 'choir/pad'] },
+};
+
+function buildQuestion(field, res) {
+  const q = QUESTIONS[field] || { priority: 99, question: field, options: [] };
+  return {
+    field,
+    priority: q.priority,
+    question: q.question,
+    options: q.options,
+    suggested: res.value,
+    tier: res.tier,
+    source: res.ruleId,
+  };
+}
+
+// ---- light conflict scan (full recommendation engine is P6) ---------------
+function scanConflicts(dna, fields) {
+  const out = [];
+  const v = fields['vocal.mode'];
+  if (v && v.value === 'vocal' && dna.dynamics && dna.dynamics.beatless) {
+    out.push({
+      id: 'vocal-on-beatless',
+      severity: 'note',
+      message: 'Beatless ambient character — a vocal will need sparse, textural delivery to stay in-genre.',
+    });
+  }
+  return out;
+}
+
+// ---- entry point -----------------------------------------------------------
+// Pure: reads dna, returns a fresh inference object; never writes back.
+function inferCIL(dna) {
+  const mood = inferMoodClass(dna);
+  const vmode = inferVocalMode(dna);
+
+  const fields = {
+    'affect.moodClass': mood,
+    'vocal.mode': vmode,
+  };
+  // delivery only matters once a vocal is plausible
+  if (vmode.value === 'vocal' || (vmode.disposition && vmode.disposition !== 'instrumental-leaning')) {
+    fields['vocal.deliveryClass'] = { value: null, tier: 'unknown', ruleId: null };
+  }
+
+  const residueFull = [];
+  const provenance = {};
+  for (const [field, res] of Object.entries(fields)) {
+    provenance[field] = res.tier;
+    if (!SILENT.has(res.tier)) residueFull.push(buildQuestion(field, res));
+  }
+  residueFull.sort((a, b) => a.priority - b.priority);
+
+  return {
+    cilVersion: CIL_VERSION,
+    fields,
+    provenance,
+    residue: residueFull.slice(0, 5),   // Default mode: <=5
+    residueFull,
+    recommendations: scanConflicts(dna, fields),
+  };
+}
+
+Object.assign(window.__ATMOS, { inferCIL, CIL_VERSION, TIERS });
+})();
+
+/* core/anchors.js */
+(function(){
+/* ==========================================================================
+ * anchors.js — ANCHOR IDENTITIES (scene / compilation anchors).
+ *
+ * WHY (John, 2026-07-22): the style prompts stated only GENRE and SUBGENRE.
+ * Stronger scene identities — Cafe del Mar, Milchbar and the like — were used as
+ * RESEARCH GROUNDING when the Balearic instrument pools were rebuilt, but never
+ * reached the prompt text. This module puts them in front of Suno.
+ *
+ * WHY THESE ARE NOT ARTIST NAMES (the rule they must not break)
+ *   Artist names are excluded because Suno rejects/ignores them. An anchor here
+ *   is a COMPILATION SERIES, VENUE or SCENE — a catalogue identifier, not a
+ *   person. 'Cafe del Mar' names a room and a record series the way 'Motown' or
+ *   'Balearic' names a scene. NO ANCHOR MAY BE A PERSON OR A BAND, and the
+ *   validator enforces that against the modifier roster and a denylist.
+ *
+ * PLACEMENT — alongside, never instead of
+ *   The genre anchor is the strongest lever John has empirically proven, so an
+ *   anchor identity is appended DIRECTLY AFTER it at the front of the prompt
+ *   ("Balearic house, Cafe del Mar sunset-terrace lineage, 118-124 BPM, ...").
+ *   It never replaces the genre anchor and never moves it from position one.
+ *
+ * OPT-IN — this is UNTESTED IN SUNO
+ *   Default OFF. John A/B tests anchor-on vs anchor-off and his result decides,
+ *   per the standing rule that his empirical test beats theory. Because it is
+ *   off by default, existing style output stays byte-identical.
+ *
+ * BUDGET
+ *   Anchors are short (a few words). The 1,000-char positive-prompt ceiling is
+ *   checked by the validator with the anchor applied.
+ * ========================================================================*/
+
+// Anchors are grouped by engine. Each carries the engines/subgenres it suits, so
+// the UI can offer only anchors congruent with the current character.
+const ANCHOR_IDENTITIES = {
+
+  /* ---- Balearic / downtempo scene anchors ------------------------------ */
+  cafe_del_mar: {
+    label: 'Café del Mar', engine: 'Balearic',
+    text: 'Café del Mar sunset-terrace lineage',
+    note: 'Ibiza sunset terrace: unhurried, melodic, warm — the founding chillout series.',
+    lean: 'any',
+  },
+  milchbar: {
+    label: 'Milchbar', engine: 'Balearic',
+    text: 'Milchbar seaside-lounge lineage',
+    note: 'Polished seaside lounge — songful, downtempo, vocal-friendly.',
+    lean: 'any',
+  },
+  balearic_sunset: {
+    label: 'Balearic sunset session', engine: 'Balearic',
+    text: 'Balearic sunset-session lineage',
+    note: 'Generic scene anchor for when a named series is too specific.',
+    lean: 'any',
+  },
+  hotel_costes: {
+    label: 'Hotel Costes', engine: 'Balearic',
+    text: 'Hotel Costes late-lounge lineage',
+    note: 'Parisian after-dark lounge — smokier, more nocturnal than Café del Mar.',
+    lean: 'any',
+  },
+  buddha_bar: {
+    label: 'Buddha-Bar', engine: 'Balearic',
+    text: 'Buddha-Bar world-lounge lineage',
+    note: 'Ethnic-instrument lounge; pairs with world/ethnic-leaning characters.',
+    lean: 'any',
+  },
+  ibiza_terrace: {
+    label: 'Ibiza terrace house', engine: 'Balearic',
+    text: 'Ibiza terrace-house lineage',
+    note: 'The club-side of the island — for the house-leaning characters.',
+    lean: 'electronic',
+  },
+
+  /* ---- Enigma / ethereal-ethnic anchors --------------------------------- */
+  gregorian_ambient: {
+    label: 'Gregorian ambient', engine: 'Enigma',
+    text: 'Gregorian-ambient crossover lineage',
+    note: 'Plainchant over downtempo beats — the founding Enigma formula.',
+    lean: 'any',
+  },
+  ethno_ambient: {
+    label: 'Ethno-ambient', engine: 'Enigma',
+    text: 'ethno-ambient crossover lineage',
+    note: 'World vocal samples over ambient electronics.',
+    lean: 'any',
+  },
+  sacred_chant: {
+    label: 'Sacred chant crossover', engine: 'Enigma',
+    text: 'sacred-chant crossover lineage',
+    note: 'Ceremonial/devotional vocal material in a modern production frame.',
+    lean: 'any',
+  },
+
+  /* ---- Delerium / ethereal-vocal anchors -------------------------------- */
+  ethereal_vocal: {
+    label: 'Ethereal vocal trance', engine: 'Delerium',
+    text: 'ethereal vocal-trance lineage',
+    note: 'Soaring female lead over lush electronic beds.',
+    lean: 'electronic',
+  },
+  dreampop_electronic: {
+    label: 'Electronic dream-pop', engine: 'Delerium',
+    text: 'electronic dream-pop lineage',
+    note: 'Songful, hazy, vocal-forward.',
+    lean: 'any',
+  },
+
+  /* ---- Era / choral-cinematic anchors ----------------------------------- */
+  choral_cinematic: {
+    label: 'Choral cinematic', engine: 'Era',
+    text: 'choral-cinematic crossover lineage',
+    note: 'Massed choir over orchestral-electronic drive.',
+    lean: 'any',
+  },
+  neo_medieval: {
+    label: 'Neo-medieval', engine: 'Era',
+    text: 'neo-medieval crossover lineage',
+    note: 'Imagined-liturgical language over modern production.',
+    lean: 'any',
+  },
+
+  /* ---- Deep Forest / world-electronic anchors --------------------------- */
+  world_electronic: {
+    label: 'World-electronic', engine: 'Deep Forest',
+    text: 'world-electronic crossover lineage',
+    note: 'Field-recorded vocal traditions reframed electronically.',
+    lean: 'any',
+  },
+  tribal_ambient: {
+    label: 'Tribal ambient', engine: 'Deep Forest',
+    text: 'tribal-ambient crossover lineage',
+    note: 'Percussion-led world ambience.',
+    lean: 'any',
+  },
+};
+
+// Anchors that must never appear — these ARE people/bands, and Suno rejects
+// artist names. Kept explicit so the rule is testable rather than assumed.
+const ANCHOR_DENYLIST = Object.freeze([
+  'Blank & Jones', 'Enigma', 'Delerium', 'Deep Forest', 'Era', 'Sacred Spirit',
+  'Chicane', 'Jose Padilla', 'José Padilla', 'Schiller', 'Moby',
+]);
+
+function anchorList(engine) {
+  return Object.entries(ANCHOR_IDENTITIES)
+    .filter(([, a]) => !engine || a.engine === engine)
+    .map(([id, a]) => ({ id, label: a.label, engine: a.engine, note: a.note, lean: a.lean }));
+}
+
+/* Is this anchor congruent with the character/palette in play? An
+ * electronic-lean anchor is refused on an acoustic palette, mirroring the
+ * modifier lean gate. */
+function anchorCongruent(anchorId, palette) {
+  const a = ANCHOR_IDENTITIES[anchorId];
+  if (!a) return false;
+  if (a.lean === 'electronic' && palette !== 'electronic') return false;
+  return true;
+}
+
+/* applyAnchor — insert the anchor text directly AFTER the genre anchor at the
+ * front of a rendered style string. Returns the style unchanged when no anchor
+ * is selected or the anchor is not congruent, so default output is untouched. */
+function applyAnchor(style, anchorId, palette) {
+  if (!style || !anchorId) return style;
+  const a = ANCHOR_IDENTITIES[anchorId];
+  if (!a || !anchorCongruent(anchorId, palette)) return style;
+  if (style.includes(a.text)) return style;   // idempotent: never double-anchor
+  const i = style.indexOf(',');
+  if (i < 0) return `${style}, ${a.text}`;
+  return `${style.slice(0, i)}, ${a.text}${style.slice(i)}`;
+}
+
+Object.assign(window.__ATMOS, { anchorList, anchorCongruent, applyAnchor, ANCHOR_IDENTITIES, ANCHOR_DENYLIST });
+})();
+
+/* core/dna.js */
+(function(){
+/* ==========================================================================
+ * dna.js — Musical DNA (P0 of the Composition Workbench).
+ *
+ * Formalizes the atom holding-area into a serialized, versioned MusicalDNA object
+ * that BOTH engines read: Style compose (already) and the future Lyric/Metatag
+ * engine. It is NOT a second source of truth — it is a read-only projection of
+ * what buildAtoms already resolves, plus seed (reproducibility) and per-field
+ * CONSUMER CONTRACTS. Purely additive: it calls buildAtoms and never alters
+ * rendering, so style output stays byte-identical (parity-safe).
+ *
+ * CONSUMER CONTRACTS enforce the standing rules structurally: `affect` (mood /
+ * emotional atmosphere) is readable by the lyric + metatag engines and FORBIDDEN
+ * to style compose — so mood words can never leak into the style prompt. Artist/
+ * overlay influences render generic (renderPolicy), never as names in output.
+ * ========================================================================*/
+
+const {resolveModifier} = window.__ATMOS;
+const {applyAnchor, anchorCongruent} = window.__ATMOS;
+const {buildAtoms, ATOM_OVERLAYS} = window.__ATMOS;
+const {atomCharacterForPalette} = window.__ATMOS;
+
+const DNA_VERSION = '1.0';
+
+// which engines may READ each DNA field. 'style' deliberately absent from affect.
+const DNA_CONSUMERS = Object.freeze({
+  identity:    ['style', 'lyric', 'metatag'],
+  influences:  ['style', 'lyric', 'metatag'],
+  harmony:     ['style', 'lyric', 'metatag'],
+  arrangement: ['style', 'metatag'],
+  tempo:       ['style', 'lyric', 'metatag'],
+  dynamics:    ['style', 'metatag'],
+  production:  ['style', 'metatag'],
+  vocal:       ['lyric', 'metatag'],
+  affect:      ['lyric', 'metatag'],   // NOT style — no mood words in the style prompt
+});
+
+const byRole   = (arr, role)   => arr.find(a => a.role === role);
+const byFamily = (arr, family) => arr.find(a => a.family === family);
+
+/**
+ * buildMusicalDNA(baseChar, palette, opts)
+ *  - baseChar: a pool character (from ATOM_POOL_CHARACTERS) or the validated ref
+ *  - palette : 'electronic' | 'acoustic'
+ *  - opts    : { seed, characterId, modifierId, coreId, signatureId }
+ *              modifierId/coreId/signatureId select a gen-2 two-tier modifier and
+ *              are the LIVE path. overlayId/overlayDef remain for the harnesses
+ *              and the retired gen-1 sets.
+ * Returns a serializable MusicalDNA object.
+ */
+function buildMusicalDNA(baseChar, palette, opts) {
+  const o = opts || {};
+  const seed = o.seed >>> 0;
+  const char = atomCharacterForPalette(baseChar, palette);
+  // Gen-2 two-tier modifier (live path) resolves to an overlay definition.
+  const modDef = o.modifierId ? resolveModifier(o.modifierId, o.coreId, o.signatureId) : null;
+  const useDef = modDef || o.overlayDef || null;
+  const r = buildAtoms(char, { seed, overlayId: useDef ? null : (o.overlayId || null), overlayDef: useDef });
+
+  const arr = r.arrangement;
+  const refused = !!r.overlayNote;
+  const overlayDef = useDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null);
+
+  const genreAnchor = (byRole(arr, 'genre') || {}).text || null;
+  const tempoSpec   = (byRole(arr, 'tempo') || {}).text || null;
+  const keyMode     = (byFamily(arr, 'harmony') || {}).text || null;
+  const arc         = (byRole(arr, 'arc') || {}).text || null;
+  const movement    = arr.filter(a => a.role === 'movement').map(a => a.text || a.instrument).filter(Boolean);
+
+  // arrangement projection: every surviving voice, tagged engine vs overlay.
+  const arrangement = arr
+    .filter(a => a.role !== 'genre' && a.role !== 'tempo')
+    .map(a => ({
+      role: a.role || null,
+      family: a.family || null,
+      fn: a.fn || null,
+      voice: a.instrument || a.text || null,
+      register: a.register || null,
+      prominence: a.prominence || null,
+      signature: !!a.signature,
+      priority: a.priority || null,
+      origin: a.source === 'overlay' ? 'overlay' : 'engine',
+      // BED FIELDS (Phase A). The metatag engine's pad cue previously keyed off
+      // the family LABEL ('pads only' whenever a pad-family voice existed), which
+      // is why it announced pads over arrangements that had none. Carrying bedId
+      // and behaviour lets it key off the FUNCTIONAL test instead: a voice is a
+      // pad because it sustains, swells slowly and sits behind the lead.
+      bedId: a.bedId || null,
+      behaviour: a.behaviour || null,
+    }));
+
+  return {
+    meta: {
+      dnaVersion: DNA_VERSION,
+      engineKind: 'atom',
+      source: char.source || null,
+      characterId: o.characterId || null,
+      label: char.label || null,
+      palette,
+      seed,
+      overlayId: o.modifierId || o.overlayId || (o.overlayDef ? o.overlayDef.label : null),
+      overlayApplied: !!(o.modifierId || o.overlayId || o.overlayDef) && !refused,
+      overlayCoreId: (o.overlayDef && o.overlayDef.coreId) || null,
+      overlaySignatureId: (o.overlayDef && o.overlayDef.signatureId) || null,
+      overlayVariantLabel: (o.overlayDef && o.overlayDef.variantLabel) || null,
+      overlayRefused: refused ? r.overlayNote : null,
+    },
+    identity: { genreFamily: char.source || null, subgenre: char.label || null, genreAnchor },
+    influences: overlayDef ? [{
+      key: o.overlayId,
+      kind: overlayDef.kind,          // composer | producer | remixer
+      label: overlayDef.label,        // UI label only
+      nameClass: 'person',
+      renderPolicy: 'never',          // generic fingerprint, never the name in output
+      applied: !refused,
+    }] : [],
+    harmony: { keyMode },
+    arrangement,
+    tempo: { spec: tempoSpec, tempoLock: true },
+    dynamics: { arc, beatless: !!char.beatless },
+    production: { masteringTail: char.mastering || null, characteristics: movement },
+    vocal: { mode: 'instrumental', characteristics: null, performanceStyle: null }, // lyric engine flips to 'vocal'
+    affect: { mood: null, emotionalAtmosphere: null },                              // lyric/metatag only; CIL fills later
+    provenance: {
+      identity: 'derived',
+      influences: overlayDef ? 'derived' : 'n/a',
+      harmony: 'derived',
+      arrangement: 'derived',
+      tempo: 'derived',
+      dynamics: 'derived',
+      production: 'derived',
+      vocal: 'unknown',   // must be asked / inferred
+      affect: 'unknown',
+    },
+    consumers: DNA_CONSUMERS,
+    // ANCHOR IDENTITY (opt-in, default OFF so existing output is byte-identical):
+    // a scene/compilation anchor is inserted directly AFTER the genre anchor,
+    // never in place of it. Non-congruent anchors are ignored, not forced.
+    render: (() => {
+      const st = applyAnchor(r.style, o.anchorId || null, palette);
+      return { style: st, negative: r.negative, length: st.length };  // reference only
+    })(),
+    anchor: o.anchorId && anchorCongruent(o.anchorId, palette) ? o.anchorId : null,
+  };
+}
+
+/** Fields a given engine is contractually allowed to read. */
+function dnaFieldsFor(engine) {
+  return Object.keys(DNA_CONSUMERS).filter(f => DNA_CONSUMERS[f].includes(engine));
+}
+
+Object.assign(window.__ATMOS, { buildMusicalDNA, dnaFieldsFor, DNA_VERSION, DNA_CONSUMERS });
+})();
+
+/* core/dna-resolver.js */
+(function(){
+/* ==========================================================================
+ * dna-resolver.js — Musical DNA extractor for RESOLVER engines (P8, Phase 2).
+ *
+ * Companion to core/dna.js's buildMusicalDNA() (the atom-path producer). This
+ * is the SECOND producer of the same MusicalDNA shape, sourced from
+ * core/resolver.js's resolveArrangement()/build() output instead of
+ * buildAtoms(). Every downstream consumer (CIL, Lyric, Metatag) reads one
+ * shape regardless of which engine kind produced it — DNA_CONSUMERS and the
+ * rest of the contract from core/dna.js are reused untouched.
+ *
+ * SCOPING (docs/architecture/p8-dna-extractors-plan.md, approved by John
+ * 2026-08-13): resolver's arrangement model is structurally different from
+ * the atom model, not just differently named — flat one-string-per-role
+ * object vs. a tagged array of voice objects, and there is genuinely no
+ * musical key/mode concept anywhere in the resolver data (confirmed by
+ * reading every resolver engine file; "harmony" pool picks are harmonic-
+ * character descriptions, e.g. "a dark phrygian cadence", never a tonic
+ * pitch). Three decisions from that plan, each resolved by John before this
+ * was written:
+ *
+ *   Q1 (musical key): John confirmed (A) — extend the SAME rotating-pool
+ *      variety Balearic/Enigma already have, not invent a literal key value.
+ *      That variety mechanism lives in core/resolver.js's harmony-brightness
+ *      weighting (Levers 2+3, same session) — this module just reports
+ *      harmony.keyMode: null honestly, with provenance:'n/a' (a THIRD
+ *      provenance state, distinct from 'unknown' — 'n/a' means this engine
+ *      kind structurally cannot produce this field, not "could exist, not
+ *      resolved yet"). The actual selected harmony text still reaches the
+ *      Lyric Engine via the arrangement[] projection below, tagged role:
+ *      'harmony' — nothing useful is lost, only the (never-existing) literal
+ *      key value is honestly absent.
+ *   Q2 (arrangement fidelity for the Metatag Engine): John's own read, and it
+ *      simplified this significantly — by the time resolveArrangement() has
+ *      run, each voice's ROLE is already known by construction (arr.pads IS
+ *      definitionally the pad, arr.bass IS definitionally the bass — there is
+ *      no ambiguity to resolve). No bedId/behaviour functional-inference
+ *      equivalent is needed; role is carried straight through.
+ *   Q3 (mastering tail): traced. It's the shared MASTERING constant from
+ *      core/constants.js, identical across every engine/character/modifier —
+ *      confirmed by reading core/resolver.js's renderStyle() and every
+ *      Composer/Producer/Remixer modifier file. Not per-character, not
+ *      touched by any modifier.
+ *
+ * influences[] is sourced from the resolved overlay's `names` array
+ * (core/overlays.js's resolveOverlays() return shape — resolver engines use
+ * the legacy prose-per-slot overlay library, a different modifier data
+ * source than the atom path's gen-2 modifiers, traced while writing this).
+ * ========================================================================*/
+
+const {DNA_VERSION, DNA_CONSUMERS} = window.__ATMOS;
+const {OVERLAYS} = window.__ATMOS;
+const {MASTERING} = window.__ATMOS;
+
+const ROLE_ORDER = ['pads', 'harmony', 'bass', 'drums', 'voice', 'lead', 'color', 'movement'];
+
+/* resolveInfluencesFromNames(names) — shared between the resolver and legacy
+ * DNA producers (2026-08-12), both of which source their overlay from the
+ * SAME core/overlays.js resolveOverlays() call (generate.js's overlayFor()),
+ * unlike the atom path which has its own gen-2 modifier system entirely.
+ * Extracted here rather than duplicated in core/dna-legacy.js, per the
+ * project's one-source-of-truth rule — a fix to this logic (e.g. the
+ * known applied:true-always limitation noted below) now only needs making
+ * once for both engine kinds. */
+function resolveInfluencesFromNames(names) {
+  return (names || []).map(nameStr => {
+    const [kind, id] = String(nameStr).split(':');
+    const ov = (OVERLAYS[kind] || {})[id];
+    return {
+      key: id,
+      kind,                                  // 'composer' | 'producer' | 'remixer'
+      label: ov ? ov.label : id,             // UI label only
+      nameClass: 'person',
+      renderPolicy: 'never',                 // generic fingerprint, never the name in output
+      // NOTE: always true — neither this nor the legacy producer checks
+      // whether the overlay's tags were banned or whether any role actually
+      // landed (unlike the atom path's real refusal check via
+      // fresh.overlayNote). Flagged, not fixed, in the P8 Phase 2 log entry.
+      applied: true,
+    };
+  });
+}
+
+/**
+ * buildResolverDNA(arrangement, overlay, opts)
+ *  - arrangement: the `arr` object resolveArrangement()/build() already
+ *    produced (NOT re-resolved here — this is a pure projection, same
+ *    discipline as buildMusicalDNA() never re-resolving buildAtoms()'s work).
+ *  - overlay: the resolved {roles, roleFamily, negative, names} object from
+ *    core/overlays.js's resolveOverlays() — the same object generate.js
+ *    already builds via overlayFor() and passes into build()'s opts.overlay.
+ *    Pass null/undefined when no overlay was applied.
+ *  - opts: { characterId, seed, palette }
+ * Returns a MusicalDNA object in the exact shape core/dna.js produces.
+ */
+function buildResolverDNA(arrangement, overlay, opts) {
+  const o = opts || {};
+  const arr = arrangement || {};
+
+  // arrangement[] projection: one entry per populated role, in canonical
+  // order. Role IS the functional answer here (Q2) — no bedId/behaviour
+  // equivalent exists or is needed for resolver-sourced DNA.
+  const arrangementProjection = ROLE_ORDER
+    .filter(role => arr[role])
+    .map(role => ({
+      role,
+      family: null,       // n/a — resolver doesn't compute an atom-style family
+      fn: null,            // n/a
+      voice: arr[role],
+      register: null,      // n/a
+      prominence: null,    // n/a
+      signature: false,    // n/a — resolver overlays don't carry a signature flag at this layer
+      priority: null,      // n/a
+      origin: 'engine',
+      bedId: null,          // n/a (Q2) — role itself disambiguates function, no tag needed
+      behaviour: null,      // n/a (Q2)
+    }));
+
+  // influences[]: sourced from the resolved overlay's `names` (e.g.
+  // ['composer:zimmer']), via the shared helper above.
+  const influences = resolveInfluencesFromNames(overlay && overlay.names);
+
+  const tempoSpec = arr.beatless
+    ? 'beatless'
+    : (Array.isArray(arr.bpm) ? `${arr.bpm[0]}-${arr.bpm[1]} BPM` : null);
+
+  return {
+    meta: {
+      dnaVersion: DNA_VERSION,
+      engineKind: 'resolver',
+      source: null,
+      characterId: o.characterId || null,
+      label: arr.character || null,
+      palette: o.palette || null,
+      seed: o.seed != null ? (o.seed >>> 0) : null,
+    },
+    identity: {
+      genreFamily: null,           // n/a — resolver has no separate family/subgenre split; genreAnchor carries both
+      subgenre: arr.character || null,
+      genreAnchor: arr.genre || null,
+    },
+    influences,
+    // Q1: no key/mode concept exists in this data model — see module header.
+    // Provenance 'n/a' below (not 'unknown') marks this as structurally
+    // absent, not merely unresolved.
+    harmony: { keyMode: null },
+    arrangement: arrangementProjection,
+    tempo: { spec: tempoSpec, tempoLock: !!arr.tempoLock },
+    dynamics: { arc: (arr.ip && arr.ip.arc) || null, beatless: !!arr.beatless },
+    // Q3: the mastering tail is a single shared constant across every
+    // engine/character/modifier — never per-character, never touched by a
+    // Composer/Producer/Remixer modifier. Traced, not guessed.
+    production: { masteringTail: MASTERING, characteristics: [] },
+    vocal: { mode: 'instrumental', characteristics: null, performanceStyle: null }, // lyric engine flips to 'vocal'; same as atom path
+    affect: { mood: null, emotionalAtmosphere: null },                              // lyric/metatag only; CIL fills later
+    provenance: {
+      identity: 'derived',
+      influences: influences.length ? 'derived' : 'n/a',
+      harmony: 'n/a',     // structurally absent for this engine kind (Q1) — distinct from 'unknown'
+      arrangement: 'derived',
+      tempo: 'derived',
+      dynamics: 'derived',
+      production: 'derived',
+      vocal: 'unknown',   // must be asked / inferred, same as atom path
+      affect: 'unknown',
+    },
+    consumers: DNA_CONSUMERS,
+    render: null,          // caller already has the rendered style from build(); not duplicated here
+    anchor: null,           // resolver engines don't currently support anchor identities
+  };
+}
+
+Object.assign(window.__ATMOS, { resolveInfluencesFromNames, buildResolverDNA });
 })();
 
 /* core/structure.js */
@@ -10085,6 +10085,178 @@ function buildNegativePrompt(state) {
 }
 
 Object.assign(window.__ATMOS, { buildLyricsField, buildClusterPrompt, buildClusterNegative, buildStylePrompt, buildStylePromptWithArrangement, buildNegativePrompt });
+})();
+
+/* core/dna-legacy.js */
+(function(){
+/* ==========================================================================
+ * dna-legacy.js — Musical DNA extractor for LEGACY engines (P8, Phase 3).
+ *
+ * Third producer of the same MusicalDNA shape core/dna.js's buildMusicalDNA()
+ * (atom path) and core/dna-resolver.js's buildResolverDNA() (resolver path)
+ * produce. Sourced from legacy/prompt-style-builder.js's `arrangement` object
+ * — the resolved-picks projection added as the Q1 prerequisite (2026-08-12,
+ * John's go-ahead) to buildClusterPrompt()/buildStylePromptWithArrangement().
+ * Every downstream consumer (CIL, Lyric, Metatag) reads one shape regardless
+ * of which of the three engine kinds produced it — DNA_CONSUMERS and the
+ * rest of the contract from core/dna.js are reused untouched.
+ *
+ * SCOPING (docs/architecture/p8-dna-extractors-plan-legacy.md). Q1 (the
+ * prerequisite) shipped 2026-08-12. Q2–Q4 resolved by John ("proceed"):
+ *
+ *   Q2 (classic-path scope): SHIP BOTH sub-paths, not cluster-only. The code
+ *      cost was small once Q1 landed — the classic slot picks were already
+ *      sitting on state.style before buildClassicStyle() ever runs, so no
+ *      further prerequisite was needed for that half.
+ *   Q3 (tempo.spec extraction): parse a clean "{lo}-{hi} BPM" out of the
+ *      already-resolved `arrangement.tempo` clause (every non-beatless
+ *      cluster/phase in both engines' data was checked and matches this
+ *      pattern — see the plan doc's verification), falling back to the raw
+ *      clause text ONLY on the (currently unreached) case a future phase
+ *      string doesn't match. Never invents a number that isn't in the text.
+ *   Q4 (Enigma preset vs. cluster labelling): identity.subgenre reports the
+ *      PRESET the user actually picked (arrangement.presetLabel) when the
+ *      build was preset-driven, not the cluster id underneath it — because
+ *      preset labels and their target cluster's own `label` field are NOT
+ *      always identical text (e.g. preset "Carmina choral (Screen)" maps to
+ *      cluster label "Carmina choral (Screen Behind the Mirror)" — checked,
+ *      not assumed). Falls back to the cluster's own label when not preset-
+ *      driven (Balearic), and to the classic-path preset text otherwise.
+ *
+ * Both sub-paths share: no key/mode concept (harmony pool entries are chord
+ * *descriptions*, same finding as the resolver plan — keyMode:null,
+ * provenance:'n/a'); no per-voice bedId/behaviour/signature/prominence
+ * (same lossy-projection limitation as resolver); the exact same overlay
+ * resolution call as resolver (resolveInfluencesFromNames(), imported from
+ * core/dna-resolver.js rather than duplicated — one source of truth).
+ *
+ * Sub-path-specific absences, reported honestly as provenance:'n/a' rather
+ * than invented: the CLASSIC path has no beatless concept and no interplay/
+ * arc mechanism anywhere in its data (confirmed in the plan doc's read of
+ * legacy/prompt-style-builder.js — wantInterplay/drawInterplay are cluster-
+ * path-only code).
+ * ========================================================================*/
+
+const {DNA_VERSION, DNA_CONSUMERS} = window.__ATMOS;
+const {resolveInfluencesFromNames} = window.__ATMOS;
+const {MASTERING} = window.__ATMOS;
+
+const CLUSTER_ROLE_ORDER = ['pads', 'harmony', 'bass', 'strings', 'texture', 'motif', 'counter', 'movement', 'rhythm', 'perc', 'color'];
+const CLASSIC_ROLE_ORDER = ['pad', 'harmony', 'bass', 'rhythm', 'percussion', 'motif', 'movement'];
+
+// Q3: extract a clean "{lo}-{hi} BPM" from the already-resolved tempo clause.
+// Checked against every phase string in both engines' live data before
+// shipping (docs/architecture/p8-dna-extractors-plan-legacy.md) — all match.
+// Never invents a number: if a future phase string doesn't match, the raw
+// clause is reported as-is rather than a guessed range.
+function parseTempoSpec(tempoClause) {
+  if (!tempoClause) return { spec: null, parsed: false };
+  if (/^beatless\b/i.test(tempoClause)) return { spec: 'beatless', parsed: true };
+  const m = tempoClause.match(/(\d+)\s*-\s*(\d+)\s*BPM/i);
+  if (m) return { spec: `${m[1]}-${m[2]} BPM`, parsed: true };
+  // honest fallback — not currently reachable against shipped data, kept
+  // for whenever a new phase string is authored that doesn't fit the pattern
+  return { spec: tempoClause, parsed: false };
+}
+
+/**
+ * buildLegacyDNA(built, opts)
+ *  - built: the { style, arrangement } object buildStylePromptWithArrangement()
+ *    already produced (NOT re-resolved here — pure projection, same
+ *    discipline as buildResolverDNA() never re-resolving resolveArrangement()'s
+ *    work).
+ *  - opts: { seed, palette, overlay, vocalMode }
+ *      overlay:   the resolved {roles, roleFamily, negative, names} object —
+ *                 state.style.ov, the exact same shape/source resolveOverlays()
+ *                 gives the resolver path. Pass null/undefined when none.
+ *      vocalMode: the effective vocalMode string ('Instrumental'|'Persona'|
+ *                 'Descriptor') the caller already has on state.style —
+ *                 legacy tracks this explicitly, richer than the other two
+ *                 paths where CIL has to infer it from scratch. Optional;
+ *                 provenance drops to 'unknown' (CIL asks) if omitted.
+ * Returns a MusicalDNA object in the exact shape core/dna.js produces.
+ */
+function buildLegacyDNA(built, opts) {
+  const o = opts || {};
+  const arr = (built && built.arrangement) || {};
+  const overlay = o.overlay || null;
+  const isCluster = arr.subPath === 'cluster';
+
+  const roleOrder = isCluster ? CLUSTER_ROLE_ORDER : CLASSIC_ROLE_ORDER;
+  const arrangementProjection = roleOrder
+    .filter(role => arr[role])
+    .map(role => ({
+      role,
+      family: null, fn: null,
+      voice: arr[role],
+      register: null, prominence: null, priority: null,
+      signature: false,
+      origin: 'engine',
+      bedId: null, behaviour: null,
+    }));
+
+  const influences = resolveInfluencesFromNames(overlay && overlay.names);
+
+  const { spec: tempoSpec } = parseTempoSpec(arr.tempo);
+
+  // Q4: preset label wins when the build was preset-driven (Enigma); else
+  // the cluster's own label (Balearic direct cluster pick). Classic path has
+  // no preset/cluster/character concept in its data at all — toLegacyState's
+  // classicManual branch explicitly sets preset:'' — so subgenre is honestly
+  // null there, not derived from anything.
+  const subgenre = isCluster ? (arr.presetLabel || arr.label || arr.cluster || null) : null;
+
+  return {
+    meta: {
+      dnaVersion: DNA_VERSION,
+      engineKind: 'legacy',
+      source: null,
+      characterId: isCluster ? (arr.cluster || null) : null,
+      label: subgenre,
+      palette: o.palette || arr.palette || null,
+      seed: o.seed != null ? (o.seed >>> 0) : null,
+    },
+    identity: {
+      genreFamily: null,                 // n/a — same as resolver, genreAnchor carries the full identity
+      subgenre,
+      genreAnchor: arr.genre || null,
+    },
+    influences,
+    // no key/mode concept in either legacy sub-path's data — same finding as
+    // the resolver plan (harmony pool entries are chord DESCRIPTIONS, never
+    // a literal key).
+    harmony: { keyMode: null },
+    arrangement: arrangementProjection,
+    tempo: { spec: tempoSpec, tempoLock: false }, // legacy has no tempoLock concept at all, unlike resolver's c.tempoLock
+    dynamics: {
+      arc: isCluster ? ((arr.ip && arr.ip.arc) || null) : null,
+      beatless: isCluster ? !!arr.beatless : null,  // classic path: no beatless concept exists — null, not false
+    },
+    production: { masteringTail: MASTERING, characteristics: [] },
+    vocal: {
+      mode: o.vocalMode === 'Instrumental' ? 'instrumental' : (o.vocalMode ? 'vocal' : 'instrumental'),
+      characteristics: null,
+      performanceStyle: o.vocalMode || null,
+    },
+    affect: { mood: null, emotionalAtmosphere: null },
+    provenance: {
+      identity: 'derived',
+      influences: influences.length ? 'derived' : 'n/a',
+      harmony: 'n/a',
+      arrangement: 'derived',
+      tempo: 'derived',   // still 'derived' even on the raw-fallback branch — it's real sourced text, just less cleanly parsed
+      dynamics: isCluster ? 'derived' : 'n/a',
+      production: 'derived',
+      vocal: o.vocalMode ? 'derived' : 'unknown',
+      affect: 'unknown',
+    },
+    consumers: DNA_CONSUMERS,
+    render: null,
+    anchor: null,   // legacy engines don't support the atom-path anchor-identity system
+  };
+}
+
+Object.assign(window.__ATMOS, { buildLegacyDNA });
 })();
 
 /* core/favourites.js */
