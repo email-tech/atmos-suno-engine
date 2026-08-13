@@ -5,6 +5,7 @@
 //   - resolver engines get it here in the router
 import { getEngine, legacyClassic } from './registry.js';
 import { buildAtoms } from '../core/atoms.js';
+import { resolveModifier } from '../core/atom-modifiers.js';
 import { buildMusicalDNA } from '../core/dna.js';
 import { buildResolverDNA } from '../core/dna-resolver.js';
 import { buildLegacyDNA } from '../core/dna-legacy.js';
@@ -80,7 +81,7 @@ export function generate(S) {
     // untouched; the composer only decorates it.
     const composerLayerId = (a.composerLayerId && COMPOSER_LAYERS[a.composerLayerId]) ? a.composerLayerId : null;
 
-    const out = buildAtoms(char, { seed: S.seed, overlayId: a.overlayId || null, maxMode: S.maxMode });
+    const out = buildAtoms(char, { seed: S.seed, overlayDef: a.overlayId ? resolveModifier(a.overlayId, null, null, palette) : null, maxMode: S.maxMode });
     let style = out.style;
     if (composerLayerId) style = `${style}, ${composerStyleLayer(composerLayerId)}`;
     style = applyMax(style, S.maxMode);
@@ -91,7 +92,7 @@ export function generate(S) {
     let metatags = '';
     try {
       const dna = buildMusicalDNA(baseChar, palette, {
-        seed: S.seed, characterId: a.characterId, overlayId: a.overlayId || null,
+        seed: S.seed, characterId: a.characterId, modifierId: a.overlayId || null,
       });
       metatags = runMetatagEngine({ dna, renderMode: 'lean', composerLayerId }).block;
     } catch (e) { metatags = ''; }
@@ -175,7 +176,7 @@ export function buildLiveLyricRequest(S) {
     const palette = a.palette || 'electronic';
     const baseChar = eng.module[a.characterId];
     dna = buildMusicalDNA(baseChar, palette, {
-      seed: S.seed, characterId: a.characterId, overlayId: a.overlayId || null,
+      seed: S.seed, characterId: a.characterId, modifierId: a.overlayId || null,
     });
   } else if (eng.kind === 'resolver') {
     // resolver: resolve the arrangement the SAME way generate()'s resolver

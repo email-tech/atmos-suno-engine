@@ -302,8 +302,20 @@ function renderAtomControls(root, eng) {
       v => { a.palette = v; refreshOutput(); })));
   }
 
+  // "Overlay" is Producer/Remixer only (John, 2026-08-13) — composers have
+  // their own dedicated Composer control below (the current, correct model:
+  // a subordinate secondary layer that never displaces the character's own
+  // lead). Composer entries used to also appear here from the retired gen-1
+  // atom-overlay days; they're gone now, not just relabelled — selecting one
+  // here always meant the character-competing atom-overlay model, which is
+  // exactly what the Composer control was built to retire for composers.
+  // Producers and remixers stay here because they haven't been migrated to
+  // that model yet — their job is reshaping movement/rhythm/vocal, not
+  // adding an instrument layer, so the same secondary-layer model doesn't
+  // apply to them the same way. Convert them the same way if/when John signs
+  // off on that.
   const ovOpts = [{ value: '', label: 'None' }]
-    .concat(atomOverlays().map(o => ({ value: o.id, label: `${o.label} (${o.kind})` })));
+    .concat(atomOverlays().filter(o => o.kind !== 'composer').map(o => ({ value: o.id, label: `${o.label} (${o.kind})` })));
   root.appendChild(field('Overlay', select(ovOpts, a.overlayId || '', v => { a.overlayId = v; refreshOutput(); })));
 
   // Composer modifier (John's simplified model): a secondary arrangement layer

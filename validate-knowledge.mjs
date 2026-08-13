@@ -11,6 +11,8 @@
 import { buildAtoms } from './core/atoms.js';
 import { ATOM_POOL_CHARACTERS, atomCharacterForPalette } from './engines/atom-characters.js';
 import { ATOM_MODIFIERS, resolveModifier } from './core/atom-modifiers.js';
+import { generate } from './js/generate.js';
+import { initState, syncEngineDefaults } from './js/state.js';
 import {
   NEGATIVE_CAP, NEGATIVE_RANKS, selectNegatives, BANNED_ARTICULATION_RE,
 } from './core/knowledge.js';
@@ -83,6 +85,44 @@ const MODS = Object.keys(ATOM_MODIFIERS);
   }
   checks++;
   console.log(`  articulation: clean across all declared atoms and ${rendered} rendered builds.`);
+}
+
+/* ---- FACT 2b: the SAME check, through the REAL generate() entry point ------
+ * 2026-08-13: FACT 2's sweep above calls buildAtoms() directly with a
+ * resolveModifier()-built overlayDef — which is NOT how js/generate.js was
+ * actually calling it. generate.js was passing the raw overlayId straight
+ * through to buildAtoms()'s legacy fallback, which resolves against the
+ * RETIRED gen-1 ATOM_OVERLAYS set (core/atoms.js's own comment: "John signed
+ * off the gen-2 two-tier modifier set on 2026-07-22... no longer offered to
+ * the user") — not the gen-2 ATOM_MODIFIERS data FACT 2 actually checks. The
+ * UI's Overlay dropdown is populated FROM gen-2 (atomOverlayList() calls
+ * modifierList()), so every real selection was silently executing retired,
+ * unpurged gen-1 content — including "ostinato", still live in that set,
+ * years after the same ban was enforced everywhere else. FACT 2 passing
+ * proved the gen-2 DATA was clean; it never proved the WIRING used it.
+ * This sweeps every overlay through the actual generate() call path so a
+ * future parameter-naming slip (overlayId vs modifierId) fails the build
+ * instead of silently reverting to retired content again. */
+{
+  let rendered = 0;
+  for (const cid of CHARS) {
+    for (const pal of ['acoustic', 'electronic']) {
+      for (const modId of MODS) {
+        const S = initState();
+        syncEngineDefaults(S, 'Balearic Atom');
+        S.seed = 4242;
+        S.atom.characterId = cid;
+        S.atom.palette = pal;
+        S.atom.overlayId = modId;
+        const out = generate(S);
+        if (BANNED_ARTICULATION_RE.test(out.style))
+          bad(`${modId} on ${cid} [${pal}], via the REAL generate() entry point: banned articulation reached the style string`);
+        rendered++;
+      }
+    }
+  }
+  checks++;
+  console.log(`  articulation (via generate(), not buildAtoms() directly): clean across ${rendered} real UI-equivalent builds.`);
 }
 
 /* ---- FACT 3: one voice, one mention -----------------------------------------
