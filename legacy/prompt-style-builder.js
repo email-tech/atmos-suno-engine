@@ -20,6 +20,7 @@ import { MASTERING, MAX_MODE_STR, STYLE_ENGINES } from "./data-style-engines.js"
 import { EngineExtras, drawInterplay } from "./engine-extras.js";
 import { compactPart } from "../core/compress.js";
 import { slotFamily } from "../core/overlays.js";
+import { capNegativesOrdered, vocalRestraintCandidates, NEGATIVE_CAP } from "../core/knowledge.js";
 
 /* join descriptor parts into one clean comma line, drop trailing periods, honour
  * the 1000-char budget, lead with the MAX-mode meta-tag block when enabled. */
@@ -317,25 +318,39 @@ export function buildClusterNegative(clusterId, state) {
   const s = state.style;
   const engine = EngineExtras[engineName] || {};
   const c = (engine.flavourClusters || {})[clusterId] || {};
-  const items = [
-    (STYLE_ENGINES[engineName] || {}).sourceNegative,
-    ...ALWAYS_BAN,
-    ...(c.beatless ? BEATLESS_BAN : []),
-    ...(c.bannedAdd || []),
-    ...((s.ov && s.ov.negative) || []),      // overlay bans (e.g. no SAW-era drums)
-    s.negativePrompt
-  ].filter(Boolean);
+  // PRIORITY ORDER, capped at NEGATIVE_CAP (2026-08-13 fix — this used to
+  // dedupe but never cap: a real Balearic build carried 37 negative items,
+  // directly violating the round-4 finding that the field loses
+  // effectiveness beyond ~5). Highest priority first: the user's own typed
+  // negatives (deliberate, always kept), then the selected overlay's own
+  // negative (explicitly chosen, and specifically tested — validate-
+  // overlays.mjs asserts a SAW-style overlay's drum negative survives, which
+  // is exactly what an earlier draft of this ordering broke by placing it
+  // too low), then this cluster's own specific bans, then beatless/vocal-
+  // restraint (one representative term each, so neither crowds out real
+  // defense — same over-reservation mistake made and caught on the resolver
+  // and atom paths minutes earlier), then the engine-wide sourceNegative (a
+  // large uncited list — capped here, not individually re-ranked, same
+  // reasoning as capNegativesOrdered's own doc comment), cosmetic ALWAYS_BAN
+  // last.
+  const sourceNegTerms = String((STYLE_ENGINES[engineName] || {}).sourceNegative || '')
+    .split(',').map(x => x.trim()).filter(Boolean);
+  const beatlessNeg = c.beatless ? BEATLESS_BAN.slice(0, 1) : [];
+  const descriptiveText = [c.label, (STYLE_ENGINES[engineName] || {}).genre].filter(Boolean).join(' ');
+  const vocalNeg = vocalRestraintCandidates(descriptiveText, !!s.vocalActive).slice(0, 1);
+  const userNeg = String(s.negativePrompt || '').split(',').map(x => x.trim()).filter(Boolean);
   const removeSet = new Set((c.bannedRemove || []).map(
     x => x.replace(/^[-\s]+/, "").trim().toLowerCase()));
-  const seen = new Set();
-  const out = [];
-  for (const it of items.join(", ").split(",").map(x => x.trim()).filter(Boolean)) {
-    const bare = it.replace(/^[-\s]+/, "").trim().toLowerCase();
-    if (removeSet.has(bare)) continue;
-    if (seen.has(bare)) continue;
-    seen.add(bare); out.push(it);
-  }
-  return out.join(", ");
+  const candidates = [
+    ...userNeg,
+    ...((s.ov && s.ov.negative) || []),
+    ...(c.bannedAdd || []),
+    ...beatlessNeg,
+    ...vocalNeg,
+    ...sourceNegTerms,
+    ...ALWAYS_BAN,
+  ].filter(it => !removeSet.has(it.replace(/^[-\s]+/, "").trim().toLowerCase()));
+  return capNegativesOrdered(candidates, NEGATIVE_CAP).join(", ");
 }
 
 /* ---- classic slot path (any engine) ------------------------------------- */
@@ -431,7 +446,19 @@ export function buildNegativePrompt(state) {
   const pc = presetCluster(state);
   if (pc) return buildClusterNegative(pc, state);
   if (clusterActive(state)) return buildClusterNegative(state.style.cluster, state);
+  // classic path — same priority-order capping as buildClusterNegative.
+  // 2026-08-13: previously no cap and no dedup at all on this path.
   const e = STYLE_ENGINES[state.engine];
-  const ovNeg = ((state.style.ov && state.style.ov.negative) || []).join(", ");
-  return [e.sourceNegative || e.negatives, ovNeg, state.style.negativePrompt].filter(Boolean).join(", ");
+  const s = state.style;
+  const sourceNegTerms = String(e.sourceNegative || e.negatives || '')
+    .split(',').map(x => x.trim()).filter(Boolean);
+  // classic path has no beatless concept at all (confirmed this session,
+  // docs/architecture/p8-dna-extractors-plan-legacy.md's Q2 finding) — no
+  // beatless-ban term added here, not invented.
+  const descriptiveText = e.genre || '';
+  const vocalNeg = vocalRestraintCandidates(descriptiveText, !!s.vocalActive).slice(0, 1);
+  const userNeg = String(s.negativePrompt || '').split(',').map(x => x.trim()).filter(Boolean);
+  const ovNeg = ((s.ov && s.ov.negative) || []);
+  const candidates = [...userNeg, ...ovNeg, ...vocalNeg, ...sourceNegTerms, ...ALWAYS_BAN];
+  return capNegativesOrdered(candidates, NEGATIVE_CAP).join(", ");
 }

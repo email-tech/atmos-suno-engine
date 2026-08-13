@@ -20,10 +20,10 @@
  * Genre-owned attributes can't be claimed by a cross-genre overlay regardless of
  * prompt craft or position — so we don't author a prompt that fights the prior.
  * ========================================================================*/
-import { CHAR_LIMIT, ALWAYS_BAN } from './constants.js';
+import { CHAR_LIMIT, ALWAYS_BAN, BEATLESS_BAN } from './constants.js';
 import { evaluateCongruence } from './rules.js';
 import { bedAtom, bedAllowed } from './beds.js';
-import { selectNegatives } from './knowledge.js';
+import { selectNegatives, vocalRestraintCandidates } from './knowledge.js';
 import { classifyInstrument, planePhrase, pairLink } from './linking.js';
 import { modifierList } from './atom-modifiers.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
@@ -340,12 +340,34 @@ export function buildAtoms(char, opts){
   // field is unchanged — ALWAYS_BAN only (parity-safe).
   const ovDef = !overlayNote ? (o.overlayDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null)) : null;
   const ovNeg = (ovDef && ovDef.negative) ? ovDef.negative : [];
+  // BEATLESS BAN (2026-08-13): resolver and legacy have always banned drum/
+  // beat language on a beatless character; the atom path never did. Same
+  // severity as the round-4 orchestral hijacks — a beatless ambient build
+  // getting drum language back is a complete genre failure, not a nitpick.
+  // Reserved to ONE representative term ("drums") rather than the full
+  // BEATLESS_BAN list — with an overlay active, its rank-1 orchestral-defense
+  // terms (the actual round-4-tested content) fill the cap first; a full
+  // 5-term beatless list would crowd all of them out, same mistake first
+  // made and caught on the resolver path minutes earlier this session.
+  const beatlessNeg = char.beatless ? BEATLESS_BAN.slice(0, 1) : [];
+  // VOCAL RESTRAINT (2026-08-13, John): a character that reads as soft/
+  // gentle/chill should proactively reject aggressive vocal delivery.
+  // Checked against the character's OWN declared text only (label + its own
+  // tempo/energy phrase) — never user free-text, so nothing but the
+  // character's own data can trigger this. Reserved to one term for the
+  // same crowding-out reason as beatlessNeg above.
+  const descriptiveText = [char.label, char.atoms && char.atoms.tempo && char.atoms.tempo.text].filter(Boolean).join(' ');
+  const vocalNeg = vocalRestraintCandidates(descriptiveText, !!o.vocalActive).slice(0, 1);
   // NEGATIVE CAP (John, round 4): the negative field loses effectiveness beyond
   // about five elements, so an unranked list of 23 silently discarded the ones
   // that mattered and John had to front-load them by hand. Negatives are now
   // ranked by observed harm and truncated — genre-breaking bans first, cosmetic
   // non-musical bans only if slots remain.
-  const negative = selectNegatives([...ovNeg, ...ALWAYS_BAN]).join(', ') + '.';
+  // ovNeg capped to 3 here (2026-08-13): with beatlessNeg/vocalNeg also at
+  // rank 1, an uncapped 5-term ovNeg would fill the entire cap by array-order
+  // alone before the stable sort ever reaches them — the exact bug just found
+  // and fixed on the resolver path, same root cause here. 3+1+1 = the cap.
+  const negative = selectNegatives([...ovNeg.slice(0, 3), ...beatlessNeg, ...vocalNeg, ...ALWAYS_BAN]).join(', ') + '.';
   return { style, negative, lyrics:'', length:style.length, over,
            arrangement:kept, overlayNote };
 }

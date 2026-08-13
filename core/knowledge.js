@@ -45,6 +45,19 @@ export const NEGATIVE_RANKS = {
   'brass stabs': 1,
   'orchestral hits': 1,
   'symphonic arrangement': 1,
+  // rank 1 — a beatless/ambient character receiving drum language is a
+  // complete genre failure, not a stylistic nitpick (2026-08-13, atom path
+  // never carried this even though resolver/legacy always have via
+  // BEATLESS_BAN — same severity class as the round-4 orchestral hijacks).
+  'drums': 1, 'kick': 1, 'beat': 1, 'percussion': 1, 'snare': 1,
+  // rank 1 — vocal-restraint mechanism (2026-08-13, John: a genre/character
+  // described as soft, easy, chill, gentle etc. should proactively reject
+  // aggressive vocal delivery). DESIGN CHOICE, not an independently Suno-
+  // tested fact like the entries above it — grounded in the project's
+  // existing mood/energy data (MOOD_CLASSES, declared tempo/energy text),
+  // not invented from nothing, but flagged here as reasoned inference so it
+  // isn't mistaken for the same evidence class as a round-4 finding.
+  'shouted vocals': 1, 'screaming vocals': 1, 'belted vocals': 1, 'aggressive vocal delivery': 1,
   // rank 2 — orchestral convention, less destructive
   'orchestral percussion': 2,
   'timpani': 2,
@@ -63,6 +76,63 @@ export const NEGATIVE_RANKS = {
   'nature sounds': 3,
   'ambient noise': 3,
 };
+
+/* VOCAL_RESTRAINT_TERMS — the actual candidate strings added to a negative
+ * prompt when a character reads as soft/gentle and vocals are active. Kept
+ * as its own export (not just inline) so every engine path adds the exact
+ * same wording rather than each hand-writing a slightly different phrase. */
+export const VOCAL_RESTRAINT_TERMS = ['shouted vocals', 'screaming vocals', 'belted vocals', 'aggressive vocal delivery'];
+
+/* SOFT_CHARACTER_RE — trigger words for the vocal-restraint mechanism.
+ * John named "soft, easy, chill, gentle, and any other similar words";
+ * extended with the project's own existing mood vocabulary (MOOD_CLASSES in
+ * core/profiles.js: contemplative/ethereal/wistful/nocturnal read the same
+ * way; brooding/euphoric/driving/hypnotic deliberately excluded, they don't)
+ * plus the literal energy phrases already declared on character/cluster data
+ * (low energy, very low energy, low-mid energy). This is a REASONED DESIGN
+ * CHOICE grounded in existing project vocabulary, not an empirical Suno
+ * finding — unlike NEGATIVE_RANKS' round-4 entries, nobody has tested that
+ * Suno specifically over-shouts on these exact words. If a future session
+ * gets contradicting Suno evidence, that evidence wins and this list changes. */
+export const SOFT_CHARACTER_RE = /\b(soft|gentle|easy|chill|mellow|tender|hushed|serene|dreamy|contemplative|ethereal|wistful|nocturnal|ambient|lounge|downtempo|lush|delicate|intimate)\b|\b(very low|low[- ]mid|low)\s+energy\b/i;
+
+/* vocalRestraintCandidates(descriptiveText, vocalActive) — descriptiveText is
+ * any combination of a character/cluster's own label/genre/tempo text (never
+ * user free-text, so this can't be gamed by a stray word in a lyric brief).
+ * Returns [] when vocals aren't active at all (nothing to restrain) or the
+ * text doesn't match — never invents a restraint the character didn't
+ * actually signal. */
+export function vocalRestraintCandidates(descriptiveText, vocalActive) {
+  if (!vocalActive) return [];
+  return SOFT_CHARACTER_RE.test(String(descriptiveText || '')) ? VOCAL_RESTRAINT_TERMS.slice() : [];
+}
+
+/* capNegativesOrdered(candidates, cap) — for the resolver and legacy paths,
+ * which each carry dozens of engine/cluster-specific negative terms
+ * (2026-08-13 finding: uncapped, e.g. 24 items on a resolver build, 37 on a
+ * legacy one — directly violating NEGATIVE_CAP, the same round-4 finding
+ * NEGATIVE_RANKS enforces on the atom path). Individually hand-ranking every
+ * one of those terms against Suno evidence I don't have would mean inventing
+ * harm scores exactly like the ungrounded metatag language John already
+ * flagged this session — so instead of a global rank table, this preserves
+ * whatever priority order the CALLER already assembled (highest-priority
+ * candidates first: beatless-ban, vocal-restraint, then the engine's own
+ * declared negatives, cosmetic ALWAYS_BAN last) and simply dedupes + caps at
+ * the same limit the atom path already enforces. Same discipline, cheaper
+ * evidence bar for content nobody has specifically Suno-tested term-by-term. */
+export function capNegativesOrdered(candidates, cap) {
+  const limit = (typeof cap === 'number') ? cap : NEGATIVE_CAP;
+  const seen = new Set();
+  const out = [];
+  for (const c of candidates) {
+    const k = String(c).toLowerCase().trim();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(String(c).trim());
+    if (out.length >= limit) break;
+  }
+  return out;
+}
 
 // Select at most NEGATIVE_CAP negatives, most harmful first, order preserved
 // within a rank. Duplicates and unknown entries are dropped rather than

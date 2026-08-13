@@ -81,7 +81,7 @@ export function generate(S) {
     // untouched; the composer only decorates it.
     const composerLayerId = (a.composerLayerId && COMPOSER_LAYERS[a.composerLayerId]) ? a.composerLayerId : null;
 
-    const out = buildAtoms(char, { seed: S.seed, overlayDef: a.overlayId ? resolveModifier(a.overlayId, null, null, palette) : null, maxMode: S.maxMode });
+    const out = buildAtoms(char, { seed: S.seed, overlayDef: a.overlayId ? resolveModifier(a.overlayId, null, null, palette) : null, maxMode: S.maxMode, vocalActive: S.songType !== 'instrumental' });
     let style = out.style;
     if (composerLayerId) style = `${style}, ${composerStyleLayer(composerLayerId)}`;
     style = applyMax(style, S.maxMode);
@@ -121,7 +121,7 @@ export function generate(S) {
     const out = build(eng.module, {
       characterId: r.characterId, palette: r.palette, locks, seed: S.seed,
       overlay: overlayFor(S, !!ch.beatless),
-      structureHint,
+      structureHint, vocalActive: S.songType !== 'instrumental',
     });
     const style = applyMax(out.style, S.maxMode);
     return {
@@ -297,7 +297,7 @@ function toLegacyState(S) {
         pad: s.pad, harmony: s.harmony, bass: s.bass, rhythm: s.rhythm,
         percussion: s.percussion, motif: s.motif, movement: s.movement,
         vocalMode: effectiveVocalMode, vocalDescriptor: '', vocalPersona: '',
-        maxMode: S.maxMode, negativePrompt: '', ov,
+        maxMode: S.maxMode, negativePrompt: '', ov, vocalActive: effectiveVocalMode !== 'Instrumental',
       },
     };
   }
@@ -320,7 +320,7 @@ function toLegacyState(S) {
       pad: l.slots.pad, bass: l.slots.bass, rhythm: l.slots.rhythm,
       percussion: l.slots.percussion, motif: l.slots.motif, movement: l.slots.movement,
       vocalMode: effectiveVocalMode, vocalDescriptor: '', vocalPersona: '',
-      maxMode: S.maxMode, negativePrompt: '', ov,
+      maxMode: S.maxMode, negativePrompt: '', ov, vocalActive: effectiveVocalMode !== 'Instrumental',
     },
   };
 }

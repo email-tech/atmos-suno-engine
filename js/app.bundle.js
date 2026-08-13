@@ -533,339 +533,6 @@ function hasOverlay(sel = {}) {
 Object.assign(window.__ATMOS, { slotFamily, traitFamily, overlayList, resolveOverlays, hasOverlay, TRAIT_FAMILY, OVERLAYS, SLOT_RIGHTS });
 })();
 
-/* core/resolver.js */
-(function(){
-const {ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette} = window.__ATMOS;
-const {compactPart} = window.__ATMOS;
-const {slotFamily} = window.__ATMOS;
-
-/* ---- HARMONY BRIGHTNESS WEIGHTING (John, 2026-08-13) ----------------------
- * "Music played in a Major Key sounds too happy and sugary sweet... this key
- * use must be controlled somehow, but not eliminated entirely... don't make
- * it the only lever." Two levers, both scoped to the harmony role only —
- * pads/bass/lead/etc. are instrument choices, not a tonality concern.
- *
- * Every harmony pool entry across the 4 resolver engines was read and hand-
- * classified by its own text (not guessed from the key name) into one of 5
- * brightness tags: minor, modal, neutral, resolves (the "minor-to-relative-
- * major" entries — John's own suggested mechanism, which turned out to
- * already exist as pool vocabulary), and major.
- *
- * LEVER 2 (general bias): DEFAULT_HARMONY_WEIGHT favours minor/modal over
- * resolves/major, but every tag stays reachable — nothing is eliminated.
- *
- * LEVER 3 (structure-aware): when the caller passes structureHint indicating
- * the selected structure preset has a genuine earned peak (energy 5 somewhere
- * in its shape — a real chorus/drop/climax to resolve INTO), 'resolves' and
- * 'major' get boosted, since there's an actual payoff moment for that arc to
- * land on. When the structure has NO such peak (e.g. Downtempo/Ambient, which
- * tops out at energy 4 — nothing to resolve onto), they're suppressed further
- * instead, keeping flat/ambient structures honestly flat rather than faking a
- * resolution that has nowhere to go. Omitting structureHint entirely (no
- * structure selected) falls back to the Lever-2-only default — this keeps
- * every existing call site working exactly as before, additive not breaking.
- * ========================================================================*/
-const DEFAULT_HARMONY_WEIGHT   = { minor: 3,   modal: 3,   neutral: 2, resolves: 1.5, major: 1 };
-const PEAK_HARMONY_WEIGHT      = { minor: 3,   modal: 3,   neutral: 2, resolves: 3,   major: 1.5 };
-const NO_PEAK_HARMONY_WEIGHT   = { minor: 3.5, modal: 3.5, neutral: 2, resolves: 0.5, major: 0.5 };
-
-function harmonyWeightsFor(structureHint) {
-  if (!structureHint) return DEFAULT_HARMONY_WEIGHT;
-  return structureHint.hasResolutionPoint ? PEAK_HARMONY_WEIGHT : NO_PEAK_HARMONY_WEIGHT;
-}
-
-// Weighted pick over a pool using each item's `.bright` tag (unset/unknown
-// tags fall back to the 'neutral' weight). Same rand() stream as everything
-// else here, so a given seed still deterministically produces one answer —
-// weighting changes the DISTRIBUTION across seeds, not the determinism of
-// any single seed.
-function weightedPick(pool, weights, rand) {
-  const withWeights = pool.map(item => ({ item, w: weights[item.bright] ?? weights.neutral ?? 1 }));
-  const total = withWeights.reduce((sum, x) => sum + x.w, 0);
-  if (total <= 0) return pool[Math.floor(rand() * pool.length)]; // safety net, should not happen
-  let r = rand() * total;
-  for (const x of withWeights) {
-    if (r < x.w) return x.item;
-    r -= x.w;
-  }
-  return withWeights[withWeights.length - 1].item; // floating-point rounding safety
-}
-
-// opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed,
-//         structureHint:{hasResolutionPoint:boolean}|null }
-// locks drive all three control levels:
-//   randomize all  = locks {}
-//   lock some      = locks {pads:'...'}
-//   full manual    = every role locked
-function resolveArrangement(engine, opts) {
-  const { characterId, palette = 'electronic', locks = {}, seed = Date.now(), structureHint = null } = opts;
-  const c = engine.characters[characterId];
-  if (!c) throw new Error(`unknown character ${characterId}`);
-  const rand = rng(seed);
-  const pick = (role) => {
-    if (locks[role] != null) return locks[role];
-    const pool = filterPalette(c.pools[role] || [], palette);
-    if (!pool.length) return null;
-    if (role === 'harmony') {
-      return weightedPick(pool, harmonyWeightsFor(structureHint), rand).t;
-    }
-    return pool[Math.floor(rand() * pool.length)].t;
-  };
-
-  const arr = {
-    engine: engine.id,
-    character: c.label,
-    genre: c.genre,
-    beatless: !!c.beatless,
-    bpm: c.bpm || null,
-    energy: c.energy,
-    pads: pick('pads'),
-    harmony: pick('harmony'),
-    bass: pick('bass'),
-    voice: pick('voice'),
-    lead: pick('lead'),
-    movement: pick('movement'),
-    color: null,
-    drums: null,
-    negative: c.negative || null,   // optional per-character bans (e.g. Era Driving Epic: no rock/metal)
-    tempoLock: c.tempoLock || null, // optional tempo-stability directive (stops Suno double-timing)
-  };
-
-  // drums (skip when beatless)
-  if (!c.beatless && c.drums.primary) {
-    const fam = engine.drums[c.drums.primary];
-    arr.drums = fam[Math.floor(rand() * fam.length)];
-  }
-  // colour fires occasionally
-  if (rand() < c.colorChance) arr.color = pick('color');
-
-  // interplay / arrangement layer — WOVEN into the style string (per John's Suno test).
-  // role-generic tails that hang off already-named instruments (never re-name one).
-  const ipPool = (engine.interplay && engine.interplay[characterId]) || {};
-  const one = (dim) => (ipPool[dim] && ipPool[dim].length)
-    ? ipPool[dim][Math.floor(rand() * ipPool[dim].length)] : null;
-  arr.ip = {
-    foundation:   one('foundation'),
-    conversation: one('conversation'),
-    arc:          one('arc'),
-    voiceRel:     one('voiceRel'),
-    colorRel:     one('colorRel'),
-  };
-
-  return arr;
-}
-
-// STYLE STRING = full woven cast (the approved gold-standard format). Instruments are
-// threaded with their interplay inline, in musical layers, not a flat tag list:
-//   genre -> tempo -> [drums+bass+foundation] -> [pads+lead+conversation] -> harmony
-//         -> [voice+voiceRel] -> [colour+colourRel if it fires] -> [movement+arc] -> mastering
-function renderStyle(engine, arr) {
-  const ip = arr.ip || {};
-  const clauses = [arr.genre];
-
-  // tempo + energy
-  clauses.push(arr.beatless
-    ? `beatless, ${arr.energy} energy`
-    : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`);
-  if (arr.tempoLock) clauses.push(arr.tempoLock);
-
-  // LEVER 1 — OVERLAY FRONT-LOADING. Suno front-weights descriptors and renders
-  // only a bounded number of them, so an overlay's defining traits must sit right
-  // after the genre+tempo anchor (not buried at the back where they get dropped).
-  // The signature carriers (thematic motif, counter-melody, harmonic language) are
-  // hoisted here; they are then skipped in their old mid-list positions so nothing
-  // renders twice. When no overlay is active none of these exist and the order is
-  // unchanged (no-overlay output stays byte-identical — asserted in validation).
-  if (arr.ovMotif) clauses.push(arr.ovMotif);
-  if (arr.ovCounter) clauses.push(arr.ovCounter);
-  if (arr.ovHarmony && arr.harmony) clauses.push(arr.harmony);
-
-  // foundation: drums(+)bass + how they lock/float (+ remixer groove treatment)
-  const drumText = arr.drums ? (arr.groove ? `${arr.drums} ${arr.groove}` : arr.drums) : null;
-  if (arr.bass) {
-    const low = drumText ? `${drumText} and ${arr.bass}` : arr.bass;
-    clauses.push(ip.foundation ? `${low} ${ip.foundation}` : low);
-  } else if (drumText) {
-    clauses.push(ip.foundation ? `${drumText} ${ip.foundation}` : drumText);
-  }
-
-  // conversation: pads + lead + how they relate
-  if (arr.pads && arr.lead) {
-    clauses.push(ip.conversation ? `${arr.pads} with ${arr.lead} ${ip.conversation}`
-                                 : `${arr.pads} with ${arr.lead}`);
-  } else if (arr.pads) {
-    clauses.push(arr.pads);
-  } else if (arr.lead) {
-    clauses.push(arr.lead);
-  }
-
-  // harmony (musicality slot — its own clause). An OVERLAY harmony was already
-  // front-loaded above; only an ENGINE harmony renders here.
-  if (arr.harmony && !arr.ovHarmony) clauses.push(arr.harmony);
-
-  // overlay: secondary sustained layer
-  if (arr.ovTexture) clauses.push(arr.ovTexture);
-
-  // voice + how it sits
-  if (arr.voice) clauses.push(ip.voiceRel ? `${arr.voice} ${ip.voiceRel}` : arr.voice);
-
-  // colour (only when it fired) + how it sits
-  if (arr.color) clauses.push(ip.colorRel ? `${arr.color} ${ip.colorRel}` : arr.color);
-
-  // overlay: remixer edit treatment + producer mix treatment
-  if (arr.ovEdit) clauses.push(arr.ovEdit);
-  if (arr.ovTreat) clauses.push(arr.ovTreat);
-
-  // production movement + the arc of the whole arrangement
-  if (arr.movement) clauses.push(ip.arc ? `${arr.movement} and ${ip.arc}` : arr.movement);
-  else if (ip.arc) clauses.push(ip.arc);
-
-  return clauses.join(', ') + '. ' + MASTERING;
-}
-
-function renderNegative(engine, arr) {
-  const bans = [...engine.sourceNegative, ...ALWAYS_BAN];
-  if (arr.negative) bans.push(...arr.negative);
-  if (arr.beatless) bans.push(...BEATLESS_BAN);
-  return [...new Set(bans)].join(', ');
-}
-
-/* ---- MODIFIER OVERLAYS ---------------------------------------------------
- * ov = { roles:{harmony,motif,counter,texture,color,movement,arc,groove,edit,treat},
- *        negative:[...] } — already resolved by core/overlays.js.
- * Overlays WRITE INTO existing slots (they do not append a second prompt), a
- * USER-LOCKED slot always wins, and the engine's genre / tempo / drum family /
- * bass family are never touched.
- * engine.signatureLead (Deep Forest, Sacred Spirit): the lead pool carries the
- * engine's ethnic signature instrument, so a composer's melodic trait is demoted
- * to a second melodic voice instead of replacing it — the standing rule that the
- * signature instrument must persist beats the overlay.
- * ------------------------------------------------------------------------*/
-function applyOverlay(engine, arr, ov, locks = {}) {
-  if (!ov || !ov.roles) return arr;
-  const r = ov.roles;
-  const fam = ov.roleFamily || {};
-  const free = role => locks[role] == null || locks[role] === '';
-
-  // Which instrument families has the ENGINE already put on the track? A slot the
-  // user locked counts too (never silently displace a locked instrument).
-  const present = new Set();
-  for (const k of ['bass', 'lead', 'pads', 'color']) {
-    const f = slotFamily(arr[k]); if (f) present.add(f);
-  }
-
-  // Decide what to do when an overlay trait names an instrument family the engine
-  // already carries:
-  //   foundational (e.g. Moroder's arp-bass) -> DISPLACE the engine's slot in that
-  //     family, so there is exactly one instrument in that role.
-  //   otherwise -> the overlay YIELDS: its instrument mention is dropped so it does
-  //     not duplicate what is already there.
-  const resolveTrait = (role, text) => {
-    const meta = fam[role];
-    if (!meta || !meta.family) return { text, displace: null };
-    const clash = present.has(meta.family);
-    if (!clash) { present.add(meta.family); return { text, displace: null }; }
-    if (meta.foundational) return { text, displace: meta.family };   // overlay wins the role
-    return { text: null, displace: null };                           // overlay drops the mention
-  };
-
-  if (r.harmony && free('harmony')) { arr.harmony = r.harmony; arr.ovHarmony = true; }
-  if (r.movement && free('movement')) arr.movement = r.movement;
-  if (r.arc) arr.ip = Object.assign({}, arr.ip, { arc: r.arc });
-
-  // LEVER 1 — DEMOTE OVERLAY COLOUR. Colour is the lowest-priority, occasional
-  // decoration slot. When the overlay already carries a foreground melodic voice
-  // (motif or counter), its colour trait is SUPPRESSED — it competes for attention
-  // and over-renders (John's test: an overlay trumpet came through too strong). An
-  // overlay whose only melodic contribution IS colour (e.g. a producer's sampled
-  // choir hits) keeps it.
-  const overlayHasForeground = !!(r.motif || r.counter);
-  if (r.color && free('color') && !overlayHasForeground) {
-    const t = resolveTrait('color', r.color);
-    if (t.text) { arr.color = t.text; arr.colorFromOverlay = true; }
-  }
-
-  // motif = the composer's melodic/thematic hand
-  if (r.motif) {
-    const t = resolveTrait('motif', r.motif);
-    if (t.displace === 'bass' && free('bass')) {
-      // foundational bass motif (Moroder) OWNS the low end: it replaces the drawn
-      // bass in the foundation clause; no second bass elsewhere.
-      arr.bass = t.text; arr.ovMotifIsBass = true;
-    } else if (t.text) {
-      if (engine.signatureLead || !free('lead')) arr.ovMotif = t.text; // keep engine lead
-      else arr.lead = t.text;
-    }
-  }
-
-  if (r.counter) { const t = resolveTrait('counter', r.counter); if (t.text) arr.ovCounter = t.text; }
-  if (r.texture) { const t = resolveTrait('texture', r.texture); if (t.text) arr.ovTexture = t.text; }
-  if (r.groove && arr.drums) arr.groove = r.groove;
-  if (r.edit) arr.ovEdit = r.edit;
-  if (r.treat) arr.ovTreat = r.treat;
-
-  if (ov.negative && ov.negative.length)
-    arr.negative = [...(arr.negative || []), ...ov.negative];
-
-  return arr;
-}
-
-/* Compression: shrink PHRASING before shedding CONTENT (see core/compress.js).
- * Bands are compacted in priority order — decorative layers first, core last —
- * and only as far as the budget actually requires. */
-const CORE_KEYS = ['genre', 'tempoClause'];
-function compressStyle(engine, arr, limit, locks = {}) {
-  const roleOf = { pads: 'pads', harmony: 'harmony', bass: 'bass', voice: 'voice', lead: 'lead', movement: 'movement', color: 'color' };
-  const lockedKey = k => { const r = roleOf[k]; return r && locks[r] != null && locks[r] !== ''; };
-  let style = renderStyle(engine, arr);
-  if (style.length <= limit) return style;
-  const bands = [
-    ['color', 'ovTexture', 'ovCounter', 'ovEdit', 'ovTreat'],   // decorative / overlay extras
-    ['movement', 'ovMotif'],                                     // production + secondary melodic
-    ['pads', 'harmony', 'voice', 'lead', 'bass', 'drums', 'groove'], // core, last resort
-  ];
-  const work = Object.assign({}, arr, { ip: Object.assign({}, arr.ip) });
-  for (const level of [1, 2]) {
-    for (const band of bands) {
-      for (const k of band) if (work[k] && !lockedKey(k)) work[k] = compactPart(work[k], level);   // a locked slot is never reworded
-      if (level === 2) for (const k of Object.keys(work.ip || {}))
-        if (work.ip[k]) work.ip[k] = compactPart(work.ip[k], level);
-      style = renderStyle(engine, work);
-      if (style.length <= limit) return style;
-    }
-  }
-
-  // last resort (only reachable when several overlays are stacked on an already
-  // dense character): shed decoration, never an instrument, never the genre/tempo.
-  // Order: interplay tails -> the engine's own gap-filler colour -> overlay extras.
-  const shed = [
-    () => { if (work.ip) work.ip.colorRel = null; },
-    () => { if (!work.colorFromOverlay && !lockedKey('color')) work.color = null; },
-    () => { if (work.ip) work.ip.voiceRel = null; },
-    () => { work.ovEdit = null; },
-    () => { work.ovTexture = null; },
-    () => { work.ovTreat = null; },
-    () => { if (!lockedKey('color')) work.color = null; },
-  ];
-  for (const cut of shed) {
-    cut();
-    style = renderStyle(engine, work);
-    if (style.length <= limit) return style;
-  }
-  return style;
-}
-
-function build(engine, opts) {
-  const arr = resolveArrangement(engine, opts);
-  applyOverlay(engine, arr, opts.overlay, opts.locks || {});
-  const style = compressStyle(engine, arr, CHAR_LIMIT, opts.locks || {});
-  return { arrangement: arr, style, negative: renderNegative(engine, arr), length: style.length,
-           overLimit: style.length > CHAR_LIMIT };
-}
-
-Object.assign(window.__ATMOS, { resolveArrangement, renderStyle, renderNegative, build, DEFAULT_HARMONY_WEIGHT, PEAK_HARMONY_WEIGHT, NO_PEAK_HARMONY_WEIGHT });
-})();
-
 /* core/atom-composers.js */
 (function(){
 /* ==========================================================================
@@ -1625,6 +1292,19 @@ const NEGATIVE_RANKS = {
   'brass stabs': 1,
   'orchestral hits': 1,
   'symphonic arrangement': 1,
+  // rank 1 — a beatless/ambient character receiving drum language is a
+  // complete genre failure, not a stylistic nitpick (2026-08-13, atom path
+  // never carried this even though resolver/legacy always have via
+  // BEATLESS_BAN — same severity class as the round-4 orchestral hijacks).
+  'drums': 1, 'kick': 1, 'beat': 1, 'percussion': 1, 'snare': 1,
+  // rank 1 — vocal-restraint mechanism (2026-08-13, John: a genre/character
+  // described as soft, easy, chill, gentle etc. should proactively reject
+  // aggressive vocal delivery). DESIGN CHOICE, not an independently Suno-
+  // tested fact like the entries above it — grounded in the project's
+  // existing mood/energy data (MOOD_CLASSES, declared tempo/energy text),
+  // not invented from nothing, but flagged here as reasoned inference so it
+  // isn't mistaken for the same evidence class as a round-4 finding.
+  'shouted vocals': 1, 'screaming vocals': 1, 'belted vocals': 1, 'aggressive vocal delivery': 1,
   // rank 2 — orchestral convention, less destructive
   'orchestral percussion': 2,
   'timpani': 2,
@@ -1643,6 +1323,63 @@ const NEGATIVE_RANKS = {
   'nature sounds': 3,
   'ambient noise': 3,
 };
+
+/* VOCAL_RESTRAINT_TERMS — the actual candidate strings added to a negative
+ * prompt when a character reads as soft/gentle and vocals are active. Kept
+ * as its own export (not just inline) so every engine path adds the exact
+ * same wording rather than each hand-writing a slightly different phrase. */
+const VOCAL_RESTRAINT_TERMS = ['shouted vocals', 'screaming vocals', 'belted vocals', 'aggressive vocal delivery'];
+
+/* SOFT_CHARACTER_RE — trigger words for the vocal-restraint mechanism.
+ * John named "soft, easy, chill, gentle, and any other similar words";
+ * extended with the project's own existing mood vocabulary (MOOD_CLASSES in
+ * core/profiles.js: contemplative/ethereal/wistful/nocturnal read the same
+ * way; brooding/euphoric/driving/hypnotic deliberately excluded, they don't)
+ * plus the literal energy phrases already declared on character/cluster data
+ * (low energy, very low energy, low-mid energy). This is a REASONED DESIGN
+ * CHOICE grounded in existing project vocabulary, not an empirical Suno
+ * finding — unlike NEGATIVE_RANKS' round-4 entries, nobody has tested that
+ * Suno specifically over-shouts on these exact words. If a future session
+ * gets contradicting Suno evidence, that evidence wins and this list changes. */
+const SOFT_CHARACTER_RE = /\b(soft|gentle|easy|chill|mellow|tender|hushed|serene|dreamy|contemplative|ethereal|wistful|nocturnal|ambient|lounge|downtempo|lush|delicate|intimate)\b|\b(very low|low[- ]mid|low)\s+energy\b/i;
+
+/* vocalRestraintCandidates(descriptiveText, vocalActive) — descriptiveText is
+ * any combination of a character/cluster's own label/genre/tempo text (never
+ * user free-text, so this can't be gamed by a stray word in a lyric brief).
+ * Returns [] when vocals aren't active at all (nothing to restrain) or the
+ * text doesn't match — never invents a restraint the character didn't
+ * actually signal. */
+function vocalRestraintCandidates(descriptiveText, vocalActive) {
+  if (!vocalActive) return [];
+  return SOFT_CHARACTER_RE.test(String(descriptiveText || '')) ? VOCAL_RESTRAINT_TERMS.slice() : [];
+}
+
+/* capNegativesOrdered(candidates, cap) — for the resolver and legacy paths,
+ * which each carry dozens of engine/cluster-specific negative terms
+ * (2026-08-13 finding: uncapped, e.g. 24 items on a resolver build, 37 on a
+ * legacy one — directly violating NEGATIVE_CAP, the same round-4 finding
+ * NEGATIVE_RANKS enforces on the atom path). Individually hand-ranking every
+ * one of those terms against Suno evidence I don't have would mean inventing
+ * harm scores exactly like the ungrounded metatag language John already
+ * flagged this session — so instead of a global rank table, this preserves
+ * whatever priority order the CALLER already assembled (highest-priority
+ * candidates first: beatless-ban, vocal-restraint, then the engine's own
+ * declared negatives, cosmetic ALWAYS_BAN last) and simply dedupes + caps at
+ * the same limit the atom path already enforces. Same discipline, cheaper
+ * evidence bar for content nobody has specifically Suno-tested term-by-term. */
+function capNegativesOrdered(candidates, cap) {
+  const limit = (typeof cap === 'number') ? cap : NEGATIVE_CAP;
+  const seen = new Set();
+  const out = [];
+  for (const c of candidates) {
+    const k = String(c).toLowerCase().trim();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(String(c).trim());
+    if (out.length >= limit) break;
+  }
+  return out;
+}
 
 // Select at most NEGATIVE_CAP negatives, most harmful first, order preserved
 // within a rank. Duplicates and unknown entries are dropped rather than
@@ -1720,7 +1457,353 @@ const ONE_VOICE_ONE_MENTION = true;
  * ------------------------------------------------------------------------*/
 const INTERACTION_LANGUAGE_MANDATORY = true;
 
-Object.assign(window.__ATMOS, { selectNegatives, NEGATIVE_CAP, NEGATIVE_RANKS, BANNED_ARTICULATION, BANNED_ARTICULATION_RE, POSITION_IS_PROMINENCE, CONVENTION_BLEED, ONE_VOICE_ONE_MENTION, INTERACTION_LANGUAGE_MANDATORY });
+Object.assign(window.__ATMOS, { vocalRestraintCandidates, capNegativesOrdered, selectNegatives, NEGATIVE_CAP, NEGATIVE_RANKS, VOCAL_RESTRAINT_TERMS, SOFT_CHARACTER_RE, BANNED_ARTICULATION, BANNED_ARTICULATION_RE, POSITION_IS_PROMINENCE, CONVENTION_BLEED, ONE_VOICE_ONE_MENTION, INTERACTION_LANGUAGE_MANDATORY });
+})();
+
+/* core/resolver.js */
+(function(){
+const {ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette} = window.__ATMOS;
+const {NEGATIVE_CAP, capNegativesOrdered, vocalRestraintCandidates} = window.__ATMOS;
+const {compactPart} = window.__ATMOS;
+const {slotFamily} = window.__ATMOS;
+
+/* ---- HARMONY BRIGHTNESS WEIGHTING (John, 2026-08-13) ----------------------
+ * "Music played in a Major Key sounds too happy and sugary sweet... this key
+ * use must be controlled somehow, but not eliminated entirely... don't make
+ * it the only lever." Two levers, both scoped to the harmony role only —
+ * pads/bass/lead/etc. are instrument choices, not a tonality concern.
+ *
+ * Every harmony pool entry across the 4 resolver engines was read and hand-
+ * classified by its own text (not guessed from the key name) into one of 5
+ * brightness tags: minor, modal, neutral, resolves (the "minor-to-relative-
+ * major" entries — John's own suggested mechanism, which turned out to
+ * already exist as pool vocabulary), and major.
+ *
+ * LEVER 2 (general bias): DEFAULT_HARMONY_WEIGHT favours minor/modal over
+ * resolves/major, but every tag stays reachable — nothing is eliminated.
+ *
+ * LEVER 3 (structure-aware): when the caller passes structureHint indicating
+ * the selected structure preset has a genuine earned peak (energy 5 somewhere
+ * in its shape — a real chorus/drop/climax to resolve INTO), 'resolves' and
+ * 'major' get boosted, since there's an actual payoff moment for that arc to
+ * land on. When the structure has NO such peak (e.g. Downtempo/Ambient, which
+ * tops out at energy 4 — nothing to resolve onto), they're suppressed further
+ * instead, keeping flat/ambient structures honestly flat rather than faking a
+ * resolution that has nowhere to go. Omitting structureHint entirely (no
+ * structure selected) falls back to the Lever-2-only default — this keeps
+ * every existing call site working exactly as before, additive not breaking.
+ * ========================================================================*/
+const DEFAULT_HARMONY_WEIGHT   = { minor: 3,   modal: 3,   neutral: 2, resolves: 1.5, major: 1 };
+const PEAK_HARMONY_WEIGHT      = { minor: 3,   modal: 3,   neutral: 2, resolves: 3,   major: 1.5 };
+const NO_PEAK_HARMONY_WEIGHT   = { minor: 3.5, modal: 3.5, neutral: 2, resolves: 0.5, major: 0.5 };
+
+function harmonyWeightsFor(structureHint) {
+  if (!structureHint) return DEFAULT_HARMONY_WEIGHT;
+  return structureHint.hasResolutionPoint ? PEAK_HARMONY_WEIGHT : NO_PEAK_HARMONY_WEIGHT;
+}
+
+// Weighted pick over a pool using each item's `.bright` tag (unset/unknown
+// tags fall back to the 'neutral' weight). Same rand() stream as everything
+// else here, so a given seed still deterministically produces one answer —
+// weighting changes the DISTRIBUTION across seeds, not the determinism of
+// any single seed.
+function weightedPick(pool, weights, rand) {
+  const withWeights = pool.map(item => ({ item, w: weights[item.bright] ?? weights.neutral ?? 1 }));
+  const total = withWeights.reduce((sum, x) => sum + x.w, 0);
+  if (total <= 0) return pool[Math.floor(rand() * pool.length)]; // safety net, should not happen
+  let r = rand() * total;
+  for (const x of withWeights) {
+    if (r < x.w) return x.item;
+    r -= x.w;
+  }
+  return withWeights[withWeights.length - 1].item; // floating-point rounding safety
+}
+
+// opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed,
+//         structureHint:{hasResolutionPoint:boolean}|null }
+// locks drive all three control levels:
+//   randomize all  = locks {}
+//   lock some      = locks {pads:'...'}
+//   full manual    = every role locked
+function resolveArrangement(engine, opts) {
+  const { characterId, palette = 'electronic', locks = {}, seed = Date.now(), structureHint = null } = opts;
+  const c = engine.characters[characterId];
+  if (!c) throw new Error(`unknown character ${characterId}`);
+  const rand = rng(seed);
+  const pick = (role) => {
+    if (locks[role] != null) return locks[role];
+    const pool = filterPalette(c.pools[role] || [], palette);
+    if (!pool.length) return null;
+    if (role === 'harmony') {
+      return weightedPick(pool, harmonyWeightsFor(structureHint), rand).t;
+    }
+    return pool[Math.floor(rand() * pool.length)].t;
+  };
+
+  const arr = {
+    engine: engine.id,
+    character: c.label,
+    genre: c.genre,
+    beatless: !!c.beatless,
+    bpm: c.bpm || null,
+    energy: c.energy,
+    pads: pick('pads'),
+    harmony: pick('harmony'),
+    bass: pick('bass'),
+    voice: pick('voice'),
+    lead: pick('lead'),
+    movement: pick('movement'),
+    color: null,
+    drums: null,
+    negative: c.negative || null,   // optional per-character bans (e.g. Era Driving Epic: no rock/metal)
+    tempoLock: c.tempoLock || null, // optional tempo-stability directive (stops Suno double-timing)
+  };
+
+  // drums (skip when beatless)
+  if (!c.beatless && c.drums.primary) {
+    const fam = engine.drums[c.drums.primary];
+    arr.drums = fam[Math.floor(rand() * fam.length)];
+  }
+  // colour fires occasionally
+  if (rand() < c.colorChance) arr.color = pick('color');
+
+  // interplay / arrangement layer — WOVEN into the style string (per John's Suno test).
+  // role-generic tails that hang off already-named instruments (never re-name one).
+  const ipPool = (engine.interplay && engine.interplay[characterId]) || {};
+  const one = (dim) => (ipPool[dim] && ipPool[dim].length)
+    ? ipPool[dim][Math.floor(rand() * ipPool[dim].length)] : null;
+  arr.ip = {
+    foundation:   one('foundation'),
+    conversation: one('conversation'),
+    arc:          one('arc'),
+    voiceRel:     one('voiceRel'),
+    colorRel:     one('colorRel'),
+  };
+
+  return arr;
+}
+
+// STYLE STRING = full woven cast (the approved gold-standard format). Instruments are
+// threaded with their interplay inline, in musical layers, not a flat tag list:
+//   genre -> tempo -> [drums+bass+foundation] -> [pads+lead+conversation] -> harmony
+//         -> [voice+voiceRel] -> [colour+colourRel if it fires] -> [movement+arc] -> mastering
+function renderStyle(engine, arr) {
+  const ip = arr.ip || {};
+  const clauses = [arr.genre];
+
+  // tempo + energy
+  clauses.push(arr.beatless
+    ? `beatless, ${arr.energy} energy`
+    : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`);
+  if (arr.tempoLock) clauses.push(arr.tempoLock);
+
+  // LEVER 1 — OVERLAY FRONT-LOADING. Suno front-weights descriptors and renders
+  // only a bounded number of them, so an overlay's defining traits must sit right
+  // after the genre+tempo anchor (not buried at the back where they get dropped).
+  // The signature carriers (thematic motif, counter-melody, harmonic language) are
+  // hoisted here; they are then skipped in their old mid-list positions so nothing
+  // renders twice. When no overlay is active none of these exist and the order is
+  // unchanged (no-overlay output stays byte-identical — asserted in validation).
+  if (arr.ovMotif) clauses.push(arr.ovMotif);
+  if (arr.ovCounter) clauses.push(arr.ovCounter);
+  if (arr.ovHarmony && arr.harmony) clauses.push(arr.harmony);
+
+  // foundation: drums(+)bass + how they lock/float (+ remixer groove treatment)
+  const drumText = arr.drums ? (arr.groove ? `${arr.drums} ${arr.groove}` : arr.drums) : null;
+  if (arr.bass) {
+    const low = drumText ? `${drumText} and ${arr.bass}` : arr.bass;
+    clauses.push(ip.foundation ? `${low} ${ip.foundation}` : low);
+  } else if (drumText) {
+    clauses.push(ip.foundation ? `${drumText} ${ip.foundation}` : drumText);
+  }
+
+  // conversation: pads + lead + how they relate
+  if (arr.pads && arr.lead) {
+    clauses.push(ip.conversation ? `${arr.pads} with ${arr.lead} ${ip.conversation}`
+                                 : `${arr.pads} with ${arr.lead}`);
+  } else if (arr.pads) {
+    clauses.push(arr.pads);
+  } else if (arr.lead) {
+    clauses.push(arr.lead);
+  }
+
+  // harmony (musicality slot — its own clause). An OVERLAY harmony was already
+  // front-loaded above; only an ENGINE harmony renders here.
+  if (arr.harmony && !arr.ovHarmony) clauses.push(arr.harmony);
+
+  // overlay: secondary sustained layer
+  if (arr.ovTexture) clauses.push(arr.ovTexture);
+
+  // voice + how it sits
+  if (arr.voice) clauses.push(ip.voiceRel ? `${arr.voice} ${ip.voiceRel}` : arr.voice);
+
+  // colour (only when it fired) + how it sits
+  if (arr.color) clauses.push(ip.colorRel ? `${arr.color} ${ip.colorRel}` : arr.color);
+
+  // overlay: remixer edit treatment + producer mix treatment
+  if (arr.ovEdit) clauses.push(arr.ovEdit);
+  if (arr.ovTreat) clauses.push(arr.ovTreat);
+
+  // production movement + the arc of the whole arrangement
+  if (arr.movement) clauses.push(ip.arc ? `${arr.movement} and ${ip.arc}` : arr.movement);
+  else if (ip.arc) clauses.push(ip.arc);
+
+  return clauses.join(', ') + '. ' + MASTERING;
+}
+
+function renderNegative(engine, arr, opts) {
+  const o = opts || {};
+  // Priority order, capped at NEGATIVE_CAP: the engine's OWN declared
+  // negatives are the primary, deliberately-authored genre defense and get
+  // first claim on the cap. Beatless-ban and vocal-restraint are situational
+  // additions layered on top — each reserved exactly ONE representative slot
+  // (not their full term lists) so a triggered mechanism can't silently
+  // crowd out the engine's real defense entirely. 2026-08-13 first attempt
+  // reserved all of BEATLESS_BAN + all 4 vocal-restraint terms ahead of
+  // everything else and a real Delerium build came back as 5 vocal/beatless
+  // terms and ZERO of the engine's own negatives — worse than the uncapped
+  // bug this was fixing. This is the corrected allocation.
+  const beatlessNeg = arr.beatless ? BEATLESS_BAN.slice(0, 1) : []; // "drums" — the single most critical term
+  const descriptiveText = [arr.character, arr.genre].filter(Boolean).join(' ');
+  const vocalNeg = vocalRestraintCandidates(descriptiveText, !!o.vocalActive).slice(0, 1);
+  const bans = [...beatlessNeg, ...vocalNeg, ...engine.sourceNegative, ...(arr.negative || []), ...ALWAYS_BAN];
+  return capNegativesOrdered(bans, NEGATIVE_CAP).join(', ');
+}
+
+/* ---- MODIFIER OVERLAYS ---------------------------------------------------
+ * ov = { roles:{harmony,motif,counter,texture,color,movement,arc,groove,edit,treat},
+ *        negative:[...] } — already resolved by core/overlays.js.
+ * Overlays WRITE INTO existing slots (they do not append a second prompt), a
+ * USER-LOCKED slot always wins, and the engine's genre / tempo / drum family /
+ * bass family are never touched.
+ * engine.signatureLead (Deep Forest, Sacred Spirit): the lead pool carries the
+ * engine's ethnic signature instrument, so a composer's melodic trait is demoted
+ * to a second melodic voice instead of replacing it — the standing rule that the
+ * signature instrument must persist beats the overlay.
+ * ------------------------------------------------------------------------*/
+function applyOverlay(engine, arr, ov, locks = {}) {
+  if (!ov || !ov.roles) return arr;
+  const r = ov.roles;
+  const fam = ov.roleFamily || {};
+  const free = role => locks[role] == null || locks[role] === '';
+
+  // Which instrument families has the ENGINE already put on the track? A slot the
+  // user locked counts too (never silently displace a locked instrument).
+  const present = new Set();
+  for (const k of ['bass', 'lead', 'pads', 'color']) {
+    const f = slotFamily(arr[k]); if (f) present.add(f);
+  }
+
+  // Decide what to do when an overlay trait names an instrument family the engine
+  // already carries:
+  //   foundational (e.g. Moroder's arp-bass) -> DISPLACE the engine's slot in that
+  //     family, so there is exactly one instrument in that role.
+  //   otherwise -> the overlay YIELDS: its instrument mention is dropped so it does
+  //     not duplicate what is already there.
+  const resolveTrait = (role, text) => {
+    const meta = fam[role];
+    if (!meta || !meta.family) return { text, displace: null };
+    const clash = present.has(meta.family);
+    if (!clash) { present.add(meta.family); return { text, displace: null }; }
+    if (meta.foundational) return { text, displace: meta.family };   // overlay wins the role
+    return { text: null, displace: null };                           // overlay drops the mention
+  };
+
+  if (r.harmony && free('harmony')) { arr.harmony = r.harmony; arr.ovHarmony = true; }
+  if (r.movement && free('movement')) arr.movement = r.movement;
+  if (r.arc) arr.ip = Object.assign({}, arr.ip, { arc: r.arc });
+
+  // LEVER 1 — DEMOTE OVERLAY COLOUR. Colour is the lowest-priority, occasional
+  // decoration slot. When the overlay already carries a foreground melodic voice
+  // (motif or counter), its colour trait is SUPPRESSED — it competes for attention
+  // and over-renders (John's test: an overlay trumpet came through too strong). An
+  // overlay whose only melodic contribution IS colour (e.g. a producer's sampled
+  // choir hits) keeps it.
+  const overlayHasForeground = !!(r.motif || r.counter);
+  if (r.color && free('color') && !overlayHasForeground) {
+    const t = resolveTrait('color', r.color);
+    if (t.text) { arr.color = t.text; arr.colorFromOverlay = true; }
+  }
+
+  // motif = the composer's melodic/thematic hand
+  if (r.motif) {
+    const t = resolveTrait('motif', r.motif);
+    if (t.displace === 'bass' && free('bass')) {
+      // foundational bass motif (Moroder) OWNS the low end: it replaces the drawn
+      // bass in the foundation clause; no second bass elsewhere.
+      arr.bass = t.text; arr.ovMotifIsBass = true;
+    } else if (t.text) {
+      if (engine.signatureLead || !free('lead')) arr.ovMotif = t.text; // keep engine lead
+      else arr.lead = t.text;
+    }
+  }
+
+  if (r.counter) { const t = resolveTrait('counter', r.counter); if (t.text) arr.ovCounter = t.text; }
+  if (r.texture) { const t = resolveTrait('texture', r.texture); if (t.text) arr.ovTexture = t.text; }
+  if (r.groove && arr.drums) arr.groove = r.groove;
+  if (r.edit) arr.ovEdit = r.edit;
+  if (r.treat) arr.ovTreat = r.treat;
+
+  if (ov.negative && ov.negative.length)
+    arr.negative = [...(arr.negative || []), ...ov.negative];
+
+  return arr;
+}
+
+/* Compression: shrink PHRASING before shedding CONTENT (see core/compress.js).
+ * Bands are compacted in priority order — decorative layers first, core last —
+ * and only as far as the budget actually requires. */
+const CORE_KEYS = ['genre', 'tempoClause'];
+function compressStyle(engine, arr, limit, locks = {}) {
+  const roleOf = { pads: 'pads', harmony: 'harmony', bass: 'bass', voice: 'voice', lead: 'lead', movement: 'movement', color: 'color' };
+  const lockedKey = k => { const r = roleOf[k]; return r && locks[r] != null && locks[r] !== ''; };
+  let style = renderStyle(engine, arr);
+  if (style.length <= limit) return style;
+  const bands = [
+    ['color', 'ovTexture', 'ovCounter', 'ovEdit', 'ovTreat'],   // decorative / overlay extras
+    ['movement', 'ovMotif'],                                     // production + secondary melodic
+    ['pads', 'harmony', 'voice', 'lead', 'bass', 'drums', 'groove'], // core, last resort
+  ];
+  const work = Object.assign({}, arr, { ip: Object.assign({}, arr.ip) });
+  for (const level of [1, 2]) {
+    for (const band of bands) {
+      for (const k of band) if (work[k] && !lockedKey(k)) work[k] = compactPart(work[k], level);   // a locked slot is never reworded
+      if (level === 2) for (const k of Object.keys(work.ip || {}))
+        if (work.ip[k]) work.ip[k] = compactPart(work.ip[k], level);
+      style = renderStyle(engine, work);
+      if (style.length <= limit) return style;
+    }
+  }
+
+  // last resort (only reachable when several overlays are stacked on an already
+  // dense character): shed decoration, never an instrument, never the genre/tempo.
+  // Order: interplay tails -> the engine's own gap-filler colour -> overlay extras.
+  const shed = [
+    () => { if (work.ip) work.ip.colorRel = null; },
+    () => { if (!work.colorFromOverlay && !lockedKey('color')) work.color = null; },
+    () => { if (work.ip) work.ip.voiceRel = null; },
+    () => { work.ovEdit = null; },
+    () => { work.ovTexture = null; },
+    () => { work.ovTreat = null; },
+    () => { if (!lockedKey('color')) work.color = null; },
+  ];
+  for (const cut of shed) {
+    cut();
+    style = renderStyle(engine, work);
+    if (style.length <= limit) return style;
+  }
+  return style;
+}
+
+function build(engine, opts) {
+  const arr = resolveArrangement(engine, opts);
+  applyOverlay(engine, arr, opts.overlay, opts.locks || {});
+  const style = compressStyle(engine, arr, CHAR_LIMIT, opts.locks || {});
+  return { arrangement: arr, style, negative: renderNegative(engine, arr, { vocalActive: opts.vocalActive }), length: style.length,
+           overLimit: style.length > CHAR_LIMIT };
+}
+
+Object.assign(window.__ATMOS, { resolveArrangement, renderStyle, renderNegative, build, DEFAULT_HARMONY_WEIGHT, PEAK_HARMONY_WEIGHT, NO_PEAK_HARMONY_WEIGHT });
 })();
 
 /* core/composer-layers.js */
@@ -4031,10 +4114,10 @@ Object.assign(window.__ATMOS, { modifierCores, modifierSignatures, modifierList,
  * Genre-owned attributes can't be claimed by a cross-genre overlay regardless of
  * prompt craft or position — so we don't author a prompt that fights the prior.
  * ========================================================================*/
-const {CHAR_LIMIT, ALWAYS_BAN} = window.__ATMOS;
+const {CHAR_LIMIT, ALWAYS_BAN, BEATLESS_BAN} = window.__ATMOS;
 const {evaluateCongruence} = window.__ATMOS;
 const {bedAtom, bedAllowed} = window.__ATMOS;
-const {selectNegatives} = window.__ATMOS;
+const {selectNegatives, vocalRestraintCandidates} = window.__ATMOS;
 const {classifyInstrument, planePhrase, pairLink} = window.__ATMOS;
 const {modifierList} = window.__ATMOS;
 const {ATOM_COMPOSERS} = window.__ATMOS;
@@ -4351,12 +4434,34 @@ function buildAtoms(char, opts){
   // field is unchanged — ALWAYS_BAN only (parity-safe).
   const ovDef = !overlayNote ? (o.overlayDef || (o.overlayId ? ATOM_OVERLAYS[o.overlayId] : null)) : null;
   const ovNeg = (ovDef && ovDef.negative) ? ovDef.negative : [];
+  // BEATLESS BAN (2026-08-13): resolver and legacy have always banned drum/
+  // beat language on a beatless character; the atom path never did. Same
+  // severity as the round-4 orchestral hijacks — a beatless ambient build
+  // getting drum language back is a complete genre failure, not a nitpick.
+  // Reserved to ONE representative term ("drums") rather than the full
+  // BEATLESS_BAN list — with an overlay active, its rank-1 orchestral-defense
+  // terms (the actual round-4-tested content) fill the cap first; a full
+  // 5-term beatless list would crowd all of them out, same mistake first
+  // made and caught on the resolver path minutes earlier this session.
+  const beatlessNeg = char.beatless ? BEATLESS_BAN.slice(0, 1) : [];
+  // VOCAL RESTRAINT (2026-08-13, John): a character that reads as soft/
+  // gentle/chill should proactively reject aggressive vocal delivery.
+  // Checked against the character's OWN declared text only (label + its own
+  // tempo/energy phrase) — never user free-text, so nothing but the
+  // character's own data can trigger this. Reserved to one term for the
+  // same crowding-out reason as beatlessNeg above.
+  const descriptiveText = [char.label, char.atoms && char.atoms.tempo && char.atoms.tempo.text].filter(Boolean).join(' ');
+  const vocalNeg = vocalRestraintCandidates(descriptiveText, !!o.vocalActive).slice(0, 1);
   // NEGATIVE CAP (John, round 4): the negative field loses effectiveness beyond
   // about five elements, so an unranked list of 23 silently discarded the ones
   // that mattered and John had to front-load them by hand. Negatives are now
   // ranked by observed harm and truncated — genre-breaking bans first, cosmetic
   // non-musical bans only if slots remain.
-  const negative = selectNegatives([...ovNeg, ...ALWAYS_BAN]).join(', ') + '.';
+  // ovNeg capped to 3 here (2026-08-13): with beatlessNeg/vocalNeg also at
+  // rank 1, an uncapped 5-term ovNeg would fill the entire cap by array-order
+  // alone before the stable sort ever reaches them — the exact bug just found
+  // and fixed on the resolver path, same root cause here. 3+1+1 = the cap.
+  const negative = selectNegatives([...ovNeg.slice(0, 3), ...beatlessNeg, ...vocalNeg, ...ALWAYS_BAN]).join(', ') + '.';
   return { style, negative, lyrics:'', length:style.length, over,
            arrangement:kept, overlayNote };
 }
@@ -9668,6 +9773,7 @@ const {MASTERING, MAX_MODE_STR, STYLE_ENGINES} = window.__ATMOS;
 const {EngineExtras, drawInterplay} = window.__ATMOS;
 const {compactPart} = window.__ATMOS;
 const {slotFamily} = window.__ATMOS;
+const {capNegativesOrdered, vocalRestraintCandidates, NEGATIVE_CAP} = window.__ATMOS;
 
 /* join descriptor parts into one clean comma line, drop trailing periods, honour
  * the 1000-char budget, lead with the MAX-mode meta-tag block when enabled. */
@@ -9965,25 +10071,39 @@ function buildClusterNegative(clusterId, state) {
   const s = state.style;
   const engine = EngineExtras[engineName] || {};
   const c = (engine.flavourClusters || {})[clusterId] || {};
-  const items = [
-    (STYLE_ENGINES[engineName] || {}).sourceNegative,
-    ...ALWAYS_BAN,
-    ...(c.beatless ? BEATLESS_BAN : []),
-    ...(c.bannedAdd || []),
-    ...((s.ov && s.ov.negative) || []),      // overlay bans (e.g. no SAW-era drums)
-    s.negativePrompt
-  ].filter(Boolean);
+  // PRIORITY ORDER, capped at NEGATIVE_CAP (2026-08-13 fix — this used to
+  // dedupe but never cap: a real Balearic build carried 37 negative items,
+  // directly violating the round-4 finding that the field loses
+  // effectiveness beyond ~5). Highest priority first: the user's own typed
+  // negatives (deliberate, always kept), then the selected overlay's own
+  // negative (explicitly chosen, and specifically tested — validate-
+  // overlays.mjs asserts a SAW-style overlay's drum negative survives, which
+  // is exactly what an earlier draft of this ordering broke by placing it
+  // too low), then this cluster's own specific bans, then beatless/vocal-
+  // restraint (one representative term each, so neither crowds out real
+  // defense — same over-reservation mistake made and caught on the resolver
+  // and atom paths minutes earlier), then the engine-wide sourceNegative (a
+  // large uncited list — capped here, not individually re-ranked, same
+  // reasoning as capNegativesOrdered's own doc comment), cosmetic ALWAYS_BAN
+  // last.
+  const sourceNegTerms = String((STYLE_ENGINES[engineName] || {}).sourceNegative || '')
+    .split(',').map(x => x.trim()).filter(Boolean);
+  const beatlessNeg = c.beatless ? BEATLESS_BAN.slice(0, 1) : [];
+  const descriptiveText = [c.label, (STYLE_ENGINES[engineName] || {}).genre].filter(Boolean).join(' ');
+  const vocalNeg = vocalRestraintCandidates(descriptiveText, !!s.vocalActive).slice(0, 1);
+  const userNeg = String(s.negativePrompt || '').split(',').map(x => x.trim()).filter(Boolean);
   const removeSet = new Set((c.bannedRemove || []).map(
     x => x.replace(/^[-\s]+/, "").trim().toLowerCase()));
-  const seen = new Set();
-  const out = [];
-  for (const it of items.join(", ").split(",").map(x => x.trim()).filter(Boolean)) {
-    const bare = it.replace(/^[-\s]+/, "").trim().toLowerCase();
-    if (removeSet.has(bare)) continue;
-    if (seen.has(bare)) continue;
-    seen.add(bare); out.push(it);
-  }
-  return out.join(", ");
+  const candidates = [
+    ...userNeg,
+    ...((s.ov && s.ov.negative) || []),
+    ...(c.bannedAdd || []),
+    ...beatlessNeg,
+    ...vocalNeg,
+    ...sourceNegTerms,
+    ...ALWAYS_BAN,
+  ].filter(it => !removeSet.has(it.replace(/^[-\s]+/, "").trim().toLowerCase()));
+  return capNegativesOrdered(candidates, NEGATIVE_CAP).join(", ");
 }
 
 /* ---- classic slot path (any engine) ------------------------------------- */
@@ -10079,9 +10199,21 @@ function buildNegativePrompt(state) {
   const pc = presetCluster(state);
   if (pc) return buildClusterNegative(pc, state);
   if (clusterActive(state)) return buildClusterNegative(state.style.cluster, state);
+  // classic path — same priority-order capping as buildClusterNegative.
+  // 2026-08-13: previously no cap and no dedup at all on this path.
   const e = STYLE_ENGINES[state.engine];
-  const ovNeg = ((state.style.ov && state.style.ov.negative) || []).join(", ");
-  return [e.sourceNegative || e.negatives, ovNeg, state.style.negativePrompt].filter(Boolean).join(", ");
+  const s = state.style;
+  const sourceNegTerms = String(e.sourceNegative || e.negatives || '')
+    .split(',').map(x => x.trim()).filter(Boolean);
+  // classic path has no beatless concept at all (confirmed this session,
+  // docs/architecture/p8-dna-extractors-plan-legacy.md's Q2 finding) — no
+  // beatless-ban term added here, not invented.
+  const descriptiveText = e.genre || '';
+  const vocalNeg = vocalRestraintCandidates(descriptiveText, !!s.vocalActive).slice(0, 1);
+  const userNeg = String(s.negativePrompt || '').split(',').map(x => x.trim()).filter(Boolean);
+  const ovNeg = ((s.ov && s.ov.negative) || []);
+  const candidates = [...userNeg, ...ovNeg, ...vocalNeg, ...sourceNegTerms, ...ALWAYS_BAN];
+  return capNegativesOrdered(candidates, NEGATIVE_CAP).join(", ");
 }
 
 Object.assign(window.__ATMOS, { buildLyricsField, buildClusterPrompt, buildClusterNegative, buildStylePrompt, buildStylePromptWithArrangement, buildNegativePrompt });
@@ -10994,7 +11126,7 @@ function generate(S) {
     // untouched; the composer only decorates it.
     const composerLayerId = (a.composerLayerId && COMPOSER_LAYERS[a.composerLayerId]) ? a.composerLayerId : null;
 
-    const out = buildAtoms(char, { seed: S.seed, overlayDef: a.overlayId ? resolveModifier(a.overlayId, null, null, palette) : null, maxMode: S.maxMode });
+    const out = buildAtoms(char, { seed: S.seed, overlayDef: a.overlayId ? resolveModifier(a.overlayId, null, null, palette) : null, maxMode: S.maxMode, vocalActive: S.songType !== 'instrumental' });
     let style = out.style;
     if (composerLayerId) style = `${style}, ${composerStyleLayer(composerLayerId)}`;
     style = applyMax(style, S.maxMode);
@@ -11034,7 +11166,7 @@ function generate(S) {
     const out = build(eng.module, {
       characterId: r.characterId, palette: r.palette, locks, seed: S.seed,
       overlay: overlayFor(S, !!ch.beatless),
-      structureHint,
+      structureHint, vocalActive: S.songType !== 'instrumental',
     });
     const style = applyMax(out.style, S.maxMode);
     return {
@@ -11210,7 +11342,7 @@ function toLegacyState(S) {
         pad: s.pad, harmony: s.harmony, bass: s.bass, rhythm: s.rhythm,
         percussion: s.percussion, motif: s.motif, movement: s.movement,
         vocalMode: effectiveVocalMode, vocalDescriptor: '', vocalPersona: '',
-        maxMode: S.maxMode, negativePrompt: '', ov,
+        maxMode: S.maxMode, negativePrompt: '', ov, vocalActive: effectiveVocalMode !== 'Instrumental',
       },
     };
   }
@@ -11233,7 +11365,7 @@ function toLegacyState(S) {
       pad: l.slots.pad, bass: l.slots.bass, rhythm: l.slots.rhythm,
       percussion: l.slots.percussion, motif: l.slots.motif, movement: l.slots.movement,
       vocalMode: effectiveVocalMode, vocalDescriptor: '', vocalPersona: '',
-      maxMode: S.maxMode, negativePrompt: '', ov,
+      maxMode: S.maxMode, negativePrompt: '', ov, vocalActive: effectiveVocalMode !== 'Instrumental',
     },
   };
 }

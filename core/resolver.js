@@ -1,4 +1,5 @@
 import { ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette } from './constants.js';
+import { NEGATIVE_CAP, capNegativesOrdered, vocalRestraintCandidates } from './knowledge.js';
 import { compactPart } from './compress.js';
 import { slotFamily } from './overlays.js';
 
@@ -186,11 +187,23 @@ export function renderStyle(engine, arr) {
   return clauses.join(', ') + '. ' + MASTERING;
 }
 
-export function renderNegative(engine, arr) {
-  const bans = [...engine.sourceNegative, ...ALWAYS_BAN];
-  if (arr.negative) bans.push(...arr.negative);
-  if (arr.beatless) bans.push(...BEATLESS_BAN);
-  return [...new Set(bans)].join(', ');
+export function renderNegative(engine, arr, opts) {
+  const o = opts || {};
+  // Priority order, capped at NEGATIVE_CAP: the engine's OWN declared
+  // negatives are the primary, deliberately-authored genre defense and get
+  // first claim on the cap. Beatless-ban and vocal-restraint are situational
+  // additions layered on top — each reserved exactly ONE representative slot
+  // (not their full term lists) so a triggered mechanism can't silently
+  // crowd out the engine's real defense entirely. 2026-08-13 first attempt
+  // reserved all of BEATLESS_BAN + all 4 vocal-restraint terms ahead of
+  // everything else and a real Delerium build came back as 5 vocal/beatless
+  // terms and ZERO of the engine's own negatives — worse than the uncapped
+  // bug this was fixing. This is the corrected allocation.
+  const beatlessNeg = arr.beatless ? BEATLESS_BAN.slice(0, 1) : []; // "drums" — the single most critical term
+  const descriptiveText = [arr.character, arr.genre].filter(Boolean).join(' ');
+  const vocalNeg = vocalRestraintCandidates(descriptiveText, !!o.vocalActive).slice(0, 1);
+  const bans = [...beatlessNeg, ...vocalNeg, ...engine.sourceNegative, ...(arr.negative || []), ...ALWAYS_BAN];
+  return capNegativesOrdered(bans, NEGATIVE_CAP).join(', ');
 }
 
 /* ---- MODIFIER OVERLAYS ---------------------------------------------------
@@ -322,6 +335,6 @@ export function build(engine, opts) {
   const arr = resolveArrangement(engine, opts);
   applyOverlay(engine, arr, opts.overlay, opts.locks || {});
   const style = compressStyle(engine, arr, CHAR_LIMIT, opts.locks || {});
-  return { arrangement: arr, style, negative: renderNegative(engine, arr), length: style.length,
+  return { arrangement: arr, style, negative: renderNegative(engine, arr, { vocalActive: opts.vocalActive }), length: style.length,
            overLimit: style.length > CHAR_LIMIT };
 }
