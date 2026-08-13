@@ -300,25 +300,67 @@ function leanTag(type, v, dna, label, vocalMode, deliveryClass, moodClass) {
   const pipe = (...els) => `[${[label, ...els.filter(Boolean)].join(' | ')}]`;
 
   const beatless = !!(dna.dynamics && dna.dynamics.beatless) || !hasDrums;
-  const atmos = /ambient|atmos|texture|breath|sunrise|underwater|drift|aria|sacred|abstract|invocation/.test(String(label).toLowerCase());
+  // ATMOS DETECTION FIX (2026-08-13): this used to regex-match the SECTION
+  // LABEL for words like "ambient/sunrise/underwater/drift/aria/sacred" —
+  // words that only existed because of the invented section names John
+  // challenged (Sunrise Intro, Aria Intro, etc). Now that section labels are
+  // restricted to the confirmed vocabulary (plain "Intro", not "Sunrise
+  // Intro"), that regex would never match anything again — checking the
+  // character's own genre/subgenre text instead, which is what the
+  // atmospheric quality was actually describing all along.
+  const genreText = [dna.identity && dna.identity.genreAnchor, dna.identity && dna.identity.subgenre].filter(Boolean).join(' ').toLowerCase();
+  const atmos = /ambient|atmospheric|downtempo|chillout|drift|underwater|nocturnal|ethereal|sacred|ritual/.test(genreText);
+
+  // SHORT VOICE NAMES (2026-08-13): the metatag content used to be static
+  // across palette/seed — same generic phrases ("lead forward", "counter
+  // answers") regardless of which specific instrument the arrangement
+  // actually drew. voiceSet() (above) already carries the real per-role
+  // voice TEXT; this just wasn't being read. Extracting a short (<=2 word)
+  // reference keeps the piped format's own budget (1-3 words/element) while
+  // making each tag reflect THIS build's actual arrangement, not a template.
+  // Falls back to null (dropped from the tag, not padded with a guess) when
+  // no voice is present for that role.
+  const shortVoice = (text) => {
+    if (!text) return null;
+    const words = String(text).replace(/^(a|an|the)\s+/i, '').split(/\s+/);
+    return words.slice(-2).join(' '); // last 1-2 words are usually the instrument noun, not the descriptive lead-in
+  };
 
   switch (type) {
     case 'intro':
       return (beatless || atmos)
         ? pipe(hasDrums ? null : 'no drums', bedWord, 'slow build')
-        : pipe('groove in', 'no lead yet');
+        : pipe('groove in', shortVoice(v.lead) ? `${shortVoice(v.lead)} enters` : null);
     case 'verse':
-      return pipe('sparse', vocal ? vVerse : 'lead forward', grooveLite);
+      // 2026-08-13, John: "'lead forward', that's what a lead is — does it
+      // need specifying?" Dropped the redundant restatement; names the
+      // actual instrument carrying the verse instead, when instrumental.
+      return pipe('sparse', vocal ? vVerse : shortVoice(v.lead), grooveLite);
     case 'prechorus':
       return pipe('building', hasDrums ? 'drums fill' : 'swell', vocal ? 'vocal lifts' : null);
     case 'chorus':
       if (/post-chorus/i.test(String(label))) return pipe('chantable', 'simpler', 'lead back');
-      return pipe('full arrangement', groove, vocal ? vChorus : 'counter answers');
+      return pipe('full arrangement', groove, vocal ? vChorus : (shortVoice(v.counter) ? `${shortVoice(v.counter)} answers` : 'counter answers'));
     case 'instrumental':
-      return pipe('instrumental', 'lead takes theme', 'call and response');
+      // 2026-08-13, John: "'lead takes theme' means nothing to me" and
+      // "call and response — what is calling, what is responding?" Both
+      // retired for naming the actual two voices instead of describing the
+      // technique in the abstract. Falls back to the old generic phrasing
+      // only when the arrangement genuinely has no named lead/answer voice
+      // to point to — never invents an instrument that isn't there.
+      const leadName = shortVoice(v.lead || v.feature);
+      const answerName = shortVoice(v.answerVoice);
+      return pipe('instrumental',
+        leadName ? `${leadName} leads` : 'lead carries theme',
+        answerName && answerName !== leadName ? `${answerName} answers` : null);
     case 'bridge':
       return pipe('stripped back', hasDrums ? 'drums out' : 'thinned', vocal ? 'exposed vocal' : 'sustained');
     case 'outro':
+      // "thinning out" kept — a real, concrete production description (not
+      // narrative filler like the retired instrumental-section phrases) —
+      // but not indepedently Suno-confirmed the way "reverb tail" is
+      // (stokemctoke.com's own worked example uses that exact phrase).
+      // Flagged here as design choice, not claimed as tested fact.
       return pipe('thinning out', 'reverb tail');
     default:
       return `[${label}]`;
