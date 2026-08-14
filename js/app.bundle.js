@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"36d1634","date":"2026-08-14"};
+window.__ATMOS_BUILD__ = {"commit":"095c3aa","date":"2026-08-14"};
 
 /* core/constants.js */
 (function(){
@@ -4599,11 +4599,20 @@ const INSTRUMENT_CLASS = {
   // ---- pads / beds ------------------------------------------------------
   'analog synth pads': P, 'layered synth pads': P, 'detuned analog pads': P,
   'string-machine pad': S, 'mellotron': S, 'choir pad': S,
-  'clipped organ synth': S, 'harmonium': S, 'accordion': S,
+  'clipped organ synth': S, 'harmonium': S,
   'Hammond organ': S,           // round-4: poor Balearic lead. Bed/colour only.
+  // JOHN'S DIRECTION, 2026-08-14, reviewing the step-1 before/after output.
+  // string ensemble RESTORED to automatic (it was parked as orchestral); it now
+  // lives in the acoustic PAD pools rather than the permanent `strings` support
+  // slot. The slot, not the instrument, was the defect: `strings` fired on 95.8%
+  // of builds, so a bed-tier sound was behaving like a mandatory parallel layer.
+  // As a pad it competes with harmonium and mellotron for one bed, which is what
+  // a string bed actually is.
+  'string ensemble': S,
+  // accordion REMOVED by direction. Parked, not deleted, per §7.
+  'accordion': X('John, 2026-08-14 — removed by direction on hearing the step-1 output'),
   'bowed string pad': X(ORCH_STRING),
   'pipe organ': X(CINEMATIC),
-  'string ensemble': X(ORCH_STRING),
 
   // ---- sustained / support ---------------------------------------------
   'synth strings': S, 'string-machine ensemble': S,
@@ -4749,8 +4758,8 @@ const ATOM_POOLS_BALEARIC = {
       bass: ['upright bass', 'double bass', 'fretless bass'],
       rhythm: ['brushed drum kit', 'soft jazz kit', 'live drum kit'],
       perc: ['shakers', 'congas', 'bongos', 'cabasa', 'frame drum', 'hang drum'],
-      pads: ['harmonium', 'accordion', 'bowed string pad'],
-      strings: ['cello', 'viola', 'string ensemble'],
+      pads: ['harmonium', 'string ensemble', 'mellotron', 'accordion', 'bowed string pad'],
+      strings: ['cello', 'viola'],
       texture: ['felt piano', 'harp', 'bowed metallophone'],
       motif: ['nylon guitar', 'lap-steel guitar', 'acoustic guitar', 'flugelhorn'],
       counter: ['Wurlitzer', 'melodica', 'muted trumpet', 'French horn', 'cor anglais'],
@@ -4777,8 +4786,8 @@ const ATOM_POOLS_BALEARIC = {
       bass: ['double bass', 'upright bass', 'fretless bass'],
       rhythm: ['brushed drum kit'],
       perc: ['shakers', 'frame drum', 'triangle'],
-      pads: ['harmonium', 'accordion', 'pipe organ', 'bowed string pad'],
-      strings: ['cello', 'string ensemble', 'violin', 'viola'],
+      pads: ['harmonium', 'string ensemble', 'mellotron', 'accordion', 'pipe organ', 'bowed string pad'],
+      strings: ['cello', 'violin', 'viola'],
       texture: ['lap-steel guitar', 'cor anglais'],
       motif: ['grand piano', 'felt piano', 'flute'],
       counter: ['Wurlitzer', 'nylon guitar', 'French horn', 'flugelhorn', 'muted trumpet'],
@@ -4805,7 +4814,7 @@ const ATOM_POOLS_BALEARIC = {
       bass: ['fretless bass', 'upright bass'],
       rhythm: ['brushed drum kit', 'live drum kit'],
       perc: ['shakers', 'frame drum', 'cabasa'],
-      pads: ['harmonium', 'accordion'],
+      pads: ['harmonium', 'mellotron', 'string ensemble', 'accordion'],
       strings: [],
       texture: ['lap-steel guitar', 'harp'],
       motif: ['Rhodes', 'grand piano'],
@@ -4833,7 +4842,7 @@ const ATOM_POOLS_BALEARIC = {
       bass: ['upright bass', 'fretless bass'],
       rhythm: ['brushed drum kit'],
       perc: ['congas', 'bongos', 'shakers', 'frame drum', 'hang drum'],
-      pads: ['harmonium'],
+      pads: ['harmonium', 'mellotron'],
       strings: ['cello'],
       texture: ['lap-steel guitar'],
       motif: ['melodica', 'nylon guitar', 'muted trumpet'],
@@ -4861,7 +4870,7 @@ const ATOM_POOLS_BALEARIC = {
       bass: ['upright bass', 'fretless bass'],
       rhythm: ['brushed drum kit'],
       perc: ['congas', 'bongos', 'shakers', 'cabasa', 'frame drum'],
-      pads: ['harmonium'],
+      pads: ['harmonium', 'mellotron', 'string ensemble'],
       strings: ['cello', 'viola'],
       texture: ['felt piano', 'lap-steel guitar', 'duduk'],
       motif: ['nylon guitar', 'Rhodes', 'ney'],
@@ -4889,8 +4898,8 @@ const ATOM_POOLS_BALEARIC = {
       bass: ['upright bass', 'fretless bass'],
       rhythm: ['brushed drum kit', 'cajón kit'],
       perc: ['shakers', 'congas', 'tambourine', 'cabasa', 'frame drum'],
-      pads: ['accordion', 'harmonium'],
-      strings: ['string ensemble', 'cello'],
+      pads: ['harmonium', 'string ensemble', 'mellotron', 'accordion'],
+      strings: ['cello'],
       texture: ['nylon guitar', 'lap-steel guitar'],
       motif: ['flamenco guitar', 'mandolin', 'Rhodes', 'pan flute', 'flugelhorn'],
       counter: ['Wurlitzer', 'melodica', 'muted trumpet', 'French horn', 'saxophone'],
@@ -4917,8 +4926,8 @@ const ATOM_POOLS_BALEARIC = {
       bass: ['upright bass', 'bowed double bass'],
       rhythm: [],
       perc: [],
-      pads: ['harmonium', 'accordion', 'pipe organ', 'bowed string pad'],
-      strings: ['cello', 'string ensemble', 'violin'],
+      pads: ['harmonium', 'string ensemble', 'mellotron', 'accordion', 'pipe organ', 'bowed string pad'],
+      strings: ['cello', 'violin'],
       texture: ['felt piano', 'lap-steel guitar', 'glass harmonica', 'bowed metallophone'],
       motif: ['nylon guitar', 'grand piano', 'flute', 'cor anglais'],
       counter: ['Wurlitzer', 'French horn'],
@@ -4945,8 +4954,8 @@ const ATOM_POOLS_BALEARIC = {
       bass: ['upright bass', 'fretless bass'],
       rhythm: ['brushed drum kit', 'live break kit'],
       perc: ['congas', 'shakers', 'tambourine'],
-      pads: ['harmonium', 'accordion', 'bowed string pad'],
-      strings: ['cello', 'viola', 'string ensemble'],
+      pads: ['harmonium', 'string ensemble', 'mellotron', 'accordion', 'bowed string pad'],
+      strings: ['cello', 'viola'],
       texture: ['felt piano', 'lap-steel guitar'],
       motif: ['Rhodes', 'nylon guitar', 'grand piano', 'muted trumpet', 'flugelhorn'],
       counter: ['Wurlitzer', 'melodica', 'French horn', 'cor anglais'],
@@ -4973,8 +4982,8 @@ const ATOM_POOLS_BALEARIC = {
       bass: ['upright bass', 'fretless bass'],
       rhythm: ['live house kit'],
       perc: ['congas', 'bongos', 'shakers', 'tambourine', 'cabasa'],
-      pads: ['harmonium'],
-      strings: ['string ensemble', 'cello'],
+      pads: ['harmonium', 'string ensemble', 'mellotron'],
+      strings: ['cello'],
       texture: ['nylon guitar', 'lap-steel guitar'],
       motif: ['Rhodes', 'grand piano', 'melodica', 'saxophone', 'flute'],
       counter: ['Wurlitzer', 'Hammond organ', 'muted trumpet', 'French horn', 'flugelhorn'],
@@ -5029,8 +5038,8 @@ const ATOM_POOLS_BALEARIC = {
       bass: ['fretless bass', 'upright bass'],
       rhythm: ['live house kit', 'brushed drum kit'],
       perc: ['shakers', 'congas', 'cabasa'],
-      pads: ['harmonium', 'accordion'],
-      strings: ['string ensemble'],
+      pads: ['harmonium', 'string ensemble', 'mellotron', 'accordion'],
+      strings: [],
       texture: ['grand piano', 'nylon guitar'],
       motif: ['Rhodes', 'lap-steel guitar'],
       counter: ['Wurlitzer', 'melodica', 'cello'],
@@ -5057,8 +5066,8 @@ const ATOM_POOLS_BALEARIC = {
       bass: ['upright bass', 'double bass', 'fretless bass'],
       rhythm: ['brushed drum kit', 'jazz drum kit'],
       perc: ['congas', 'bongos', 'shakers', 'cabasa'],
-      pads: ['Hammond organ'],
-      strings: ['string ensemble', 'cello'],
+      pads: ['Hammond organ', 'string ensemble', 'mellotron'],
+      strings: ['cello'],
       texture: ['jazz guitar', 'nylon guitar'],
       motif: ['grand piano', 'Rhodes', 'saxophone', 'flugelhorn'],
       counter: ['Wurlitzer', 'melodica', 'muted trumpet', 'French horn', 'flute'],

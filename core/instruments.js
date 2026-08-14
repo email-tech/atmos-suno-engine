@@ -95,11 +95,20 @@ export const INSTRUMENT_CLASS = {
   // ---- pads / beds ------------------------------------------------------
   'analog synth pads': P, 'layered synth pads': P, 'detuned analog pads': P,
   'string-machine pad': S, 'mellotron': S, 'choir pad': S,
-  'clipped organ synth': S, 'harmonium': S, 'accordion': S,
+  'clipped organ synth': S, 'harmonium': S,
   'Hammond organ': S,           // round-4: poor Balearic lead. Bed/colour only.
+  // JOHN'S DIRECTION, 2026-08-14, reviewing the step-1 before/after output.
+  // string ensemble RESTORED to automatic (it was parked as orchestral); it now
+  // lives in the acoustic PAD pools rather than the permanent `strings` support
+  // slot. The slot, not the instrument, was the defect: `strings` fired on 95.8%
+  // of builds, so a bed-tier sound was behaving like a mandatory parallel layer.
+  // As a pad it competes with harmonium and mellotron for one bed, which is what
+  // a string bed actually is.
+  'string ensemble': S,
+  // accordion REMOVED by direction. Parked, not deleted, per §7.
+  'accordion': X('John, 2026-08-14 — removed by direction on hearing the step-1 output'),
   'bowed string pad': X(ORCH_STRING),
   'pipe organ': X(CINEMATIC),
-  'string ensemble': X(ORCH_STRING),
 
   // ---- sustained / support ---------------------------------------------
   'synth strings': S, 'string-machine ensemble': S,

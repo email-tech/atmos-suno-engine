@@ -68,7 +68,12 @@ for (const [id, cluster] of Object.entries(ATOM_POOLS_BALEARIC))
   }
 
 // ---- 5 + 6. LIVE SWEEP ---------------------------------------------------
-const EXCLUDED_RE = /\b(cello|viola|violin|string ensemble|bowed (double bass|string pad|metallophone)|french horn|muted trumpet|flugelhorn|trombone|synth brass|cor anglais|saxophone|pan flute|flute|ney|duduk|harp|pipe organ|glass harmonica|tubular bells)\b/i;
+// `string ensemble` is deliberately ABSENT from this list: John restored it to
+// automatic on 2026-08-14 after reading the step-1 output. It now sits in the
+// acoustic PAD pools rather than the permanent `strings` support slot, so it
+// competes for one bed instead of firing on 95.8% of builds. `accordion` is
+// present because John removed it by direction in the same review.
+const EXCLUDED_RE = /\b(cello|viola|violin|bowed (double bass|string pad|metallophone)|french horn|muted trumpet|flugelhorn|trombone|synth brass|cor anglais|saxophone|pan flute|flute|ney|duduk|harp|pipe organ|glass harmonica|tubular bells|accordion)\b/i;
 const SEEDS = 200;
 let builds = 0, excluded = 0, falseBeatless = 0;
 const offenders = new Map();
