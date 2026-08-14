@@ -49,6 +49,31 @@ const ROLE_SPEC = {
   color:   { key:'colour',  family:'colour',  register:'high',     fn:'accent',            priority:'decorative', chance:0.5 },
 };
 
+// BLEND PALETTE (2026-08-14, John: "I noticed in the Balearic atom, that there
+// is no Blend function either"). The legacy path has always had blend
+// (core/constants.js filterPalette) — this was an atom-path gap, not a
+// product-wide one. Interim build agreed with John: a minimal third palette
+// that UNIONS the electronic + acoustic pool per role, so it is genuinely
+// mixed-source rather than a re-skin of one palette. Full Sound-Character
+// treatment (spec §19 Organic/Hybrid/Electronic) is step 6 material; this is
+// the cheap version that gives John something to test sooner.
+function blendedPools(cluster) {
+  const out = {};
+  for (const role of Object.keys(ROLE_SPEC)) {
+    const e = (cluster.electronic && cluster.electronic[role]) || [];
+    const a = (cluster.acoustic && cluster.acoustic[role]) || [];
+    const seen = new Set();
+    const merged = [];
+    for (const name of [...e, ...a]) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      merged.push(name);
+    }
+    if (merged.length) out[role] = merged;
+  }
+  return out;
+}
+
 function paletteAtoms(cluster, pal) {
   const src = cluster[pal] || {};
   const atoms = {
@@ -88,9 +113,12 @@ function paletteAtoms(cluster, pal) {
     // meaning ("I've never seen these in an orchestra"). Electronic-only
     // production vocabulary is suppressed on acoustic palettes; if that would
     // empty the pool, the acoustic-safe terms are used instead.
+    // Blend legitimately carries electronic content too (that's the point of
+    // the union), so only pure acoustic suppresses synthesis-only production
+    // language — blend is gated the same as electronic here.
     const ELECTRONIC_ONLY = /granular|filter|sidechain|vocoder|bitcrush|resonan|LFO|synth/i;
     let mv = cluster.movement.slice();
-    if (pal !== 'electronic') {
+    if (pal === 'acoustic') {
       const safe = mv.filter(t => !ELECTRONIC_ONLY.test(t));
       mv = safe.length ? safe : ['very long reverb tails', 'wide stereo panning'];
     }
@@ -105,6 +133,8 @@ function buildCharacters() {
   for (const [key, cluster] of Object.entries(ATOM_POOLS_BALEARIC)) {
     const electronic = paletteAtoms(cluster, 'electronic');
     const acoustic   = paletteAtoms(cluster, 'acoustic');
+    const blendCluster = Object.assign({}, cluster, { blend: blendedPools(cluster) });
+    const blend = paletteAtoms(blendCluster, 'blend');
     out[key] = {
       label: cluster.label,
       source: 'Balearic',
@@ -113,7 +143,7 @@ function buildCharacters() {
       beatless: !!cluster.beatless,
       mastering: MASTERING,
       // palette axis: generate resolves char.atoms = palettes[palette].
-      palettes: { electronic, acoustic },
+      palettes: { electronic, acoustic, blend },
       // default so any code reading char.atoms.tempo (lists/validation) works.
       atoms: electronic,
     };

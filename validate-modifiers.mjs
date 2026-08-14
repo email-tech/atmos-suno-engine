@@ -24,7 +24,7 @@ const bad = (m) => { if (fail < 40) console.log('  FAIL:', m); fail++; };
 const textOf = (a) => String(a.instrument || a.text || '');
 const NAMES = Object.values(ATOM_MODIFIERS).map(m => m.label);
 const CHARS = Object.keys(ATOM_POOL_CHARACTERS);
-const PALETTES = ['electronic', 'acoustic'];
+const PALETTES = ['electronic', 'acoustic', 'blend'];
 
 for (const [modId, m] of Object.entries(ATOM_MODIFIERS)) {
   // 1. shape

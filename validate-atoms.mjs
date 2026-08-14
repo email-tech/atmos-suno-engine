@@ -11,7 +11,7 @@ import { ATOM_CHARACTERS } from './engines/atom-balearic.js';
 import { CHAR_LIMIT, ALWAYS_BAN } from './core/constants.js';
 
 const DRAWS = 12000;
-const PALETTES = ['electronic', 'acoustic'];
+const PALETTES = ['electronic', 'acoustic', 'blend'];
 const charIds = Object.keys(ATOM_POOL_CHARACTERS);
 const ovIds = [null, ...Object.keys(ATOM_OVERLAYS)];
 let n = 0, fail = 0;

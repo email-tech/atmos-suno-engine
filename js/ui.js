@@ -295,9 +295,13 @@ function renderAtomControls(root, eng) {
     select(chars.map(x => ({ value: x.id, label: `${x.label} \u2014 ${x.source}` })), a.characterId,
       v => { a.characterId = v; renderAll(); })));
 
-  // Palette axis (electronic | acoustic) — draws each role from that palette's pool.
+  // Palette axis (electronic | acoustic | blend) — draws each role from that
+  // palette's pool. Blend added 2026-08-14 (John: atom path had no Blend,
+  // legacy always did) — reuses the same seg3() control the legacy path uses,
+  // so the option reads identically everywhere it appears.
   if (eng.module[a.characterId] && eng.module[a.characterId].palettes) {
-    const palOpts = [{ value: 'electronic', label: 'Electronic' }, { value: 'acoustic', label: 'Acoustic' }];
+    const pals = eng.module[a.characterId].palettes;
+    const palOpts = seg3().filter(o => pals[o.value]);
     root.appendChild(field('Palette', segmented(palOpts, a.palette || 'electronic',
       v => { a.palette = v; refreshOutput(); })));
   }

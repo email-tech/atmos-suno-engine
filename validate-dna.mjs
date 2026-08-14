@@ -20,7 +20,7 @@ if (!DNA_CONSUMERS.arrangement.includes('style')) bad('arrangement not readable 
 
 let count = 0;
 for (const id of ids) {
-  for (const palette of ['electronic','acoustic']) {
+  for (const palette of ['electronic','acoustic','blend']) {
     const base = ATOM_POOL_CHARACTERS[id];
     for (const ov of overlays) {
       for (const seed of [11, 909]) {

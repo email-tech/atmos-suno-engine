@@ -125,9 +125,55 @@ if (degenerate.length) {
   degenerate.forEach(d => console.warn(`  - ${d}`));
 }
 
+// ---- 8. BLEND PALETTE (2026-08-14: John, "I noticed in the Balearic atom,
+// that there is no Blend function either"). Built downstream in
+// engines/atom-characters.js as a union of the eligible electronic + acoustic
+// pool per role (blendedPools()), so it is tested against the CONSTRUCTED
+// character (ATOM_POOL_CHARACTERS[id].palettes.blend) rather than the raw
+// authored pools, which have no top-level `.blend` key by design. Same
+// invariants as checks 2-6, sourced from what actually ships.
+const ROLE_ATOM_KEY = { bass:'bass', rhythm:'groove', perc:'perc', pads:'pads',
+                         strings:'strings', texture:'texture', motif:'lead',
+                         counter:'counter', color:'colour' };
+for (const [id, char] of Object.entries(ATOM_POOL_CHARACTERS)) {
+  const blend = char.palettes.blend;
+  for (const role of REQUIRED) {
+    const atom = blend[ROLE_ATOM_KEY[role]];
+    ok(atom && atom.instrument && atom.instrument.length > 0,
+       `${id}/blend: required role "${role}" has an empty pool`);
+  }
+  if (!char.beatless) {
+    ok(blend.groove && blend.groove.instrument && blend.groove.instrument.length > 0,
+       `${id}/blend: non-beatless cluster has no eligible drum kit`);
+    ok(blend.perc && blend.perc.instrument && blend.perc.instrument.length > 0,
+       `${id}/blend: non-beatless cluster has no eligible percussion`);
+  }
+  for (const atom of Object.values(blend)) {
+    if (!atom.instrument) continue;
+    for (const name of atom.instrument) {
+      ok(tierOf(name) !== 'expert', `${id}/blend/${atom.role}: expert-tier "${name}" reached the eligible set`);
+      if (LEAD_ROLES.has(atom.role))
+        ok(!isBackgroundOnly(name), `${id}/blend/${atom.role}: background-only "${name}" was given a lead role`);
+    }
+  }
+}
+let blendBuilds = 0, blendExcluded = 0, blendFalseBeatless = 0;
+for (const [id, base] of Object.entries(ATOM_POOL_CHARACTERS)) {
+  const char = atomCharacterForPalette(base, 'blend');
+  for (let seed = 1; seed <= SEEDS; seed++) {
+    const { style } = buildAtoms(char, { seed });
+    blendBuilds++;
+    if (EXCLUDED_RE.test(style)) blendExcluded++;
+    if (/no drums/.test(style) && !base.beatless) blendFalseBeatless++;
+  }
+}
+ok(blendExcluded === 0, `${blendExcluded}/${blendBuilds} blend builds name a §7-excluded instrument`);
+ok(blendFalseBeatless === 0, `${blendFalseBeatless}/${blendBuilds} non-beatless blend builds claim "no drums"`);
+
 if (!fail) {
   const parked = expertOnlyNames().length;
   console.log(`Instruments: ${Object.keys(INSTRUMENT_CLASS).length} graded, ${parked} parked expert-only (retained in data, zero automatic probability).`);
   console.log(`Instruments: §7-excluded content in 0/${builds} builds (was 50.0% at HEAD 36d1634); no background-only instrument holds a lead; no required role empty; no false beatless claim.`);
+  console.log(`Instruments: blend palette clean across ${blendBuilds} builds (electronic+acoustic union, same invariants).`);
 }
 process.exit(fail ? 1 : 0);

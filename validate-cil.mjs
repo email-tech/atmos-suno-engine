@@ -17,7 +17,7 @@ import { buildMusicalDNA, DNA_CONSUMERS } from './core/dna.js';
 import { ATOM_POOL_CHARACTERS } from './engines/atom-characters.js';
 import { ATOM_OVERLAYS } from './core/atoms.js';
 
-const PALETTES = ['electronic', 'acoustic'];
+const PALETTES = ['electronic', 'acoustic', 'blend'];
 const charIds = Object.keys(ATOM_POOL_CHARACTERS);
 const overlayStates = [null, ...Object.keys(ATOM_OVERLAYS).slice(0, 3)]; // none + a few
 const TIERSET = new Set(TIERS);

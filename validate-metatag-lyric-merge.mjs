@@ -71,7 +71,7 @@ const ok = (c, m) => { checks++; if (!c) bad(m); };
   let n = 0;
 
   for (const cid of charIds) {
-    for (const palette of ['electronic', 'acoustic']) {
+    for (const palette of ['electronic', 'acoustic', 'blend']) {
       // --- instrumental: lyrics field IS the metatag block ---
       {
         const S = initState();

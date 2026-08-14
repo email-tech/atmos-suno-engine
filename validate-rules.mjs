@@ -29,7 +29,7 @@ function oracleGate(ov, char){
   return { ok:true, atoms, reason:null };
 }
 
-const PALETTES = ['electronic', 'acoustic'];
+const PALETTES = ['electronic', 'acoustic', 'blend'];
 const charIds = Object.keys(ATOM_POOL_CHARACTERS);
 const ovIds = Object.keys(ATOM_OVERLAYS);
 let n = 0, fail = 0;

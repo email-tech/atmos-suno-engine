@@ -22,7 +22,7 @@ import { ATOM_POOL_CHARACTERS } from './engines/atom-characters.js';
 let n = 0, fail = 0;
 const bad = (m) => { if (fail < 30) console.log('  FAIL:', m); fail++; };
 const CHARS = Object.keys(ATOM_POOL_CHARACTERS);
-const PALETTES = ['electronic', 'acoustic'];
+const PALETTES = ['electronic', 'acoustic', 'blend'];
 const MOD_LABELS = Object.values(ATOM_MODIFIERS).map(m => m.label);
 
 // 1. no artist/band names
