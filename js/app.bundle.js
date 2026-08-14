@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"0b1da3e","date":"2026-08-14"};
+window.__ATMOS_BUILD__ = {"commit":"d4b1631","date":"2026-08-14"};
 
 /* core/constants.js */
 (function(){
@@ -6230,6 +6230,20 @@ function parseRhymeDensitySpec(spec) {
 // ---- lyrics text parsing ---------------------------------------------------
 // Splits a Suno-formatted lyrics string ("[Section]\nline\nline\n\n[Section]...")
 // into { label, lines[] } blocks, in document order.
+//
+// PIPED-TAG LABEL FIX (2026-08-14, found via simulation before any real Suno
+// test — see validate-metatag-lyric-merge.mjs): the locked-metatag merge
+// (core/lyric.js's metatagInstructions()) tells the model to use the FULL
+// piped tag — e.g. "[Verse | sparse | intimate vocal | steady groove]" — AS
+// the section marker line. That's the empirically-proven Suno format (round
+// 3 testing confirmed piped tags work as section markers, not just embedded
+// decoration). This parser predates that and used to take the ENTIRE bracket
+// content as the label, so a correctly-followed locked-tag instruction would
+// have HARD-FAILED the section-label gate (score 0) on every single build —
+// "Verse | sparse | intimate vocal | steady groove" never equals the
+// required "Verse". Fixed by taking only the text before the first '|' as
+// the label, falling back to the whole bracket content when there's no pipe
+// (exactly reproduces prior behaviour for a bare "[Verse]" line).
 function parseLyricSections(lyricsText) {
   const text = String(lyricsText || '');
   const blocks = [];
@@ -6239,7 +6253,8 @@ function parseLyricSections(lyricsText) {
     const line = raw.trim();
     const m = line.match(lineRe);
     if (m) {
-      current = { label: m[1], lines: [] };
+      const label = m[1].split('|')[0].trim();
+      current = { label, lines: [] };
       blocks.push(current);
     } else if (line && current) {
       current.lines.push(line);
@@ -6620,7 +6635,7 @@ function metatagInstructions(brief, sectionNames) {
     'LOCKED METATAGS (mandatory \u2014 pre-composed from this build\u2019s real instrumentation, grounded, never invented):',
     'For each section below, use the exact bracketed tag shown as that section\u2019s marker in your lyrics output, in this same order, verbatim. Do not reword, reorder, drop, shorten, or invent an alternate version of any of them.',
     lines.join('\n'),
-    'You may ADD your own short vocal-performance tag alongside (never instead of) a locked tag \u2014 but ONLY for content the locked tags structurally cannot know: backing-vocal entrances, harmony placement, ad-libs, or call-and-response tied to a specific line or word. Keep any addition to 1-4 words in its own bracket, placed immediately after the locked tag on that section.',
+    'You may ADD your own short vocal-performance direction \u2014 but ONLY for content the locked tags structurally cannot know: backing-vocal entrances, harmony placement, ad-libs, or call-and-response tied to a specific line or word. Any addition must be woven INLINE into an actual lyric line\u2019s text (mixed with real words on that same line), 1-4 words, in its own bracket \u2014 e.g. "the night pulls me forward [harmony rises] toward something unnamed." NEVER place an addition alone on its own line: a line that is ONLY a bracket is read as a NEW section marker, which would corrupt the section count.',
   ].join('\n');
 }
 

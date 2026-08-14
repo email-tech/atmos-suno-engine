@@ -229,7 +229,7 @@ function metatagInstructions(brief, sectionNames) {
     'LOCKED METATAGS (mandatory \u2014 pre-composed from this build\u2019s real instrumentation, grounded, never invented):',
     'For each section below, use the exact bracketed tag shown as that section\u2019s marker in your lyrics output, in this same order, verbatim. Do not reword, reorder, drop, shorten, or invent an alternate version of any of them.',
     lines.join('\n'),
-    'You may ADD your own short vocal-performance tag alongside (never instead of) a locked tag \u2014 but ONLY for content the locked tags structurally cannot know: backing-vocal entrances, harmony placement, ad-libs, or call-and-response tied to a specific line or word. Keep any addition to 1-4 words in its own bracket, placed immediately after the locked tag on that section.',
+    'You may ADD your own short vocal-performance direction \u2014 but ONLY for content the locked tags structurally cannot know: backing-vocal entrances, harmony placement, ad-libs, or call-and-response tied to a specific line or word. Any addition must be woven INLINE into an actual lyric line\u2019s text (mixed with real words on that same line), 1-4 words, in its own bracket \u2014 e.g. "the night pulls me forward [harmony rises] toward something unnamed." NEVER place an addition alone on its own line: a line that is ONLY a bracket is read as a NEW section marker, which would corrupt the section count.',
   ].join('\n');
 }
 

@@ -133,8 +133,10 @@ const ok = (c, m) => { checks++; if (!c) bad(m); };
   ok(promptLocked.includes('LOCKED METATAGS'), 'locked-tag prompt should include the LOCKED METATAGS heading');
   ok(!promptLocked.includes('Place 3-5 short functional Suno metatags inside the lyrics string'),
     'locked-tag prompt should NOT also contain the generic invent-your-own-tags instruction');
-  ok(/ADD your own short vocal-performance tag/.test(promptLocked),
+  ok(/ADD your own short vocal-performance/.test(promptLocked),
     'locked-tag prompt should explicitly scope the model\u2019s own additions to the additive vocal-performance layer');
+  ok(/NEVER place an addition alone on its own line/.test(promptLocked),
+    'locked-tag prompt should explicitly warn against a standalone-bracket addition, which would corrupt section-label parsing (see core/lyric-validator.js\u2019s parseLyricSections)');
   metatagBlock.split('\n').forEach((line, i) => {
     ok(promptLocked.includes(line), `locked-tag prompt should include section ${i}'s locked tag verbatim: "${line}"`);
   });
@@ -187,6 +189,46 @@ const ok = (c, m) => { checks++; if (!c) bad(m); };
       `${kind} engine "${engineId}": lockedMetatags should be null (no metatag engine wired for this kind yet), got ${JSON.stringify(req.lockedMetatags)}`);
   }
   console.log('  scope: resolver/legacy correctly get lockedMetatags=null \u2014 unchanged generic-instruction behaviour, no metatag engine for those kinds yet.');
+}
+
+/* 7. END-TO-END QUALITY GATE — a lyrics text that correctly reproduces the
+ *    LOCKED TAGS verbatim as section markers (exactly what the LLM is
+ *    instructed to do) must pass the deterministic section-label hard gate.
+ *    This is the exact scenario that was BROKEN until 2026-08-14: the locked
+ *    tag ("[Verse | sparse | intimate vocal | steady groove]") used to fail
+ *    checkSectionLabels because parseLyricSections took the WHOLE bracket
+ *    content as the label, never just the part before the pipe — meaning a
+ *    model that correctly followed the locked-tag instruction would have
+ *    hard-failed every single build (score 0), and every repair attempt
+ *    would have hit the identical failure. Found via simulation before any
+ *    real Suno test; fixed in core/lyric-validator.js's parseLyricSections. */
+{
+  const cid = Object.keys(ATOM_POOL_CHARACTERS)[3];
+  const dna = buildMusicalDNA(ATOM_POOL_CHARACTERS[cid], 'electronic', { seed: 555, characterId: cid });
+  const cil = inferCIL(dna);
+  const preset = STRUCTURE_PRESETS['verse-chorus'];
+  const metatagBlock = runMetatagEngine({ dna, cil, renderMode: 'lean', sections: preset.sections, answers: { 'vocal.mode': 'vocal' } }).block;
+  const lockedLines = metatagBlock.split('\n');
+  ok(lockedLines.length === preset.sections.length, 'sanity: one locked line per preset section');
+
+  // Build a lyrics string using the REAL locked tags verbatim as section
+  // markers, exactly as instructed — with a placeholder lyric line per
+  // section (content doesn't matter here; only label parsing is under test).
+  const lyricsText = preset.sections.map((label, i) => `${lockedLines[i]}\nplaceholder lyric line ${i}`).join('\n\n');
+  const { checkSectionLabels } = await import('./core/lyric-validator.js');
+  const check = checkSectionLabels(lyricsText, preset.sections);
+  ok(check.ok, `real locked tags reproduced verbatim as section markers should pass the section-label hard gate, got: ${check.issue}`);
+  ok(JSON.stringify(check.got) === JSON.stringify(preset.sections),
+    `parsed labels should reduce to the plain section names, got ${JSON.stringify(check.got)}`);
+
+  // The additive-tag guidance (inline within a lyric line) must NOT be
+  // mistaken for a new section marker either.
+  const withAddition = preset.sections.map((label, i) =>
+    `${lockedLines[i]}\nplaceholder lyric line with an inline [harmony rises] addition ${i}`).join('\n\n');
+  const checkWithAddition = checkSectionLabels(withAddition, preset.sections);
+  ok(checkWithAddition.ok, `an inline (same-line) additive tag should not corrupt section parsing, got: ${checkWithAddition.issue}`);
+
+  console.log('  end-to-end quality gate: real locked tags reproduced verbatim pass the section-label hard gate; inline additions don\u2019t corrupt it.');
 }
 
 console.log(`validate-metatag-lyric-merge: ${checks} checks, ${fails} failures.`);

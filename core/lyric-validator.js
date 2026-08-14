@@ -123,6 +123,20 @@ export function parseRhymeDensitySpec(spec) {
 // ---- lyrics text parsing ---------------------------------------------------
 // Splits a Suno-formatted lyrics string ("[Section]\nline\nline\n\n[Section]...")
 // into { label, lines[] } blocks, in document order.
+//
+// PIPED-TAG LABEL FIX (2026-08-14, found via simulation before any real Suno
+// test — see validate-metatag-lyric-merge.mjs): the locked-metatag merge
+// (core/lyric.js's metatagInstructions()) tells the model to use the FULL
+// piped tag — e.g. "[Verse | sparse | intimate vocal | steady groove]" — AS
+// the section marker line. That's the empirically-proven Suno format (round
+// 3 testing confirmed piped tags work as section markers, not just embedded
+// decoration). This parser predates that and used to take the ENTIRE bracket
+// content as the label, so a correctly-followed locked-tag instruction would
+// have HARD-FAILED the section-label gate (score 0) on every single build —
+// "Verse | sparse | intimate vocal | steady groove" never equals the
+// required "Verse". Fixed by taking only the text before the first '|' as
+// the label, falling back to the whole bracket content when there's no pipe
+// (exactly reproduces prior behaviour for a bare "[Verse]" line).
 export function parseLyricSections(lyricsText) {
   const text = String(lyricsText || '');
   const blocks = [];
@@ -132,7 +146,8 @@ export function parseLyricSections(lyricsText) {
     const line = raw.trim();
     const m = line.match(lineRe);
     if (m) {
-      current = { label: m[1], lines: [] };
+      const label = m[1].split('|')[0].trim();
+      current = { label, lines: [] };
       blocks.push(current);
     } else if (line && current) {
       current.lines.push(line);
