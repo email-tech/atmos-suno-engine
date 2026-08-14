@@ -224,8 +224,15 @@ function compose(held, mastering, o){
     if(sigBass) cl.push(`${groove.instrument} locked to the bassline`);
     else if(bass) cl.push(`${wt(bass)} and ${groove.instrument}, ${REL.foundation.render}`);
   } else if(bass && !sigBass){
-    // groove-absent (beatless) character: bass still anchors, no drum pocket.
-    cl.push(`${wt(bass)} holding the low end, no drums`);
+    // BUG A (found in the 2026-08-14 audit, fixed here). This clause is the
+    // beatless treatment, but it fired on ANY character whose rhythm pool
+    // happened to be empty — so melodic deep house + acoustic shipped "fretless
+    // bass holding the low end, no drums" at 120-124 BPM and then, a clause
+    // later, "shakers over the groove" for a groove that was never stated.
+    // "no drums" is now gated on the character actually being beatless; a
+    // rhythmic character missing a kit just names its bass and says nothing
+    // false about the arrangement.
+    cl.push(o.beatless ? `${wt(bass)} holding the low end, no drums` : wt(bass));
   }
   const perc=ownerOf('perc'); if(perc) cl.push(`${perc.instrument} over the groove`);
 
@@ -332,7 +339,9 @@ export function buildAtoms(char, opts){
   const o = opts || {};
   const { held, overlayNote } = collect(char, o.seed >>> 0, o.overlayId || null, o.overlayDef || null);
   const kept = reconcile(held);
-  let style = compose(kept, char.mastering, o);
+  // compose needs to know whether the character is genuinely beatless (Bug A);
+  // o is the caller's options object, so copy rather than mutate it.
+  let style = compose(kept, char.mastering, Object.assign({}, o, { beatless: !!char.beatless }));
   const over = style.length > CHAR_LIMIT;
   if (o.maxMode) { /* atom path is already budget-safe; Max is a legacy-only directive */ }
   // overlay-specific negatives merge in only when the overlay actually APPLIED

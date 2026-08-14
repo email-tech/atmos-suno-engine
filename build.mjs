@@ -73,6 +73,7 @@ const files = [
   'core/rules.js',
   'core/atom-modifiers.js',
   'core/atoms.js',
+  'core/instruments.js',      // must precede atom-characters.js, which imports eligible()
   'engines/atom-pools.js',
   'engines/atom-characters.js',
   'core/dna.js',

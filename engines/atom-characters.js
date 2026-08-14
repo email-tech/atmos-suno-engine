@@ -16,6 +16,7 @@
  * (staying byte-identical) is a separate open item.
  * ========================================================================*/
 import { ATOM_POOLS_BALEARIC } from './atom-pools.js';
+import { eligible } from '../core/instruments.js';
 
 const MASTERING = 'Polished Dolby Atmos-Master Atmos -2dB';
 
@@ -57,8 +58,15 @@ function paletteAtoms(cluster, pal) {
   for (const [poolRole, spec] of Object.entries(ROLE_SPEC)) {
     // beatless characters emit no drum kit; skip empty pool roles entirely.
     if (cluster.beatless && poolRole === 'rhythm') continue;
-    const names = src[poolRole];
-    if (!names || !names.length) continue;
+    // RELIABILITY FILTER (2026-08-14, spec §4/§7). The pool keeps every authored
+    // name; automatic generation only ever sees the eligible subset — expert-tier
+    // entries dropped, background-only entries dropped from lead-carrying roles.
+    // A role whose eligible set is empty produces NO atom, which is the intended
+    // outcome for the acoustic `strings` slot: its content was entirely
+    // orchestral, it fired on 95.8% of builds, and it has no non-orchestral
+    // replacement. Silence is a valid selection (§9).
+    const names = eligible(src[poolRole], poolRole);
+    if (!names.length) continue;
     const a = { role: spec.family === 'drums' ? 'rhythm' : poolRole,
                 family: spec.family, register: spec.register, fn: spec.fn,
                 instrument: names.slice(), timbre: [], priority: spec.priority };
