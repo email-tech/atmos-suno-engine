@@ -418,12 +418,22 @@ function lyricPanel(root) {
   if (l.status === 'done' && l.result) {
     const r = l.result;
     if (r.instrumental) {
-      box.appendChild(el('p', { class: 'note', text: 'Instrumental song type \u2014 lyrics field is [Instrumental], no LLM call made.' }));
+      box.appendChild(el('p', { class: 'note', text: 'Instrumental song type \u2014 no LLM call made. The Lyrics field above already carries the metatag block directly.' }));
     } else {
       const q = r.quality;
       box.appendChild(el('p', { class: 'note',
         text: q ? `Quality score: ${q.score} (threshold 85) \u2014 ${q.passed ? 'PASSED' : 'below threshold, best of ' + r.attempts + ' attempt(s)'}`
                  : (r.parseError ? 'Model response could not be parsed as JSON after all attempts.' : '') }));
+      // Visibility for testing, John 2026-08-14: confirms whether this
+      // specific generation actually used the locked-metatag handoff (Path B)
+      // or fell back to the model inventing its own generic tags \u2014 so a
+      // Suno test result can be traced back to which mode produced it.
+      if (r.brief) {
+        box.appendChild(el('p', { class: 'note',
+          text: r.brief.lockedMetatags
+            ? 'Metatags: locked \u2014 the real per-section tags above were handed to the model as fixed content.'
+            : 'Metatags: generic \u2014 no locked tags were available for this build; the model invented its own.' }));
+      }
       if (r.title) box.appendChild(el('p', { text: `Title: ${r.title}` }));
       if (r.lyrics) box.appendChild(el('pre', { text: r.lyrics, style: 'white-space:pre-wrap; font-size:12px;' }));
     }
@@ -629,9 +639,22 @@ function refreshOutput() {
   host.appendChild(outBlock('Style prompt', res.style, res.length, res.over));
   if (res.overlayNote) host.appendChild(el('p', { class: 'note', text: `Overlay: ${res.overlayNote}` }));
   host.appendChild(outBlock('Negative prompt', res.negative, null, false));
+  // METATAG/LYRIC MERGE (John, 2026-08-14 decision, Path B):
+  // - Instrumental: res.lyrics IS the metatag block now (js/generate.js), not
+  //   a bare '[Instrumental]' placeholder next to a separate block \u2014 so
+  //   res.metatags comes back empty and the standalone block below simply
+  //   doesn't render (no more manual copy-paste for this case).
+  // - Vocal: res.metatags still renders as a PREVIEW here (sync, no LLM call
+  //   yet), but the hint now reflects reality \u2014 once live lyrics are
+  //   generated below, these exact tags are handed to the model as locked
+  //   content and come back woven into the returned lyrics automatically.
+  const instrumental = S.songType === 'instrumental';
   const lyr = res.lyrics || '[Instrumental]';
-  host.appendChild(outBlock('Lyrics field', lyr, null, false, 'Paste into Suno\u2019s lyrics box; use Suno\u2019s Instrumental toggle for reliable vocal suppression.'));
-  if (res.metatags) host.appendChild(outBlock('Metatags', res.metatags, null, false, 'Paste into the lyrics box at the section markers. Composer selections decorate these at structural points.'));
+  const lyricsHint = instrumental
+    ? 'Paste into Suno\u2019s lyrics box; use Suno\u2019s Instrumental toggle for reliable vocal suppression. No separate lyric text exists for an instrumental track, so the metatag engine\u2019s per-section direction goes directly in this field.'
+    : 'Paste into Suno\u2019s lyrics box; use Suno\u2019s Instrumental toggle for reliable vocal suppression. Generate live lyrics below \u2014 the real per-section metatags are handed to the model as locked content, so they come back woven in automatically.';
+  host.appendChild(outBlock('Lyrics field', lyr, null, false, lyricsHint));
+  if (res.metatags) host.appendChild(outBlock('Metatags', res.metatags, null, false, 'Preview of the locked per-section tags handed to the LLM for live lyric generation below \u2014 they come back woven into the generated lyrics automatically; you shouldn\u2019t need to paste these in by hand.'));
 }
 
 function outBlock(title, text, length, over, hint) {

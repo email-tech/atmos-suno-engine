@@ -89,19 +89,55 @@ export function generate(S) {
     // Metatags: the character's own section plan, decorated at structural points
     // by the composer layer. This is also the first time the atom path surfaces
     // metatags to the app at all.
+    //
+    // STRUCTURE-FIRST ALIGNMENT (2026-08-14): pass the SAME resolved structure
+    // preset's section list the lyric engine uses (structure.sections), not
+    // whatever the metatag engine's own template fallback would pick. Without
+    // this, metatags and lyrics could silently disagree on section labels
+    // whenever a structure preset was chosen — see core/metatag.js's o.sections
+    // comment for the full reasoning.
+    //
+    // VOCAL-MODE FIX (2026-08-14, found while building the merge below): this
+    // call never used to pass answers/cil, so core/metatag.js's resolveVocal()
+    // fell all the way to its own 'instrumental' default — meaning the
+    // Metatags preview has ALWAYS silently omitted vocal-performance tags for
+    // a VOCAL song too, regardless of the actual songType. Pre-existing bug,
+    // not introduced by this change, but it directly breaks the merge's whole
+    // point (preview == what gets locked into the LLM), so fixed here.
+    // S.songType is decision #1 and authoritative everywhere else in this
+    // file (songTypeLyrics, vocalActive) — mirrored here the same way.
+    const structure = lyricStructure(S);
+    const vocalAnswers = { 'vocal.mode': S.songType === 'instrumental' ? 'instrumental' : 'vocal' };
     let metatags = '';
     try {
       const dna = buildMusicalDNA(baseChar, palette, {
         seed: S.seed, characterId: a.characterId, modifierId: a.overlayId || null,
       });
-      metatags = runMetatagEngine({ dna, renderMode: 'lean', composerLayerId }).block;
+      metatags = runMetatagEngine({
+        dna, renderMode: 'lean', composerLayerId, answers: vocalAnswers,
+        sections: structure && structure.sections,
+      }).block;
     } catch (e) { metatags = ''; }
 
+    // MERGE METATAGS INTO LYRICS — INSTRUMENTAL CASE (John, 2026-08-14 decision,
+    // Path B). No lyric text exists for an instrumental track; the old behaviour
+    // showed a bare '[Instrumental]' placeholder in the Lyrics field next to a
+    // separate Metatags block the user had to paste in manually. Zero design
+    // ambiguity here (unlike the vocal case): the Lyrics field IS the metatag
+    // block directly. `metatags` is therefore not also returned as a separate
+    // field when instrumental — js/ui.js only renders a standalone Metatags
+    // block when `res.metatags` is present, so this naturally removes the
+    // duplicate block too. Falls back to the literal '[Instrumental]' tag only
+    // if metatag generation itself failed (see the catch above).
+    const instrumental = S.songType === 'instrumental';
+
     return {
-      style, negative: out.negative, lyrics: songTypeLyrics(S, ''), metatags,
+      style, negative: out.negative,
+      lyrics: instrumental ? (metatags || '[Instrumental]') : songTypeLyrics(S, ''),
+      metatags: instrumental ? '' : metatags,
       length: style.length, over: style.length > CHAR_LIMIT,
       arrangement: out.arrangement, overlayNote: out.overlayNote,
-      structure: lyricStructure(S),
+      structure,
     };
   }
 
@@ -171,6 +207,13 @@ export function buildLiveLyricRequest(S) {
   const eng = getEngine(S.engineId);
 
   let dna;
+  // METATAG/LYRIC MERGE, VOCAL CASE (John, 2026-08-14 decision, Path B):
+  // composerLayerId only exists on the atom path (see core/metatag.js's
+  // composerLayerId usage — no other engine kind has the concept). Metatags
+  // are therefore only computed here for atom engines, same scope limit as
+  // generate()'s sync render and the still-open "wire composer+metatag onto
+  // a proven engine" TODO for resolver/legacy.
+  let composerLayerId = null;
   if (eng.kind === 'atom') {
     const a = S.atom;
     const palette = a.palette || 'electronic';
@@ -178,6 +221,7 @@ export function buildLiveLyricRequest(S) {
     dna = buildMusicalDNA(baseChar, palette, {
       seed: S.seed, characterId: a.characterId, modifierId: a.overlayId || null,
     });
+    composerLayerId = (a.composerLayerId && COMPOSER_LAYERS[a.composerLayerId]) ? a.composerLayerId : null;
   } else if (eng.kind === 'resolver') {
     // resolver: resolve the arrangement the SAME way generate()'s resolver
     // branch does (same overlayFor/structureHint inputs), then project it
@@ -215,6 +259,34 @@ export function buildLiveLyricRequest(S) {
 
   const cil = inferCIL(dna);
   const structure = lyricStructure(S);
+
+  // METATAG/LYRIC MERGE, VOCAL CASE (John, 2026-08-14 decision, Path B): the
+  // real, grounded per-section metatags for THIS build — same dna, same
+  // structure.sections the lyric prompt will require, same composer layer —
+  // computed here so runLyricEngine can hand them to the LLM as LOCKED,
+  // authoritative content instead of the old generic "invent 3-5 tags
+  // yourself" instruction. Cheap and deterministic (no model call); computed
+  // unconditionally (even for an instrumental brief, which short-circuits
+  // before ever reading it) rather than branching on vocal mode here, since
+  // vocal mode can come from CIL/answers as well as structure and this stays
+  // correct either way. atom-only for now (composerLayerId scope, see above);
+  // resolver/legacy get `null` and fall back to the pre-existing behaviour
+  // unchanged.
+  let lockedMetatags = null;
+  if (eng.kind === 'atom') {
+    try {
+      // Same S.songType-authoritative override as generate()'s sync preview
+      // above (see that comment for the full reasoning) — guarantees this
+      // and the preview resolve vocalMode identically, so what the user sees
+      // is exactly what the LLM gets locked to.
+      const vocalAnswers = { 'vocal.mode': S.songType === 'instrumental' ? 'instrumental' : 'vocal' };
+      lockedMetatags = runMetatagEngine({
+        dna, cil, renderMode: 'lean', composerLayerId, answers: vocalAnswers,
+        sections: structure && structure.sections,
+      }).block;
+    } catch (e) { lockedMetatags = null; }
+  }
+
   const l = S.lyric || {};
   const answers = {
     'song.subject': l.subject || '',
@@ -232,7 +304,7 @@ export function buildLiveLyricRequest(S) {
   const transport = provider === 'claude'
     ? makeClaudeTransport(providerSettings)
     : makeGeminiTransport(providerSettings);
-  return { dna, cil, structure, answers, transport, model: providerSettings.model || undefined, provider };
+  return { dna, cil, structure, answers, lockedMetatags, transport, model: providerSettings.model || undefined, provider };
 }
 
 // generateLyricsLive: the async entry point. `transportOverride` is test-only
@@ -242,6 +314,7 @@ export async function generateLyricsLive(S, transportOverride) {
   const req = buildLiveLyricRequest(S);
   return runLyricEngine({
     dna: req.dna, cil: req.cil, structure: req.structure, answers: req.answers,
+    lockedMetatags: req.lockedMetatags,
     transport: transportOverride || req.transport,
     model: req.model, repair: true,
   });

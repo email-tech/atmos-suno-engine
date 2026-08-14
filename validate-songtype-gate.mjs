@@ -23,17 +23,32 @@ const ENGINE_BY_KIND = { atom: 'Balearic Atom', resolver: 'Delerium', legacy: 'B
 
 /* 1. INSTRUMENTAL GATE — lyrics must be exactly '[Instrumental]' for every
  *    engine kind when songType is instrumental, regardless of the engine's
- *    own per-engine vocal control default. */
+ *    own per-engine vocal control default.
+ *    UPDATED 2026-08-14 (John's metatag/lyrics merge decision, Path B): the
+ *    ATOM engine kind now folds the real metatag block directly into the
+ *    Lyrics field for an instrumental track instead of showing the bare
+ *    '[Instrumental]' placeholder next to a separate Metatags block (see
+ *    js/generate.js). The literal-string assertion is now WRONG BY DESIGN
+ *    for atom; resolver/legacy have no metatag engine yet (separate TODO,
+ *    "wire composer+metatag onto a proven engine"), so they keep the
+ *    original literal-'[Instrumental]' contract unchanged. */
 {
   for (const [kind, engineId] of Object.entries(ENGINE_BY_KIND)) {
     const S = initState();
     syncEngineDefaults(S, engineId);
     setSongType(S, 'instrumental');
     const out = generate(S);
-    ok(out.lyrics === '[Instrumental]',
-      `${kind} engine "${engineId}": instrumental songType should force lyrics='[Instrumental]', got "${out.lyrics}"`);
+    if (kind === 'atom') {
+      ok(!!out.lyrics && out.lyrics !== '[Instrumental]' && /^\[/.test(out.lyrics),
+        `atom engine "${engineId}": instrumental songType should merge the real metatag block into lyrics, got "${out.lyrics}"`);
+      ok(out.metatags === '',
+        `atom engine "${engineId}": metatags should be folded into lyrics, not ALSO duplicated in a separate field, got "${out.metatags}"`);
+    } else {
+      ok(out.lyrics === '[Instrumental]',
+        `${kind} engine "${engineId}": instrumental songType should force lyrics='[Instrumental]', got "${out.lyrics}"`);
+    }
   }
-  console.log(`  instrumental gate: lyrics forced to [Instrumental] across ${Object.keys(ENGINE_BY_KIND).length} engine kinds.`);
+  console.log(`  instrumental gate: atom merges the real metatag block into lyrics, resolver/legacy force '[Instrumental]' \u2014 correct per kind across ${Object.keys(ENGINE_BY_KIND).length} engine kinds.`);
 }
 
 /* 2. LEGACY VOCAL-DELIVERY LANGUAGE SUPPRESSED — the legacy path's vocalMode

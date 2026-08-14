@@ -377,7 +377,18 @@ export function buildMetatagPlan(dna, opts) {
   const { vocalMode, deliveryClass, moodClass } = resolveVocal(dna, cil, o.answers, o.lyricResult);
   const template = pickTemplate(dna, o.answers, o.lyricResult);
   const v = voiceSet(dna);
-  const sections = template.sections;
+  // STRUCTURE-FIRST ALIGNMENT (2026-08-14): o.sections, when supplied, is the
+  // SAME resolved structure preset's section list the lyric engine builds its
+  // prompt from (js/generate.js passes structure.sections into both). Without
+  // this override, metatags were being built from the per-subgenre TEMPLATE's
+  // own section list — which silently diverges from the structure-first
+  // preset the user actually picked whenever the two disagree. That mismatch
+  // is why metatags could never safely be handed to the lyric LLM as locked,
+  // authoritative per-section content (Path B, John 2026-08-14 decision) —
+  // the section labels wouldn't line up. Omitting o.sections preserves prior
+  // behaviour exactly (template.sections), so every existing caller/validator
+  // is unaffected.
+  const sections = (Array.isArray(o.sections) && o.sections.length) ? o.sections.slice() : template.sections;
   const total = sections.length;
 
   const plan = [];
@@ -481,8 +492,8 @@ export function metatagList(built) {
 /* ---- runtime driver (no model call — deterministic assembly) ---------------
  * renderMode default: vocal -> 'lean' (share the lyrics budget), instrumental
  * -> 'full' (whole lyrics box free). Pass renderMode to override. */
-export function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode, composerLayerId }) {
-  const built = buildMetatagPlan(dna, { cil, answers, lyricResult, composerLayerId });
+export function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode, composerLayerId, sections }) {
+  const built = buildMetatagPlan(dna, { cil, answers, lyricResult, composerLayerId, sections });
   // Evidence-based default: metatags DO work when aligned with genre and lyrics,
   // so always emit them — in the piped short-element format. 'minimal' (bare
   // section markers) and 'full' remain available for A/B.

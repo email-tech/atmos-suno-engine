@@ -107,7 +107,20 @@ function writingTraits(moodClass, languageStyle) {
 // authoritative section list for the prompt, replacing the legacy
 // STRUCTURE_TEMPLATES pick when present. Omitting `structure` preserves prior
 // behaviour exactly (backward compatible with every existing caller/test).
-export function assembleLyricBrief(dna, cil, answers, structure) {
+// lockedMetatags (5th arg, optional): the real, pre-composed Suno metatag
+// block for THIS build — one piped line per section, in the SAME order as
+// structureSections/template.sections below (js/generate.js's
+// buildLiveLyricRequest computes both from the same resolved structure, so
+// they line up by construction). METATAG/LYRIC MERGE, VOCAL CASE (John,
+// 2026-08-14 decision, Path B): these are grounded in the DNA-real
+// arrangement, never invented, and buildLyricPrompt() below hands them to the
+// LLM as FIXED, non-negotiable content — the model's only job for tags is an
+// ADDITIVE layer (backing vocals / harmonies / ad-libs / call-and-response
+// tied to specific lines) that the deterministic metatag engine structurally
+// cannot produce, since it never sees lyric content. Omitting this argument
+// (null/undefined) reproduces the exact pre-2026-08-14 behaviour — the LLM
+// invents its own generic tags — so every existing caller is unaffected.
+export function assembleLyricBrief(dna, cil, answers, structure, lockedMetatags) {
   const a = answers || {};
   const cilf = cil.fields || {};
   const vocalMode = (structure && structure.songType)
@@ -160,6 +173,9 @@ export function assembleLyricBrief(dna, cil, answers, structure) {
       ? structure.sections.slice() : null,
     structurePresetLabel: (structure && structure.presetLabel) || null,
     deliveryClass: a['vocal.deliveryClass'] || (cilf['vocal.deliveryClass'] && cilf['vocal.deliveryClass'].value) || null,
+    // string or null — see the function header comment for what this is and
+    // why it's only ever additive input, never something the brief derives.
+    lockedMetatags: (typeof lockedMetatags === 'string' && lockedMetatags.trim()) ? lockedMetatags : null,
   };
 }
 
@@ -187,11 +203,34 @@ export function buildLyricPrompt(brief) {
     '- Lyrics must be mainly English unless a foreign-language layer is requested.',
     '- Do not include translations, pronunciation guides, or explanations in final lyrics.',
     `- Use Suno section labels exactly and in this order: ${labels.join(' ')}.`,
-    '- Place 3-5 short functional Suno metatags inside the lyrics string as local musical direction (entrance, contrast, handoff, lift, release), not scenic labels.',
+    metatagInstructions(brief, sectionNames),
     '- Make the chorus memorable, singable, and clear.',
     validationBlock(),
   ].join('\n\n');
   return { instrumental: false, lyrics: null, prompt };
+}
+
+// --- metatag handoff: locked (Path B) or the legacy generic instruction ----
+// John, 2026-08-14 decision: grounded per-section metatags — when the caller
+// supplied them via assembleLyricBrief's lockedMetatags argument — are FIXED,
+// authoritative content the LLM must reproduce verbatim, never invent. See
+// assembleLyricBrief's header comment for the full reasoning. Falls back to
+// the original generic "invent 3-5 tags" instruction whenever lockedMetatags
+// is absent (unchanged prior behaviour) OR its line count doesn't match this
+// exact prompt's section list — a mismatch would mean pointing the LLM at
+// the wrong tag for the wrong section, worse than the generic instruction,
+// so this refuses to hand off rather than risk that silently.
+function metatagInstructions(brief, sectionNames) {
+  const generic = '- Place 3-5 short functional Suno metatags inside the lyrics string as local musical direction (entrance, contrast, handoff, lift, release), not scenic labels.';
+  if (!brief.lockedMetatags) return generic;
+  const lines = brief.lockedMetatags.split('\n').filter(Boolean);
+  if (lines.length !== sectionNames.length) return generic;
+  return [
+    'LOCKED METATAGS (mandatory \u2014 pre-composed from this build\u2019s real instrumentation, grounded, never invented):',
+    'For each section below, use the exact bracketed tag shown as that section\u2019s marker in your lyrics output, in this same order, verbatim. Do not reword, reorder, drop, shorten, or invent an alternate version of any of them.',
+    lines.join('\n'),
+    'You may ADD your own short vocal-performance tag alongside (never instead of) a locked tag \u2014 but ONLY for content the locked tags structurally cannot know: backing-vocal entrances, harmony placement, ad-libs, or call-and-response tied to a specific line or word. Keep any addition to 1-4 words in its own bracket, placed immediately after the locked tag on that section.',
+  ].join('\n');
 }
 
 // buildRepairPrompt: seeded with the INDEPENDENT validator's specific findings
@@ -214,6 +253,7 @@ export function buildRepairPrompt(brief, initialResult, qualityResult) {
     lyricSchema(),
     contextBlock(brief, labels),
     originalityRules(),
+    metatagInstructions(brief, sectionNames),
     'Initial lyrics:', String(initialResult.lyrics || ''),
   ].join('\n\n');
 }
@@ -222,9 +262,9 @@ export function buildRepairPrompt(brief, initialResult, qualityResult) {
 // structure (names+positions only, see assembleLyricBrief) is shared across
 // the whole batch — every variation in a batch belongs to the same arrangement
 // and must honour the same picked structure preset.
-export function buildLyricBatch(dna, cil, answersList, structure) {
+export function buildLyricBatch(dna, cil, answersList, structure, lockedMetatags) {
   return (answersList || []).map(answers => {
-    const brief = assembleLyricBrief(dna, cil, answers, structure);
+    const brief = assembleLyricBrief(dna, cil, answers, structure, lockedMetatags);
     return { brief, ...buildLyricPrompt(brief) };
   });
 }
@@ -239,8 +279,8 @@ export function buildLyricBatch(dna, cil, answersList, structure) {
 // deterministic failures -> regenerate -> re-validate -> repeat, capped at
 // MAX_LYRIC_ATTEMPTS (initial + repairs). Returns the best-scoring attempt
 // seen even if the threshold is never crossed, flagged via thresholdMet.
-export async function runLyricEngine({ dna, cil, answers, structure, transport, model, temperature, maxTokens, repair }) {
-  const brief = assembleLyricBrief(dna, cil, answers, structure);
+export async function runLyricEngine({ dna, cil, answers, structure, lockedMetatags, transport, model, temperature, maxTokens, repair }) {
+  const brief = assembleLyricBrief(dna, cil, answers, structure, lockedMetatags);
   const built = buildLyricPrompt(brief);
   if (built.instrumental) {
     return { instrumental: true, title: brief.titleSeed || null, lyrics: '[Instrumental]', brief };

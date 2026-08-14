@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"57cb739","date":"2026-08-13"};
+window.__ATMOS_BUILD__ = {"commit":"0b1da3e","date":"2026-08-14"};
 
 /* core/constants.js */
 (function(){
@@ -6498,7 +6498,20 @@ function writingTraits(moodClass, languageStyle) {
 // authoritative section list for the prompt, replacing the legacy
 // STRUCTURE_TEMPLATES pick when present. Omitting `structure` preserves prior
 // behaviour exactly (backward compatible with every existing caller/test).
-function assembleLyricBrief(dna, cil, answers, structure) {
+// lockedMetatags (5th arg, optional): the real, pre-composed Suno metatag
+// block for THIS build — one piped line per section, in the SAME order as
+// structureSections/template.sections below (js/generate.js's
+// buildLiveLyricRequest computes both from the same resolved structure, so
+// they line up by construction). METATAG/LYRIC MERGE, VOCAL CASE (John,
+// 2026-08-14 decision, Path B): these are grounded in the DNA-real
+// arrangement, never invented, and buildLyricPrompt() below hands them to the
+// LLM as FIXED, non-negotiable content — the model's only job for tags is an
+// ADDITIVE layer (backing vocals / harmonies / ad-libs / call-and-response
+// tied to specific lines) that the deterministic metatag engine structurally
+// cannot produce, since it never sees lyric content. Omitting this argument
+// (null/undefined) reproduces the exact pre-2026-08-14 behaviour — the LLM
+// invents its own generic tags — so every existing caller is unaffected.
+function assembleLyricBrief(dna, cil, answers, structure, lockedMetatags) {
   const a = answers || {};
   const cilf = cil.fields || {};
   const vocalMode = (structure && structure.songType)
@@ -6551,6 +6564,9 @@ function assembleLyricBrief(dna, cil, answers, structure) {
       ? structure.sections.slice() : null,
     structurePresetLabel: (structure && structure.presetLabel) || null,
     deliveryClass: a['vocal.deliveryClass'] || (cilf['vocal.deliveryClass'] && cilf['vocal.deliveryClass'].value) || null,
+    // string or null — see the function header comment for what this is and
+    // why it's only ever additive input, never something the brief derives.
+    lockedMetatags: (typeof lockedMetatags === 'string' && lockedMetatags.trim()) ? lockedMetatags : null,
   };
 }
 
@@ -6578,11 +6594,34 @@ function buildLyricPrompt(brief) {
     '- Lyrics must be mainly English unless a foreign-language layer is requested.',
     '- Do not include translations, pronunciation guides, or explanations in final lyrics.',
     `- Use Suno section labels exactly and in this order: ${labels.join(' ')}.`,
-    '- Place 3-5 short functional Suno metatags inside the lyrics string as local musical direction (entrance, contrast, handoff, lift, release), not scenic labels.',
+    metatagInstructions(brief, sectionNames),
     '- Make the chorus memorable, singable, and clear.',
     validationBlock(),
   ].join('\n\n');
   return { instrumental: false, lyrics: null, prompt };
+}
+
+// --- metatag handoff: locked (Path B) or the legacy generic instruction ----
+// John, 2026-08-14 decision: grounded per-section metatags — when the caller
+// supplied them via assembleLyricBrief's lockedMetatags argument — are FIXED,
+// authoritative content the LLM must reproduce verbatim, never invent. See
+// assembleLyricBrief's header comment for the full reasoning. Falls back to
+// the original generic "invent 3-5 tags" instruction whenever lockedMetatags
+// is absent (unchanged prior behaviour) OR its line count doesn't match this
+// exact prompt's section list — a mismatch would mean pointing the LLM at
+// the wrong tag for the wrong section, worse than the generic instruction,
+// so this refuses to hand off rather than risk that silently.
+function metatagInstructions(brief, sectionNames) {
+  const generic = '- Place 3-5 short functional Suno metatags inside the lyrics string as local musical direction (entrance, contrast, handoff, lift, release), not scenic labels.';
+  if (!brief.lockedMetatags) return generic;
+  const lines = brief.lockedMetatags.split('\n').filter(Boolean);
+  if (lines.length !== sectionNames.length) return generic;
+  return [
+    'LOCKED METATAGS (mandatory \u2014 pre-composed from this build\u2019s real instrumentation, grounded, never invented):',
+    'For each section below, use the exact bracketed tag shown as that section\u2019s marker in your lyrics output, in this same order, verbatim. Do not reword, reorder, drop, shorten, or invent an alternate version of any of them.',
+    lines.join('\n'),
+    'You may ADD your own short vocal-performance tag alongside (never instead of) a locked tag \u2014 but ONLY for content the locked tags structurally cannot know: backing-vocal entrances, harmony placement, ad-libs, or call-and-response tied to a specific line or word. Keep any addition to 1-4 words in its own bracket, placed immediately after the locked tag on that section.',
+  ].join('\n');
 }
 
 // buildRepairPrompt: seeded with the INDEPENDENT validator's specific findings
@@ -6605,6 +6644,7 @@ function buildRepairPrompt(brief, initialResult, qualityResult) {
     lyricSchema(),
     contextBlock(brief, labels),
     originalityRules(),
+    metatagInstructions(brief, sectionNames),
     'Initial lyrics:', String(initialResult.lyrics || ''),
   ].join('\n\n');
 }
@@ -6613,9 +6653,9 @@ function buildRepairPrompt(brief, initialResult, qualityResult) {
 // structure (names+positions only, see assembleLyricBrief) is shared across
 // the whole batch — every variation in a batch belongs to the same arrangement
 // and must honour the same picked structure preset.
-function buildLyricBatch(dna, cil, answersList, structure) {
+function buildLyricBatch(dna, cil, answersList, structure, lockedMetatags) {
   return (answersList || []).map(answers => {
-    const brief = assembleLyricBrief(dna, cil, answers, structure);
+    const brief = assembleLyricBrief(dna, cil, answers, structure, lockedMetatags);
     return { brief, ...buildLyricPrompt(brief) };
   });
 }
@@ -6630,8 +6670,8 @@ function buildLyricBatch(dna, cil, answersList, structure) {
 // deterministic failures -> regenerate -> re-validate -> repeat, capped at
 // MAX_LYRIC_ATTEMPTS (initial + repairs). Returns the best-scoring attempt
 // seen even if the threshold is never crossed, flagged via thresholdMet.
-async function runLyricEngine({ dna, cil, answers, structure, transport, model, temperature, maxTokens, repair }) {
-  const brief = assembleLyricBrief(dna, cil, answers, structure);
+async function runLyricEngine({ dna, cil, answers, structure, lockedMetatags, transport, model, temperature, maxTokens, repair }) {
+  const brief = assembleLyricBrief(dna, cil, answers, structure, lockedMetatags);
   const built = buildLyricPrompt(brief);
   if (built.instrumental) {
     return { instrumental: true, title: brief.titleSeed || null, lyrics: '[Instrumental]', brief };
@@ -7110,7 +7150,18 @@ function buildMetatagPlan(dna, opts) {
   const { vocalMode, deliveryClass, moodClass } = resolveVocal(dna, cil, o.answers, o.lyricResult);
   const template = pickTemplate(dna, o.answers, o.lyricResult);
   const v = voiceSet(dna);
-  const sections = template.sections;
+  // STRUCTURE-FIRST ALIGNMENT (2026-08-14): o.sections, when supplied, is the
+  // SAME resolved structure preset's section list the lyric engine builds its
+  // prompt from (js/generate.js passes structure.sections into both). Without
+  // this override, metatags were being built from the per-subgenre TEMPLATE's
+  // own section list — which silently diverges from the structure-first
+  // preset the user actually picked whenever the two disagree. That mismatch
+  // is why metatags could never safely be handed to the lyric LLM as locked,
+  // authoritative per-section content (Path B, John 2026-08-14 decision) —
+  // the section labels wouldn't line up. Omitting o.sections preserves prior
+  // behaviour exactly (template.sections), so every existing caller/validator
+  // is unaffected.
+  const sections = (Array.isArray(o.sections) && o.sections.length) ? o.sections.slice() : template.sections;
   const total = sections.length;
 
   const plan = [];
@@ -7214,8 +7265,8 @@ function metatagList(built) {
 /* ---- runtime driver (no model call — deterministic assembly) ---------------
  * renderMode default: vocal -> 'lean' (share the lyrics budget), instrumental
  * -> 'full' (whole lyrics box free). Pass renderMode to override. */
-function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode, composerLayerId }) {
-  const built = buildMetatagPlan(dna, { cil, answers, lyricResult, composerLayerId });
+function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode, composerLayerId, sections }) {
+  const built = buildMetatagPlan(dna, { cil, answers, lyricResult, composerLayerId, sections });
   // Evidence-based default: metatags DO work when aligned with genre and lyrics,
   // so always emit them — in the piped short-element format. 'minimal' (bare
   // section markers) and 'full' remain available for A/B.
@@ -11182,19 +11233,55 @@ function generate(S) {
     // Metatags: the character's own section plan, decorated at structural points
     // by the composer layer. This is also the first time the atom path surfaces
     // metatags to the app at all.
+    //
+    // STRUCTURE-FIRST ALIGNMENT (2026-08-14): pass the SAME resolved structure
+    // preset's section list the lyric engine uses (structure.sections), not
+    // whatever the metatag engine's own template fallback would pick. Without
+    // this, metatags and lyrics could silently disagree on section labels
+    // whenever a structure preset was chosen — see core/metatag.js's o.sections
+    // comment for the full reasoning.
+    //
+    // VOCAL-MODE FIX (2026-08-14, found while building the merge below): this
+    // call never used to pass answers/cil, so core/metatag.js's resolveVocal()
+    // fell all the way to its own 'instrumental' default — meaning the
+    // Metatags preview has ALWAYS silently omitted vocal-performance tags for
+    // a VOCAL song too, regardless of the actual songType. Pre-existing bug,
+    // not introduced by this change, but it directly breaks the merge's whole
+    // point (preview == what gets locked into the LLM), so fixed here.
+    // S.songType is decision #1 and authoritative everywhere else in this
+    // file (songTypeLyrics, vocalActive) — mirrored here the same way.
+    const structure = lyricStructure(S);
+    const vocalAnswers = { 'vocal.mode': S.songType === 'instrumental' ? 'instrumental' : 'vocal' };
     let metatags = '';
     try {
       const dna = buildMusicalDNA(baseChar, palette, {
         seed: S.seed, characterId: a.characterId, modifierId: a.overlayId || null,
       });
-      metatags = runMetatagEngine({ dna, renderMode: 'lean', composerLayerId }).block;
+      metatags = runMetatagEngine({
+        dna, renderMode: 'lean', composerLayerId, answers: vocalAnswers,
+        sections: structure && structure.sections,
+      }).block;
     } catch (e) { metatags = ''; }
 
+    // MERGE METATAGS INTO LYRICS — INSTRUMENTAL CASE (John, 2026-08-14 decision,
+    // Path B). No lyric text exists for an instrumental track; the old behaviour
+    // showed a bare '[Instrumental]' placeholder in the Lyrics field next to a
+    // separate Metatags block the user had to paste in manually. Zero design
+    // ambiguity here (unlike the vocal case): the Lyrics field IS the metatag
+    // block directly. `metatags` is therefore not also returned as a separate
+    // field when instrumental — js/ui.js only renders a standalone Metatags
+    // block when `res.metatags` is present, so this naturally removes the
+    // duplicate block too. Falls back to the literal '[Instrumental]' tag only
+    // if metatag generation itself failed (see the catch above).
+    const instrumental = S.songType === 'instrumental';
+
     return {
-      style, negative: out.negative, lyrics: songTypeLyrics(S, ''), metatags,
+      style, negative: out.negative,
+      lyrics: instrumental ? (metatags || '[Instrumental]') : songTypeLyrics(S, ''),
+      metatags: instrumental ? '' : metatags,
       length: style.length, over: style.length > CHAR_LIMIT,
       arrangement: out.arrangement, overlayNote: out.overlayNote,
-      structure: lyricStructure(S),
+      structure,
     };
   }
 
@@ -11264,6 +11351,13 @@ function buildLiveLyricRequest(S) {
   const eng = getEngine(S.engineId);
 
   let dna;
+  // METATAG/LYRIC MERGE, VOCAL CASE (John, 2026-08-14 decision, Path B):
+  // composerLayerId only exists on the atom path (see core/metatag.js's
+  // composerLayerId usage — no other engine kind has the concept). Metatags
+  // are therefore only computed here for atom engines, same scope limit as
+  // generate()'s sync render and the still-open "wire composer+metatag onto
+  // a proven engine" TODO for resolver/legacy.
+  let composerLayerId = null;
   if (eng.kind === 'atom') {
     const a = S.atom;
     const palette = a.palette || 'electronic';
@@ -11271,6 +11365,7 @@ function buildLiveLyricRequest(S) {
     dna = buildMusicalDNA(baseChar, palette, {
       seed: S.seed, characterId: a.characterId, modifierId: a.overlayId || null,
     });
+    composerLayerId = (a.composerLayerId && COMPOSER_LAYERS[a.composerLayerId]) ? a.composerLayerId : null;
   } else if (eng.kind === 'resolver') {
     // resolver: resolve the arrangement the SAME way generate()'s resolver
     // branch does (same overlayFor/structureHint inputs), then project it
@@ -11308,6 +11403,34 @@ function buildLiveLyricRequest(S) {
 
   const cil = inferCIL(dna);
   const structure = lyricStructure(S);
+
+  // METATAG/LYRIC MERGE, VOCAL CASE (John, 2026-08-14 decision, Path B): the
+  // real, grounded per-section metatags for THIS build — same dna, same
+  // structure.sections the lyric prompt will require, same composer layer —
+  // computed here so runLyricEngine can hand them to the LLM as LOCKED,
+  // authoritative content instead of the old generic "invent 3-5 tags
+  // yourself" instruction. Cheap and deterministic (no model call); computed
+  // unconditionally (even for an instrumental brief, which short-circuits
+  // before ever reading it) rather than branching on vocal mode here, since
+  // vocal mode can come from CIL/answers as well as structure and this stays
+  // correct either way. atom-only for now (composerLayerId scope, see above);
+  // resolver/legacy get `null` and fall back to the pre-existing behaviour
+  // unchanged.
+  let lockedMetatags = null;
+  if (eng.kind === 'atom') {
+    try {
+      // Same S.songType-authoritative override as generate()'s sync preview
+      // above (see that comment for the full reasoning) — guarantees this
+      // and the preview resolve vocalMode identically, so what the user sees
+      // is exactly what the LLM gets locked to.
+      const vocalAnswers = { 'vocal.mode': S.songType === 'instrumental' ? 'instrumental' : 'vocal' };
+      lockedMetatags = runMetatagEngine({
+        dna, cil, renderMode: 'lean', composerLayerId, answers: vocalAnswers,
+        sections: structure && structure.sections,
+      }).block;
+    } catch (e) { lockedMetatags = null; }
+  }
+
   const l = S.lyric || {};
   const answers = {
     'song.subject': l.subject || '',
@@ -11325,7 +11448,7 @@ function buildLiveLyricRequest(S) {
   const transport = provider === 'claude'
     ? makeClaudeTransport(providerSettings)
     : makeGeminiTransport(providerSettings);
-  return { dna, cil, structure, answers, transport, model: providerSettings.model || undefined, provider };
+  return { dna, cil, structure, answers, lockedMetatags, transport, model: providerSettings.model || undefined, provider };
 }
 
 // generateLyricsLive: the async entry point. `transportOverride` is test-only
@@ -11335,6 +11458,7 @@ async function generateLyricsLive(S, transportOverride) {
   const req = buildLiveLyricRequest(S);
   return runLyricEngine({
     dna: req.dna, cil: req.cil, structure: req.structure, answers: req.answers,
+    lockedMetatags: req.lockedMetatags,
     transport: transportOverride || req.transport,
     model: req.model, repair: true,
   });
@@ -11839,12 +11963,22 @@ function lyricPanel(root) {
   if (l.status === 'done' && l.result) {
     const r = l.result;
     if (r.instrumental) {
-      box.appendChild(el('p', { class: 'note', text: 'Instrumental song type \u2014 lyrics field is [Instrumental], no LLM call made.' }));
+      box.appendChild(el('p', { class: 'note', text: 'Instrumental song type \u2014 no LLM call made. The Lyrics field above already carries the metatag block directly.' }));
     } else {
       const q = r.quality;
       box.appendChild(el('p', { class: 'note',
         text: q ? `Quality score: ${q.score} (threshold 85) \u2014 ${q.passed ? 'PASSED' : 'below threshold, best of ' + r.attempts + ' attempt(s)'}`
                  : (r.parseError ? 'Model response could not be parsed as JSON after all attempts.' : '') }));
+      // Visibility for testing, John 2026-08-14: confirms whether this
+      // specific generation actually used the locked-metatag handoff (Path B)
+      // or fell back to the model inventing its own generic tags \u2014 so a
+      // Suno test result can be traced back to which mode produced it.
+      if (r.brief) {
+        box.appendChild(el('p', { class: 'note',
+          text: r.brief.lockedMetatags
+            ? 'Metatags: locked \u2014 the real per-section tags above were handed to the model as fixed content.'
+            : 'Metatags: generic \u2014 no locked tags were available for this build; the model invented its own.' }));
+      }
       if (r.title) box.appendChild(el('p', { text: `Title: ${r.title}` }));
       if (r.lyrics) box.appendChild(el('pre', { text: r.lyrics, style: 'white-space:pre-wrap; font-size:12px;' }));
     }
@@ -12050,9 +12184,22 @@ function refreshOutput() {
   host.appendChild(outBlock('Style prompt', res.style, res.length, res.over));
   if (res.overlayNote) host.appendChild(el('p', { class: 'note', text: `Overlay: ${res.overlayNote}` }));
   host.appendChild(outBlock('Negative prompt', res.negative, null, false));
+  // METATAG/LYRIC MERGE (John, 2026-08-14 decision, Path B):
+  // - Instrumental: res.lyrics IS the metatag block now (js/generate.js), not
+  //   a bare '[Instrumental]' placeholder next to a separate block \u2014 so
+  //   res.metatags comes back empty and the standalone block below simply
+  //   doesn't render (no more manual copy-paste for this case).
+  // - Vocal: res.metatags still renders as a PREVIEW here (sync, no LLM call
+  //   yet), but the hint now reflects reality \u2014 once live lyrics are
+  //   generated below, these exact tags are handed to the model as locked
+  //   content and come back woven into the returned lyrics automatically.
+  const instrumental = S.songType === 'instrumental';
   const lyr = res.lyrics || '[Instrumental]';
-  host.appendChild(outBlock('Lyrics field', lyr, null, false, 'Paste into Suno\u2019s lyrics box; use Suno\u2019s Instrumental toggle for reliable vocal suppression.'));
-  if (res.metatags) host.appendChild(outBlock('Metatags', res.metatags, null, false, 'Paste into the lyrics box at the section markers. Composer selections decorate these at structural points.'));
+  const lyricsHint = instrumental
+    ? 'Paste into Suno\u2019s lyrics box; use Suno\u2019s Instrumental toggle for reliable vocal suppression. No separate lyric text exists for an instrumental track, so the metatag engine\u2019s per-section direction goes directly in this field.'
+    : 'Paste into Suno\u2019s lyrics box; use Suno\u2019s Instrumental toggle for reliable vocal suppression. Generate live lyrics below \u2014 the real per-section metatags are handed to the model as locked content, so they come back woven in automatically.';
+  host.appendChild(outBlock('Lyrics field', lyr, null, false, lyricsHint));
+  if (res.metatags) host.appendChild(outBlock('Metatags', res.metatags, null, false, 'Preview of the locked per-section tags handed to the LLM for live lyric generation below \u2014 they come back woven into the generated lyrics automatically; you shouldn\u2019t need to paste these in by hand.'));
 }
 
 function outBlock(title, text, length, over, hint) {
