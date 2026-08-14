@@ -19,6 +19,20 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 // so a stale local copy is visible at a glance instead of requiring a fresh
 // round of investigation each time. Falls back gracefully if git isn't
 // available in whatever environment runs this build.
+//
+// INHERENT ONE-COMMIT LAG (found 2026-08-13, same day): this reads HEAD
+// while building, which always happens BEFORE the commit that ships this
+// exact bundle — so the embedded hash is always the PARENT commit, never
+// the commit it actually ships in. This is not fixable by rebuilding harder
+// or amending: a commit's hash is derived from its own content, so a bundle
+// cannot contain its own future hash without an infinite regress (each
+// attempt to "correct" it changes the content, which changes the hash,
+// which is now wrong again). Confirmed directly: the bundle committed as
+// part of 57cb739 contains "5424ab7" (its parent), not "57cb739". This is a
+// permanent, structural property of the mechanism, not a bug to keep
+// chasing — treat the marker as "at least this recent," not exact to the
+// commit. The header tooltip explains this; don't silently "fix" it again
+// without re-deriving why it can't be exact.
 function buildMarker() {
   try {
     const commit = execSync('git rev-parse --short HEAD', { cwd: root }).toString().trim();

@@ -11,7 +11,7 @@ function renderBuildMarker() {
   const b = window.__ATMOS_BUILD__;
   if (!b) return;
   sub.textContent = `multi-engine shell · build ${b.commit} · ${b.date}`;
-  sub.title = 'If this commit looks old, download a fresh ZIP from the repo — refreshing the page only reloads the files already on disk.';
+  sub.title = 'This marker is generated when the bundle is built, one step before the commit that ships it — so it will almost always show the PREVIOUS commit on GitHub, not this exact one. Treat it as "at least this recent," not exact. If it looks like it\'s from more than a few commits back, download a fresh ZIP — refreshing the page only reloads the files already on disk.';
 }
 
 function boot() {
