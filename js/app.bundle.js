@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"86839e0","date":"2026-08-14"};
+window.__ATMOS_BUILD__ = {"commit":"af5da59","date":"2026-08-14"};
 
 /* core/constants.js */
 (function(){
@@ -1396,6 +1396,37 @@ function selectNegatives(candidates, cap) {
     .slice(0, limit);
 }
 
+/* ORCHESTRAL_NEGATIVES — the rank-1/rank-2 orchestral-convention bans, as a
+ * standalone always-available candidate list (2026-08-14, step 2 of the
+ * Balearic reliability pass, audit finding 3).
+ *
+ * BEFORE THIS: these terms only entered buildAtoms()'s negative candidate
+ * list via a composer overlay's own negative array (core/atom-modifiers.js
+ * ORCHESTRAL_DEFENCE, gated `m.kind === 'composer' ? ... : []`). A plain
+ * engine-only build, or one carrying a producer/remixer overlay, always
+ * shipped ALWAYS_BAN's five rank-3 cosmetic terms ('field recordings, air
+ * texture, room tone, foley, sound effects') while carrying no orchestral
+ * defense on the negative side at all.
+ *
+ * WHY STILL NEEDED AFTER STEP 1: step 1 removed orchestral instruments from
+ * the POSITIVE field. Round 4 (A2/A3/A4) showed Suno inventing orchestral
+ * staccato/stabs/drums it was never given in the prompt at all — the bleed is
+ * not solely a function of what's named positively. Belt and braces.
+ *
+ * A pure subset of NEGATIVE_RANKS (every entry here is already a ranked key
+ * there — nothing new is being asserted about Suno's behaviour, this list
+ * just makes the existing rank-1/2 orchestral entries reachable on every
+ * build instead of only a composer-overlaid one). Deliberately excludes the
+ * rank-1 beatless-drum terms (drums/kick/beat/percussion/snare) and the
+ * rank-1 vocal-restraint terms — both already have their own dedicated,
+ * character-conditional candidate sources in buildAtoms() and mixing them in
+ * here would double-count against the same cap for the wrong reason. */
+const ORCHESTRAL_NEGATIVES = [
+  'orchestral drums', 'staccato strings', 'brass stabs', 'orchestral hits', 'symphonic arrangement',
+  'orchestral percussion', 'timpani', 'cinematic orchestral production', 'full orchestra',
+  'orchestral crescendo', 'marching percussion',
+];
+
 /* --------------------------------------------------------------------------
  * 2. BANNED PERFORMANCE / ARTICULATION LANGUAGE
  * SOURCE: John, Suno round 4 A4 — "ostinato, stabs and staccatos are an
@@ -1458,7 +1489,7 @@ const ONE_VOICE_ONE_MENTION = true;
  * ------------------------------------------------------------------------*/
 const INTERACTION_LANGUAGE_MANDATORY = true;
 
-Object.assign(window.__ATMOS, { vocalRestraintCandidates, capNegativesOrdered, selectNegatives, NEGATIVE_CAP, NEGATIVE_RANKS, VOCAL_RESTRAINT_TERMS, SOFT_CHARACTER_RE, BANNED_ARTICULATION, BANNED_ARTICULATION_RE, POSITION_IS_PROMINENCE, CONVENTION_BLEED, ONE_VOICE_ONE_MENTION, INTERACTION_LANGUAGE_MANDATORY });
+Object.assign(window.__ATMOS, { vocalRestraintCandidates, capNegativesOrdered, selectNegatives, NEGATIVE_CAP, NEGATIVE_RANKS, VOCAL_RESTRAINT_TERMS, SOFT_CHARACTER_RE, ORCHESTRAL_NEGATIVES, BANNED_ARTICULATION, BANNED_ARTICULATION_RE, POSITION_IS_PROMINENCE, CONVENTION_BLEED, ONE_VOICE_ONE_MENTION, INTERACTION_LANGUAGE_MANDATORY });
 })();
 
 /* core/resolver.js */
@@ -4118,7 +4149,7 @@ Object.assign(window.__ATMOS, { modifierCores, modifierSignatures, modifierList,
 const {CHAR_LIMIT, ALWAYS_BAN, BEATLESS_BAN} = window.__ATMOS;
 const {evaluateCongruence} = window.__ATMOS;
 const {bedAtom, bedAllowed} = window.__ATMOS;
-const {selectNegatives, vocalRestraintCandidates} = window.__ATMOS;
+const {selectNegatives, vocalRestraintCandidates, ORCHESTRAL_NEGATIVES} = window.__ATMOS;
 const {classifyInstrument, planePhrase, pairLink} = window.__ATMOS;
 const {modifierList} = window.__ATMOS;
 const {ATOM_COMPOSERS} = window.__ATMOS;
@@ -4462,6 +4493,18 @@ function buildAtoms(char, opts){
   // same crowding-out reason as beatlessNeg above.
   const descriptiveText = [char.label, char.atoms && char.atoms.tempo && char.atoms.tempo.text].filter(Boolean).join(' ');
   const vocalNeg = vocalRestraintCandidates(descriptiveText, !!o.vocalActive).slice(0, 1);
+  // ORCHESTRAL DEFENSE ON EVERY BUILD (2026-08-14, step 2 of the reliability
+  // pass, audit finding 3). Previously the rank-1/2 orchestral bans only
+  // reached the candidate list via a composer overlay's own negative array —
+  // an engine-only build, or one with a producer/remixer overlay, always
+  // shipped ALWAYS_BAN's five rank-3 cosmetic terms while carrying no
+  // orchestral defense at all. Sliced to 3 for the same reservation reason
+  // ovNeg already is: 3 orchestral + beatlessNeg(<=1) + vocalNeg(<=1) = the
+  // cap, leaving room for both character-conditional sources every time.
+  // Placed FIRST in the candidate array so it wins the stable sort's tie-
+  // break over a composer's own (largely overlapping) defense list when both
+  // are present — they dedupe against each other either way.
+  const orchestralNeg = ORCHESTRAL_NEGATIVES.slice(0, 3);
   // NEGATIVE CAP (John, round 4): the negative field loses effectiveness beyond
   // about five elements, so an unranked list of 23 silently discarded the ones
   // that mattered and John had to front-load them by hand. Negatives are now
@@ -4471,7 +4514,7 @@ function buildAtoms(char, opts){
   // rank 1, an uncapped 5-term ovNeg would fill the entire cap by array-order
   // alone before the stable sort ever reaches them — the exact bug just found
   // and fixed on the resolver path, same root cause here. 3+1+1 = the cap.
-  const negative = selectNegatives([...ovNeg.slice(0, 3), ...beatlessNeg, ...vocalNeg, ...ALWAYS_BAN]).join(', ') + '.';
+  const negative = selectNegatives([...orchestralNeg, ...ovNeg.slice(0, 3), ...beatlessNeg, ...vocalNeg, ...ALWAYS_BAN]).join(', ') + '.';
   return { style, negative, lyrics:'', length:style.length, over,
            arrangement:kept, overlayNote };
 }

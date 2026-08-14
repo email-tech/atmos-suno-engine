@@ -148,6 +148,37 @@ export function selectNegatives(candidates, cap) {
     .slice(0, limit);
 }
 
+/* ORCHESTRAL_NEGATIVES — the rank-1/rank-2 orchestral-convention bans, as a
+ * standalone always-available candidate list (2026-08-14, step 2 of the
+ * Balearic reliability pass, audit finding 3).
+ *
+ * BEFORE THIS: these terms only entered buildAtoms()'s negative candidate
+ * list via a composer overlay's own negative array (core/atom-modifiers.js
+ * ORCHESTRAL_DEFENCE, gated `m.kind === 'composer' ? ... : []`). A plain
+ * engine-only build, or one carrying a producer/remixer overlay, always
+ * shipped ALWAYS_BAN's five rank-3 cosmetic terms ('field recordings, air
+ * texture, room tone, foley, sound effects') while carrying no orchestral
+ * defense on the negative side at all.
+ *
+ * WHY STILL NEEDED AFTER STEP 1: step 1 removed orchestral instruments from
+ * the POSITIVE field. Round 4 (A2/A3/A4) showed Suno inventing orchestral
+ * staccato/stabs/drums it was never given in the prompt at all — the bleed is
+ * not solely a function of what's named positively. Belt and braces.
+ *
+ * A pure subset of NEGATIVE_RANKS (every entry here is already a ranked key
+ * there — nothing new is being asserted about Suno's behaviour, this list
+ * just makes the existing rank-1/2 orchestral entries reachable on every
+ * build instead of only a composer-overlaid one). Deliberately excludes the
+ * rank-1 beatless-drum terms (drums/kick/beat/percussion/snare) and the
+ * rank-1 vocal-restraint terms — both already have their own dedicated,
+ * character-conditional candidate sources in buildAtoms() and mixing them in
+ * here would double-count against the same cap for the wrong reason. */
+export const ORCHESTRAL_NEGATIVES = [
+  'orchestral drums', 'staccato strings', 'brass stabs', 'orchestral hits', 'symphonic arrangement',
+  'orchestral percussion', 'timpani', 'cinematic orchestral production', 'full orchestra',
+  'orchestral crescendo', 'marching percussion',
+];
+
 /* --------------------------------------------------------------------------
  * 2. BANNED PERFORMANCE / ARTICULATION LANGUAGE
  * SOURCE: John, Suno round 4 A4 — "ostinato, stabs and staccatos are an

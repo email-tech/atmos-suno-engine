@@ -23,7 +23,7 @@
 import { CHAR_LIMIT, ALWAYS_BAN, BEATLESS_BAN } from './constants.js';
 import { evaluateCongruence } from './rules.js';
 import { bedAtom, bedAllowed } from './beds.js';
-import { selectNegatives, vocalRestraintCandidates } from './knowledge.js';
+import { selectNegatives, vocalRestraintCandidates, ORCHESTRAL_NEGATIVES } from './knowledge.js';
 import { classifyInstrument, planePhrase, pairLink } from './linking.js';
 import { modifierList } from './atom-modifiers.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
@@ -367,6 +367,18 @@ export function buildAtoms(char, opts){
   // same crowding-out reason as beatlessNeg above.
   const descriptiveText = [char.label, char.atoms && char.atoms.tempo && char.atoms.tempo.text].filter(Boolean).join(' ');
   const vocalNeg = vocalRestraintCandidates(descriptiveText, !!o.vocalActive).slice(0, 1);
+  // ORCHESTRAL DEFENSE ON EVERY BUILD (2026-08-14, step 2 of the reliability
+  // pass, audit finding 3). Previously the rank-1/2 orchestral bans only
+  // reached the candidate list via a composer overlay's own negative array —
+  // an engine-only build, or one with a producer/remixer overlay, always
+  // shipped ALWAYS_BAN's five rank-3 cosmetic terms while carrying no
+  // orchestral defense at all. Sliced to 3 for the same reservation reason
+  // ovNeg already is: 3 orchestral + beatlessNeg(<=1) + vocalNeg(<=1) = the
+  // cap, leaving room for both character-conditional sources every time.
+  // Placed FIRST in the candidate array so it wins the stable sort's tie-
+  // break over a composer's own (largely overlapping) defense list when both
+  // are present — they dedupe against each other either way.
+  const orchestralNeg = ORCHESTRAL_NEGATIVES.slice(0, 3);
   // NEGATIVE CAP (John, round 4): the negative field loses effectiveness beyond
   // about five elements, so an unranked list of 23 silently discarded the ones
   // that mattered and John had to front-load them by hand. Negatives are now
@@ -376,7 +388,7 @@ export function buildAtoms(char, opts){
   // rank 1, an uncapped 5-term ovNeg would fill the entire cap by array-order
   // alone before the stable sort ever reaches them — the exact bug just found
   // and fixed on the resolver path, same root cause here. 3+1+1 = the cap.
-  const negative = selectNegatives([...ovNeg.slice(0, 3), ...beatlessNeg, ...vocalNeg, ...ALWAYS_BAN]).join(', ') + '.';
+  const negative = selectNegatives([...orchestralNeg, ...ovNeg.slice(0, 3), ...beatlessNeg, ...vocalNeg, ...ALWAYS_BAN]).join(', ') + '.';
   return { style, negative, lyrics:'', length:style.length, over,
            arrangement:kept, overlayNote };
 }
