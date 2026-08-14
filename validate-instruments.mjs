@@ -71,9 +71,13 @@ for (const [id, cluster] of Object.entries(ATOM_POOLS_BALEARIC))
 // `string ensemble` is deliberately ABSENT from this list: John restored it to
 // automatic on 2026-08-14 after reading the step-1 output. It now sits in the
 // acoustic PAD pools rather than the permanent `strings` support slot, so it
-// competes for one bed instead of firing on 95.8% of builds. `accordion` is
-// present because John removed it by direction in the same review.
-const EXCLUDED_RE = /\b(cello|viola|violin|bowed (double bass|string pad|metallophone)|french horn|muted trumpet|flugelhorn|trombone|synth brass|cor anglais|saxophone|pan flute|flute|ney|duduk|harp|pipe organ|glass harmonica|tubular bells|accordion)\b/i;
+// competes for one bed instead of firing on 95.8% of builds.
+// The FREE-REED FAMILY (accordion, harmonium, melodica) and mandolin are present
+// because John removed them by direction in the same review — accordion first,
+// then "any piercing instrument that sounds like an accordion", which is the
+// free-reed class. Recorded here so a later session cannot mistake the policy
+// for an inconsistency in the orchestral rules and quietly reverse it.
+const EXCLUDED_RE = /\b(cello|viola|violin|bowed (double bass|string pad|metallophone)|french horn|muted trumpet|flugelhorn|trombone|synth brass|cor anglais|saxophone|pan flute|flute|ney|duduk|harp|pipe organ|glass harmonica|tubular bells|accordion|harmonium|melodica|mandolin)\b/i;
 const SEEDS = 200;
 let builds = 0, excluded = 0, falseBeatless = 0;
 const offenders = new Map();
@@ -94,6 +98,32 @@ ok(excluded === 0,
    `${excluded}/${builds} builds still name a §7-excluded instrument` +
    (offenders.size ? ` — e.g. ${[...offenders].slice(0, 5).map(([n, w]) => `"${n}" in ${w}`).join(', ')}` : ''));
 ok(falseBeatless === 0, `${falseBeatless}/${builds} non-beatless builds still claim "no drums" (Bug A)`);
+
+// ---- 7. NO DEGENERATE ROLE ----------------------------------------------
+// A role whose eligible pool holds exactly one name is not a choice, it is a
+// constant: that instrument appears on 100% of that cluster's builds and the
+// variation engine has nothing to vary. Removing a family collapses pools
+// quietly, so this is measured rather than eyeballed.
+//
+// WARNING, NOT A FAILURE, and deliberately so. Every case this currently reports
+// PRE-DATES the 2026-08-14 reliability work — they are original pool-authoring
+// gaps (sunlit-mediterranean/electronic has always had exactly one texture
+// option, ambient/electronic exactly one bass). Failing the build on inherited
+// debt would either block unrelated work or invite someone to weaken the check.
+// It is reported every run so it cannot be forgotten, and it is on file as the
+// deepening task. Promote to a hard failure once that task is done.
+const degenerate = [];
+for (const [id, cluster] of Object.entries(ATOM_POOLS_BALEARIC))
+  for (const pal of PALETTES)
+    for (const role of ['bass', 'pads', 'motif', 'counter', 'texture']) {
+      const set = eligible((cluster[pal] || {})[role], role);
+      if (set.length === 1) degenerate.push(`${id}/${pal}/${role} = "${set[0]}"`);
+    }
+
+if (degenerate.length) {
+  console.warn(`Instruments WARNING: ${degenerate.length} single-option roles (pre-existing pool depth gaps, not failures):`);
+  degenerate.forEach(d => console.warn(`  - ${d}`));
+}
 
 if (!fail) {
   const parked = expertOnlyNames().length;

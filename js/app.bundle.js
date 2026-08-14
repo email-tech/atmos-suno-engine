@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"095c3aa","date":"2026-08-14"};
+window.__ATMOS_BUILD__ = {"commit":"b40dce1","date":"2026-08-14"};
 
 /* core/constants.js */
 (function(){
@@ -4571,6 +4571,8 @@ const ORCH_WIND   = 'orchestral/solo wind — imports the orchestral convention 
 const CINEMATIC   = 'turns the arrangement orchestral or cinematic (§11, §24)';
 const CLICHE      = 'genre cliché the spec names explicitly (§11, §24)';
 const WORLD       = 'world-music colour with no Balearic-specific evidence (§4)';
+const REEDY       = 'free-reed family (accordion/harmonium/melodica) — John, 2026-08-14: ' +
+                    'piercing reedy timbre, removed by direction';
 
 const INSTRUMENT_CLASS = {
   // ---- bass -------------------------------------------------------------
@@ -4599,8 +4601,15 @@ const INSTRUMENT_CLASS = {
   // ---- pads / beds ------------------------------------------------------
   'analog synth pads': P, 'layered synth pads': P, 'detuned analog pads': P,
   'string-machine pad': S, 'mellotron': S, 'choir pad': S,
-  'clipped organ synth': S, 'harmonium': S,
+  'clipped organ synth': S,
   'Hammond organ': S,           // round-4: poor Balearic lead. Bed/colour only.
+  // FREE-REED FAMILY — John, 2026-08-14: "lose the accordion... plus any
+  // piercing instrument that sounds like an accordion". accordion, harmonium
+  // and melodica are the same instrument class (free reeds driven by bellows or
+  // breath) and share the reedy, mid-forward, cutting timbre he objected to.
+  // Parked together so the rule reads as one decision rather than three
+  // unrelated demotions a later session might partially undo.
+  'harmonium': X(REEDY),
   // JOHN'S DIRECTION, 2026-08-14, reviewing the step-1 before/after output.
   // string ensemble RESTORED to automatic (it was parked as orchestral); it now
   // lives in the acoustic PAD pools rather than the permanent `strings` support
@@ -4610,7 +4619,7 @@ const INSTRUMENT_CLASS = {
   // a string bed actually is.
   'string ensemble': S,
   // accordion REMOVED by direction. Parked, not deleted, per §7.
-  'accordion': X('John, 2026-08-14 — removed by direction on hearing the step-1 output'),
+  'accordion': X(REEDY),
   'bowed string pad': X(ORCH_STRING),
   'pipe organ': X(CINEMATIC),
 
@@ -4626,13 +4635,14 @@ const INSTRUMENT_CLASS = {
   // ---- guitars ----------------------------------------------------------
   'nylon guitar': P, 'lap-steel guitar': P, 'electric guitar': P,
   'acoustic guitar': P, 'clean electric guitar': P, 'delayed electric guitar': P,
-  'flamenco guitar': S, 'mandolin': S,
+  'flamenco guitar': S,
+  'mandolin': X('John, 2026-08-14 — removed by direction'),
 
   // ---- leads / motifs ---------------------------------------------------
   'Rhodes': P, 'Wurlitzer': P, 'synth lead': P, 'synth pluck': P,
   'synth arp': P, 'clipped synth chords': P, 'filtered saw lead': P,
   'synth chords': P, 'soft synth lead': P, 'synth motif': P,
-  'melodica': S,
+  'melodica': X(REEDY),
   'flute': X(CLICHE), 'pan flute': X(CLICHE), 'saxophone': X(CLICHE),
   'ney': X(WORLD),
   'muted trumpet': X(ORCH_BRASS), 'flugelhorn': X(ORCH_BRASS),
@@ -4762,7 +4772,7 @@ const ATOM_POOLS_BALEARIC = {
       strings: ['cello', 'viola'],
       texture: ['felt piano', 'harp', 'bowed metallophone'],
       motif: ['nylon guitar', 'lap-steel guitar', 'acoustic guitar', 'flugelhorn'],
-      counter: ['Wurlitzer', 'melodica', 'muted trumpet', 'French horn', 'cor anglais'],
+      counter: ['Wurlitzer', 'Rhodes', 'clavinet', 'melodica', 'muted trumpet', 'French horn', 'cor anglais'],
       color: ['glockenspiel', 'vibraphone', 'kalimba', 'celeste'],
     },
   },
@@ -4790,7 +4800,7 @@ const ATOM_POOLS_BALEARIC = {
       strings: ['cello', 'violin', 'viola'],
       texture: ['lap-steel guitar', 'cor anglais'],
       motif: ['grand piano', 'felt piano', 'flute'],
-      counter: ['Wurlitzer', 'nylon guitar', 'French horn', 'flugelhorn', 'muted trumpet'],
+      counter: ['Wurlitzer', 'nylon guitar', 'Rhodes', 'French horn', 'flugelhorn', 'muted trumpet'],
       color: ['glockenspiel', 'tubular bells', 'harp', 'celeste'],
     },
   },
@@ -4818,7 +4828,7 @@ const ATOM_POOLS_BALEARIC = {
       strings: [],
       texture: ['lap-steel guitar', 'harp'],
       motif: ['Rhodes', 'grand piano'],
-      counter: ['Wurlitzer', 'melodica', 'French horn'],
+      counter: ['Wurlitzer', 'electric guitar', 'melodica', 'French horn'],
       color: ['glockenspiel', 'celeste', 'kalimba'],
     },
   },
@@ -4842,10 +4852,10 @@ const ATOM_POOLS_BALEARIC = {
       bass: ['upright bass', 'fretless bass'],
       rhythm: ['brushed drum kit'],
       perc: ['congas', 'bongos', 'shakers', 'frame drum', 'hang drum'],
-      pads: ['harmonium', 'mellotron'],
+      pads: ['harmonium', 'mellotron', 'Hammond organ'],
       strings: ['cello'],
       texture: ['lap-steel guitar'],
-      motif: ['melodica', 'nylon guitar', 'muted trumpet'],
+      motif: ['nylon guitar', 'felt piano', 'melodica', 'muted trumpet'],
       counter: ['Rhodes', 'Wurlitzer', 'trombone', 'French horn'],
       color: ['glockenspiel', 'kalimba'],
     },
@@ -4874,7 +4884,7 @@ const ATOM_POOLS_BALEARIC = {
       strings: ['cello', 'viola'],
       texture: ['felt piano', 'lap-steel guitar', 'duduk'],
       motif: ['nylon guitar', 'Rhodes', 'ney'],
-      counter: ['Wurlitzer', 'melodica', 'French horn', 'flugelhorn'],
+      counter: ['Wurlitzer', 'electric guitar', 'melodica', 'French horn', 'flugelhorn'],
       color: ['vibraphone', 'kalimba'],
     },
   },
@@ -4902,7 +4912,7 @@ const ATOM_POOLS_BALEARIC = {
       strings: ['cello'],
       texture: ['nylon guitar', 'lap-steel guitar'],
       motif: ['flamenco guitar', 'mandolin', 'Rhodes', 'pan flute', 'flugelhorn'],
-      counter: ['Wurlitzer', 'melodica', 'muted trumpet', 'French horn', 'saxophone'],
+      counter: ['Wurlitzer', 'grand piano', 'melodica', 'muted trumpet', 'French horn', 'saxophone'],
       color: ['marimba', 'glockenspiel', 'vibraphone'],
     },
   },
@@ -4930,7 +4940,7 @@ const ATOM_POOLS_BALEARIC = {
       strings: ['cello', 'violin'],
       texture: ['felt piano', 'lap-steel guitar', 'glass harmonica', 'bowed metallophone'],
       motif: ['nylon guitar', 'grand piano', 'flute', 'cor anglais'],
-      counter: ['Wurlitzer', 'French horn'],
+      counter: ['Wurlitzer', 'Rhodes', 'French horn'],
       color: ['glockenspiel', 'celeste', 'tubular bells', 'harp'],
     },
   },
@@ -4958,7 +4968,7 @@ const ATOM_POOLS_BALEARIC = {
       strings: ['cello', 'viola'],
       texture: ['felt piano', 'lap-steel guitar'],
       motif: ['Rhodes', 'nylon guitar', 'grand piano', 'muted trumpet', 'flugelhorn'],
-      counter: ['Wurlitzer', 'melodica', 'French horn', 'cor anglais'],
+      counter: ['Wurlitzer', 'clavinet', 'electric guitar', 'melodica', 'French horn', 'cor anglais'],
       color: ['vibraphone', 'glockenspiel', 'harp'],
     },
   },
@@ -4986,7 +4996,7 @@ const ATOM_POOLS_BALEARIC = {
       strings: ['cello'],
       texture: ['nylon guitar', 'lap-steel guitar'],
       motif: ['Rhodes', 'grand piano', 'melodica', 'saxophone', 'flute'],
-      counter: ['Wurlitzer', 'Hammond organ', 'muted trumpet', 'French horn', 'flugelhorn'],
+      counter: ['Wurlitzer', 'Hammond organ', 'electric guitar', 'muted trumpet', 'French horn', 'flugelhorn'],
       color: ['vibraphone', 'marimba', 'glockenspiel'],
     },
   },
@@ -5014,7 +5024,7 @@ const ATOM_POOLS_BALEARIC = {
       strings: ['cello', 'violin'],
       texture: ['electric guitar', 'clavinet'],
       motif: ['grand piano', 'Rhodes', 'saxophone', 'flute'],
-      counter: ['Wurlitzer', 'melodica', 'muted trumpet', 'trombone', 'French horn'],
+      counter: ['Wurlitzer', 'felt piano', 'melodica', 'muted trumpet', 'trombone', 'French horn'],
       color: ['vibraphone', 'marimba', 'glockenspiel'],
     },
   },
@@ -5042,7 +5052,7 @@ const ATOM_POOLS_BALEARIC = {
       strings: [],
       texture: ['grand piano', 'nylon guitar'],
       motif: ['Rhodes', 'lap-steel guitar'],
-      counter: ['Wurlitzer', 'melodica', 'cello'],
+      counter: ['Wurlitzer', 'electric guitar', 'melodica', 'cello'],
       color: ['glockenspiel', 'vibraphone'],
     },
   },
@@ -5070,7 +5080,7 @@ const ATOM_POOLS_BALEARIC = {
       strings: ['cello'],
       texture: ['jazz guitar', 'nylon guitar'],
       motif: ['grand piano', 'Rhodes', 'saxophone', 'flugelhorn'],
-      counter: ['Wurlitzer', 'melodica', 'muted trumpet', 'French horn', 'flute'],
+      counter: ['Wurlitzer', 'felt piano', 'clavinet', 'melodica', 'muted trumpet', 'French horn', 'flute'],
       color: ['vibraphone', 'marimba', 'glockenspiel'],
     },
   },

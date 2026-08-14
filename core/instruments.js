@@ -67,6 +67,8 @@ const ORCH_WIND   = 'orchestral/solo wind — imports the orchestral convention 
 const CINEMATIC   = 'turns the arrangement orchestral or cinematic (§11, §24)';
 const CLICHE      = 'genre cliché the spec names explicitly (§11, §24)';
 const WORLD       = 'world-music colour with no Balearic-specific evidence (§4)';
+const REEDY       = 'free-reed family (accordion/harmonium/melodica) — John, 2026-08-14: ' +
+                    'piercing reedy timbre, removed by direction';
 
 export const INSTRUMENT_CLASS = {
   // ---- bass -------------------------------------------------------------
@@ -95,8 +97,15 @@ export const INSTRUMENT_CLASS = {
   // ---- pads / beds ------------------------------------------------------
   'analog synth pads': P, 'layered synth pads': P, 'detuned analog pads': P,
   'string-machine pad': S, 'mellotron': S, 'choir pad': S,
-  'clipped organ synth': S, 'harmonium': S,
+  'clipped organ synth': S,
   'Hammond organ': S,           // round-4: poor Balearic lead. Bed/colour only.
+  // FREE-REED FAMILY — John, 2026-08-14: "lose the accordion... plus any
+  // piercing instrument that sounds like an accordion". accordion, harmonium
+  // and melodica are the same instrument class (free reeds driven by bellows or
+  // breath) and share the reedy, mid-forward, cutting timbre he objected to.
+  // Parked together so the rule reads as one decision rather than three
+  // unrelated demotions a later session might partially undo.
+  'harmonium': X(REEDY),
   // JOHN'S DIRECTION, 2026-08-14, reviewing the step-1 before/after output.
   // string ensemble RESTORED to automatic (it was parked as orchestral); it now
   // lives in the acoustic PAD pools rather than the permanent `strings` support
@@ -106,7 +115,7 @@ export const INSTRUMENT_CLASS = {
   // a string bed actually is.
   'string ensemble': S,
   // accordion REMOVED by direction. Parked, not deleted, per §7.
-  'accordion': X('John, 2026-08-14 — removed by direction on hearing the step-1 output'),
+  'accordion': X(REEDY),
   'bowed string pad': X(ORCH_STRING),
   'pipe organ': X(CINEMATIC),
 
@@ -122,13 +131,14 @@ export const INSTRUMENT_CLASS = {
   // ---- guitars ----------------------------------------------------------
   'nylon guitar': P, 'lap-steel guitar': P, 'electric guitar': P,
   'acoustic guitar': P, 'clean electric guitar': P, 'delayed electric guitar': P,
-  'flamenco guitar': S, 'mandolin': S,
+  'flamenco guitar': S,
+  'mandolin': X('John, 2026-08-14 — removed by direction'),
 
   // ---- leads / motifs ---------------------------------------------------
   'Rhodes': P, 'Wurlitzer': P, 'synth lead': P, 'synth pluck': P,
   'synth arp': P, 'clipped synth chords': P, 'filtered saw lead': P,
   'synth chords': P, 'soft synth lead': P, 'synth motif': P,
-  'melodica': S,
+  'melodica': X(REEDY),
   'flute': X(CLICHE), 'pan flute': X(CLICHE), 'saxophone': X(CLICHE),
   'ney': X(WORLD),
   'muted trumpet': X(ORCH_BRASS), 'flugelhorn': X(ORCH_BRASS),
