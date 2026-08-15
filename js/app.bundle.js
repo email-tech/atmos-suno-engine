@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"43eed80","date":"2026-08-14"};
+window.__ATMOS_BUILD__ = {"commit":"4b2ca8f","date":"2026-08-15"};
 
 /* core/constants.js */
 (function(){
@@ -7551,7 +7551,16 @@ function leanTag(type, v, dna, label, vocalMode, deliveryClass, moodClass) {
       return pipe('building', hasDrums ? 'drums fill' : 'swell', vocal ? 'vocal lifts' : null);
     case 'chorus':
       if (/post-chorus/i.test(String(label))) return pipe('chantable', 'simpler', 'lead back');
-      return pipe('full arrangement', groove, vocal ? vChorus : (shortVoice(v.counter) ? `${shortVoice(v.counter)} answers` : 'counter answers'));
+      // FIX (2026-08-14, found while building the instrument-placement test
+      // pack — step 3 made counter absent from ~26% of builds instead of
+      // ~0-5%, so this fallback now fires far more often). shortVoice(v.counter)
+      // falsy used to fall back to the literal string 'counter answers' —
+      // contradicting this function's own documented rule two screens up
+      // ("Falls back to null... not padded with a guess"). A generic 'counter
+      // answers' names no real instrument and risks Suno either inventing one
+      // or ignoring the tag; dropped from the pipe instead, same as every
+      // other role here when the voice doesn't exist.
+      return pipe('full arrangement', groove, vocal ? vChorus : (shortVoice(v.counter) ? `${shortVoice(v.counter)} answers` : null));
     case 'instrumental':
       // 2026-08-13, John: "'lead takes theme' means nothing to me" and
       // "call and response — what is calling, what is responding?" Both
