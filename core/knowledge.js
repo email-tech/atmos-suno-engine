@@ -232,6 +232,29 @@ export const CONVENTION_BLEED = true;
  * ------------------------------------------------------------------------*/
 export const ONE_VOICE_ONE_MENTION = true;
 
+/* SINGLETON_INSTRUMENT_WORDS — the bare-headword set the rule above applies
+ * to (2026-08-14, found while building step 3 of the reliability pass: the
+ * cross-family de-dupe matched on the full instrument STRING, so "grand
+ * piano" [motif] and "felt piano" [texture] never clashed, then a linking-
+ * guide phrase referring back to the lead as "piano" made it three bare
+ * mentions of the word in one style string — exactly the round-4 pattern,
+ * undetected because nothing compared bare headwords, only full names).
+ *
+ * Deliberately short and specific, NOT a general "last word of a multi-word
+ * instrument name" rule — that would wrongly dedupe legitimately co-existing
+ * voices sharing a family word (synth lead / synth pads / synth bass must
+ * stay free to coexist; a nylon guitar and an electric guitar are two
+ * different instruments, not the same one twice). Every entry here is a case
+ * where the bare word alone already reads as one instrument to a listener
+ * regardless of qualifier — two different pianos are still two pianos, the
+ * same way two French horns are two French horns. Single source of truth for
+ * both the reconcile-time prevention (core/atoms.js) and the regression
+ * check (validate-knowledge.mjs) — previously the validator alone knew this
+ * list, so nothing in generation prevented what the test could only detect
+ * after the fact. */
+export const SINGLETON_INSTRUMENT_WORDS =
+  ['french horn', 'cello', 'violin', 'oboe', 'flute', 'piano', 'nylon guitar', 'marimba', 'vibraphone'];
+
 /* --------------------------------------------------------------------------
  * 6. WOVEN INTERACTION LANGUAGE IS MANDATORY (standing project rule)
  * SOURCE: John's own Suno testing, established before round 4 and re-confirmed

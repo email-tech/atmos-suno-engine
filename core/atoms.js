@@ -23,7 +23,7 @@
 import { CHAR_LIMIT, ALWAYS_BAN, BEATLESS_BAN } from './constants.js';
 import { evaluateCongruence } from './rules.js';
 import { bedAtom, bedAllowed } from './beds.js';
-import { selectNegatives, vocalRestraintCandidates, ORCHESTRAL_NEGATIVES } from './knowledge.js';
+import { selectNegatives, vocalRestraintCandidates, ORCHESTRAL_NEGATIVES, SINGLETON_INSTRUMENT_WORDS } from './knowledge.js';
 import { classifyInstrument, planePhrase, pairLink } from './linking.js';
 import { modifierList } from './atom-modifiers.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
@@ -158,16 +158,70 @@ function reconcile(held){
       .map(x => x.replace(/[^a-z- ]/g,'').trim())
       .filter(x => x && x.length > 3);
   };
-  const rank = (at) => at.signature ? 0 : (at.source==='overlay' ? 1 : 2);
+  // SINGLETON WORDS (2026-08-14, core/knowledge.js SINGLETON_INSTRUMENT_WORDS,
+  // found while building step 3 of the reliability pass). heads() above
+  // missed "grand piano" [motif] vs "felt piano" [texture] — different
+  // qualifiers, same bare instrument word, still two pianos to a listener.
+  //
+  // KEPT AS A FULLY SEPARATE claim set from `claimed` (not merged into the
+  // same tokens), on purpose — found via a second false positive the same
+  // session: composer_conti's "soft string swells answering quietly under
+  // the piano" opens WITH a stop word ('soft' at position 0), so heads()'s
+  // own truncation guard (`m.index > 0`) never fires and the WHOLE sentence
+  // survives into `claimed` as one long, untruncated segment. Once "piano"
+  // existed anywhere as a short claimed token (from a genuine singleton
+  // match elsewhere), `x.includes(c)` caught it as a substring of that long
+  // sentence too — a clash between an actual second piano and a sentence
+  // that only mentions "piano" in a trailing callback to the FIRST one are
+  // different things, and mixing the two token sets conflated them. This set
+  // only ever compares a singleton word against another singleton word.
+  const singleHead = (txt) => {
+    const raw = String(txt||'').toLowerCase().replace(/^(a|an|the) /,'');
+    const m = raw.match(STOP);
+    // truncate at the stop word REGARDLESS of position (an empty result is
+    // harmless — no singleton found), unlike heads()'s own guard above, which
+    // must avoid truncating to nothing since it still needs a segment to
+    // compare full-string. That's fine here: no bare word found in an empty
+    // string just means this atom makes no singleton claim.
+    const t = m ? raw.slice(0, m.index) : raw;
+    return SINGLETON_INSTRUMENT_WORDS.filter(w => t.includes(w));
+  };
+  const claimedSingles = new Set();
+  // PRIORITY-AWARE CLAIM ORDER (2026-08-14). Within the engine tier, a bare
+  // singleton-word clash (above) must not cost the arrangement its LEAD —
+  // without this, whichever engine atom happened to sit earlier in
+  // ROLE_SPEC's key order (texture, before motif) would claim "piano" first
+  // and the melody itself would be the one silently dropped. core atoms
+  // (bass/groove/pads/lead) now claim before support (strings/counter) before
+  // decorative (perc/texture/colour), so a clash always costs the least
+  // important voice, never the most. Signature and overlay ordering is
+  // unchanged from before.
+  const PRI = { core:0, support:1, decorative:2 };
+  const rank = (at) => at.signature ? 0 : (at.source==='overlay' ? 1 : 2 + (PRI[at.priority] != null ? PRI[at.priority] : PRI.decorative) / 10);
   const doomed = new Set();
   for (const at of [...kept].sort((a,b) => rank(a)-rank(b))) {
     if (!at.instrument) continue;
     if (at.family==='bass' || at.family==='drums') continue;
     const h = heads(at.instrument);
-    if (!h.length) continue;
-    const clash = h.some(x => [...claimed].some(c => c.includes(x) || x.includes(c)));
-    if (clash && !at.signature) { doomed.add(at); continue; }
+    const s = singleHead(at.instrument);
+    if (!h.length && !s.length) continue;
+    const clash = (h.length && h.some(x => [...claimed].some(c => c.includes(x) || x.includes(c)))) ||
+                  (s.length && s.some(w => claimedSingles.has(w)));
+    // CORE IS NEVER DOOMED (2026-08-14). Step 3 makes bass/pads/motif
+    // genuinely mandatory (chance:1, always drawn from a non-empty pool);
+    // letting a bystander singleton-word clash against overlay prose (e.g.
+    // an overlay's own "electric-piano" text vs. the character's own drawn
+    // "grand piano" lead) silently drop the lead would un-mandate exactly
+    // the role this step exists to protect, and orphans compose()'s
+    // downstream clauses that assume lead's presence (counterClause, the
+    // family-pair link). A rare remaining edge case — the bare word can still
+    // appear twice across overlay prose + a core engine atom — is a strictly
+    // better outcome than losing the melody or a dangling counter reference,
+    // and is flagged in the decision log rather than silently accepted.
+    const isCoreEngine = at.source !== 'overlay' && at.priority === 'core';
+    if (clash && !at.signature && !isCoreEngine) { doomed.add(at); continue; }
     h.forEach(x => claimed.add(x));
+    s.forEach(w => claimedSingles.add(w));
   }
   kept = kept.filter(at => !doomed.has(at));
   return kept;

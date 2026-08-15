@@ -114,7 +114,7 @@ export const ATOM_COMPOSERS = {
     ov_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
                  instrument:'a lone oboe line answering in the gaps' },
     ov_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'decorative',
-                 instrument:'prepared-piano shimmer' },
+                 instrument:'prepared-string shimmer' },
     ov_colour: { role:'colour', family:'colour', fn:'accent', priority:'decorative',
                  instrument:'vibraphone and celesta sparkle' },
     ov_harm:   { role:'harmony', family:'harmony', fn:'chord-movement', priority:'support',

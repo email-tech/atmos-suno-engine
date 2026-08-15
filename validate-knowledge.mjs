@@ -14,7 +14,7 @@ import { ATOM_MODIFIERS, resolveModifier } from './core/atom-modifiers.js';
 import { generate } from './js/generate.js';
 import { initState, syncEngineDefaults } from './js/state.js';
 import {
-  NEGATIVE_CAP, NEGATIVE_RANKS, selectNegatives, BANNED_ARTICULATION_RE,
+  NEGATIVE_CAP, NEGATIVE_RANKS, selectNegatives, BANNED_ARTICULATION_RE, SINGLETON_INSTRUMENT_WORDS,
 } from './core/knowledge.js';
 
 let checks = 0, fails = 0;
@@ -130,21 +130,38 @@ const MODS = Object.keys(ATOM_MODIFIERS);
  * A3: "The prompt has French horn use at odds with one another."
  * Naming one instrument N times tells Suno to render N of them. */
 {
-  const WATCH = ['french horn', 'cello', 'violin', 'oboe', 'flute', 'piano', 'nylon guitar', 'marimba', 'vibraphone'];
+  // WATCH now imported from core/knowledge.js (SINGLETON_INSTRUMENT_WORDS) —
+  // single source of truth with the reconcile-time prevention in
+  // core/atoms.js (2026-08-14, step 3). Previously this validator alone knew
+  // the list, so nothing in generation prevented what the test could only
+  // detect after the fact.
+  const WATCH = SINGLETON_INSTRUMENT_WORDS;
+  // SEED SWEEP widened from a single fixed seed (777) to five (2026-08-14,
+  // found via ad-hoc stress-testing beyond this file: a wider sweep surfaced
+  // a real 3x "piano" case — grand piano [lead] + a linking-guide callback
+  // phrase + an overlay's own "electric-piano" colour atom — that seed 777
+  // alone never sampled. Confirmed that specific case only reachable via the
+  // retired gen-1 overlay path (raw overlayId -> ATOM_OVERLAYS), not via
+  // resolveModifier as this check (and generate.js) uses — so it isn't a
+  // live-app regression, but the single-seed gap itself was real and is
+  // fixed here rather than left as a known blind spot.
+  const SEEDS = [777, 42, 909, 31337, 4242];
   let worst = 0, worstWhat = '';
   for (const cid of CHARS) {
-    for (const pal of ['acoustic', 'electronic']) {
+    for (const pal of ['acoustic', 'electronic', 'blend']) {
       const ch = atomCharacterForPalette(ATOM_POOL_CHARACTERS[cid], pal);
       for (const mid of MODS) {
-        const out = buildAtoms(ch, { seed: 777, overlayDef: resolveModifier(mid, null, null, pal) });
-        const style = out.style.toLowerCase();
-        for (const w of WATCH) {
-          const n = (style.match(new RegExp(w.replace(' ', '\\s+') + 's?', 'g')) || []).length;
-          if (n > worst) { worst = n; worstWhat = `${w} x${n} (${mid} on ${cid} [${pal}])`; }
-          // 2 is the tolerated ceiling: a bed may legitimately contain the same
-          // family the signature solos on (Barry's solo horn over held horns).
-          // 3+ is the defect John reported.
-          if (n >= 3) bad(`"${w}" named ${n} times — ${mid} on ${cid} [${pal}]`);
+        for (const seed of SEEDS) {
+          const out = buildAtoms(ch, { seed, overlayDef: resolveModifier(mid, null, null, pal) });
+          const style = out.style.toLowerCase();
+          for (const w of WATCH) {
+            const n = (style.match(new RegExp(w.replace(' ', '\\s+') + 's?', 'g')) || []).length;
+            if (n > worst) { worst = n; worstWhat = `${w} x${n} (${mid} on ${cid} [${pal}] seed ${seed})`; }
+            // 2 is the tolerated ceiling: a bed may legitimately contain the same
+            // family the signature solos on (Barry's solo horn over held horns).
+            // 3+ is the defect John reported.
+            if (n >= 3) bad(`"${w}" named ${n} times — ${mid} on ${cid} [${pal}] seed ${seed}`);
+          }
         }
       }
     }

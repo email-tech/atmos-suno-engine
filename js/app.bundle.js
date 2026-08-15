@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"af5da59","date":"2026-08-14"};
+window.__ATMOS_BUILD__ = {"commit":"43eed80","date":"2026-08-14"};
 
 /* core/constants.js */
 (function(){
@@ -652,7 +652,7 @@ const ATOM_COMPOSERS = {
     ov_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
                  instrument:'a lone oboe line answering in the gaps' },
     ov_texture:{ role:'texture', family:'texture', fn:'sustain-under', priority:'decorative',
-                 instrument:'prepared-piano shimmer' },
+                 instrument:'prepared-string shimmer' },
     ov_colour: { role:'colour', family:'colour', fn:'accent', priority:'decorative',
                  instrument:'vibraphone and celesta sparkle' },
     ov_harm:   { role:'harmony', family:'harmony', fn:'chord-movement', priority:'support',
@@ -1480,6 +1480,29 @@ const CONVENTION_BLEED = true;
  * ------------------------------------------------------------------------*/
 const ONE_VOICE_ONE_MENTION = true;
 
+/* SINGLETON_INSTRUMENT_WORDS — the bare-headword set the rule above applies
+ * to (2026-08-14, found while building step 3 of the reliability pass: the
+ * cross-family de-dupe matched on the full instrument STRING, so "grand
+ * piano" [motif] and "felt piano" [texture] never clashed, then a linking-
+ * guide phrase referring back to the lead as "piano" made it three bare
+ * mentions of the word in one style string — exactly the round-4 pattern,
+ * undetected because nothing compared bare headwords, only full names).
+ *
+ * Deliberately short and specific, NOT a general "last word of a multi-word
+ * instrument name" rule — that would wrongly dedupe legitimately co-existing
+ * voices sharing a family word (synth lead / synth pads / synth bass must
+ * stay free to coexist; a nylon guitar and an electric guitar are two
+ * different instruments, not the same one twice). Every entry here is a case
+ * where the bare word alone already reads as one instrument to a listener
+ * regardless of qualifier — two different pianos are still two pianos, the
+ * same way two French horns are two French horns. Single source of truth for
+ * both the reconcile-time prevention (core/atoms.js) and the regression
+ * check (validate-knowledge.mjs) — previously the validator alone knew this
+ * list, so nothing in generation prevented what the test could only detect
+ * after the fact. */
+const SINGLETON_INSTRUMENT_WORDS =
+  ['french horn', 'cello', 'violin', 'oboe', 'flute', 'piano', 'nylon guitar', 'marimba', 'vibraphone'];
+
 /* --------------------------------------------------------------------------
  * 6. WOVEN INTERACTION LANGUAGE IS MANDATORY (standing project rule)
  * SOURCE: John's own Suno testing, established before round 4 and re-confirmed
@@ -1489,7 +1512,7 @@ const ONE_VOICE_ONE_MENTION = true;
  * ------------------------------------------------------------------------*/
 const INTERACTION_LANGUAGE_MANDATORY = true;
 
-Object.assign(window.__ATMOS, { vocalRestraintCandidates, capNegativesOrdered, selectNegatives, NEGATIVE_CAP, NEGATIVE_RANKS, VOCAL_RESTRAINT_TERMS, SOFT_CHARACTER_RE, ORCHESTRAL_NEGATIVES, BANNED_ARTICULATION, BANNED_ARTICULATION_RE, POSITION_IS_PROMINENCE, CONVENTION_BLEED, ONE_VOICE_ONE_MENTION, INTERACTION_LANGUAGE_MANDATORY });
+Object.assign(window.__ATMOS, { vocalRestraintCandidates, capNegativesOrdered, selectNegatives, NEGATIVE_CAP, NEGATIVE_RANKS, VOCAL_RESTRAINT_TERMS, SOFT_CHARACTER_RE, ORCHESTRAL_NEGATIVES, BANNED_ARTICULATION, BANNED_ARTICULATION_RE, POSITION_IS_PROMINENCE, CONVENTION_BLEED, ONE_VOICE_ONE_MENTION, SINGLETON_INSTRUMENT_WORDS, INTERACTION_LANGUAGE_MANDATORY });
 })();
 
 /* core/resolver.js */
@@ -2972,7 +2995,7 @@ const ATOM_MODIFIERS = {
       // S2 — the prepared/plucked tell.
       prepared_pluck: { label: 'Prepared piano and pizzicato', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature',
-                    instrument:'prepared-piano and pizzicato accents, quiet under the melody' },
+                    instrument:'prepared-string and pizzicato accents, quiet under the melody' },
         mo_lead:  { role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
                     instrument:'a spare solo tack-piano melody' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
@@ -4149,7 +4172,7 @@ Object.assign(window.__ATMOS, { modifierCores, modifierSignatures, modifierList,
 const {CHAR_LIMIT, ALWAYS_BAN, BEATLESS_BAN} = window.__ATMOS;
 const {evaluateCongruence} = window.__ATMOS;
 const {bedAtom, bedAllowed} = window.__ATMOS;
-const {selectNegatives, vocalRestraintCandidates, ORCHESTRAL_NEGATIVES} = window.__ATMOS;
+const {selectNegatives, vocalRestraintCandidates, ORCHESTRAL_NEGATIVES, SINGLETON_INSTRUMENT_WORDS} = window.__ATMOS;
 const {classifyInstrument, planePhrase, pairLink} = window.__ATMOS;
 const {modifierList} = window.__ATMOS;
 const {ATOM_COMPOSERS} = window.__ATMOS;
@@ -4284,16 +4307,70 @@ function reconcile(held){
       .map(x => x.replace(/[^a-z- ]/g,'').trim())
       .filter(x => x && x.length > 3);
   };
-  const rank = (at) => at.signature ? 0 : (at.source==='overlay' ? 1 : 2);
+  // SINGLETON WORDS (2026-08-14, core/knowledge.js SINGLETON_INSTRUMENT_WORDS,
+  // found while building step 3 of the reliability pass). heads() above
+  // missed "grand piano" [motif] vs "felt piano" [texture] — different
+  // qualifiers, same bare instrument word, still two pianos to a listener.
+  //
+  // KEPT AS A FULLY SEPARATE claim set from `claimed` (not merged into the
+  // same tokens), on purpose — found via a second false positive the same
+  // session: composer_conti's "soft string swells answering quietly under
+  // the piano" opens WITH a stop word ('soft' at position 0), so heads()'s
+  // own truncation guard (`m.index > 0`) never fires and the WHOLE sentence
+  // survives into `claimed` as one long, untruncated segment. Once "piano"
+  // existed anywhere as a short claimed token (from a genuine singleton
+  // match elsewhere), `x.includes(c)` caught it as a substring of that long
+  // sentence too — a clash between an actual second piano and a sentence
+  // that only mentions "piano" in a trailing callback to the FIRST one are
+  // different things, and mixing the two token sets conflated them. This set
+  // only ever compares a singleton word against another singleton word.
+  const singleHead = (txt) => {
+    const raw = String(txt||'').toLowerCase().replace(/^(a|an|the) /,'');
+    const m = raw.match(STOP);
+    // truncate at the stop word REGARDLESS of position (an empty result is
+    // harmless — no singleton found), unlike heads()'s own guard above, which
+    // must avoid truncating to nothing since it still needs a segment to
+    // compare full-string. That's fine here: no bare word found in an empty
+    // string just means this atom makes no singleton claim.
+    const t = m ? raw.slice(0, m.index) : raw;
+    return SINGLETON_INSTRUMENT_WORDS.filter(w => t.includes(w));
+  };
+  const claimedSingles = new Set();
+  // PRIORITY-AWARE CLAIM ORDER (2026-08-14). Within the engine tier, a bare
+  // singleton-word clash (above) must not cost the arrangement its LEAD —
+  // without this, whichever engine atom happened to sit earlier in
+  // ROLE_SPEC's key order (texture, before motif) would claim "piano" first
+  // and the melody itself would be the one silently dropped. core atoms
+  // (bass/groove/pads/lead) now claim before support (strings/counter) before
+  // decorative (perc/texture/colour), so a clash always costs the least
+  // important voice, never the most. Signature and overlay ordering is
+  // unchanged from before.
+  const PRI = { core:0, support:1, decorative:2 };
+  const rank = (at) => at.signature ? 0 : (at.source==='overlay' ? 1 : 2 + (PRI[at.priority] != null ? PRI[at.priority] : PRI.decorative) / 10);
   const doomed = new Set();
   for (const at of [...kept].sort((a,b) => rank(a)-rank(b))) {
     if (!at.instrument) continue;
     if (at.family==='bass' || at.family==='drums') continue;
     const h = heads(at.instrument);
-    if (!h.length) continue;
-    const clash = h.some(x => [...claimed].some(c => c.includes(x) || x.includes(c)));
-    if (clash && !at.signature) { doomed.add(at); continue; }
+    const s = singleHead(at.instrument);
+    if (!h.length && !s.length) continue;
+    const clash = (h.length && h.some(x => [...claimed].some(c => c.includes(x) || x.includes(c)))) ||
+                  (s.length && s.some(w => claimedSingles.has(w)));
+    // CORE IS NEVER DOOMED (2026-08-14). Step 3 makes bass/pads/motif
+    // genuinely mandatory (chance:1, always drawn from a non-empty pool);
+    // letting a bystander singleton-word clash against overlay prose (e.g.
+    // an overlay's own "electric-piano" text vs. the character's own drawn
+    // "grand piano" lead) silently drop the lead would un-mandate exactly
+    // the role this step exists to protect, and orphans compose()'s
+    // downstream clauses that assume lead's presence (counterClause, the
+    // family-pair link). A rare remaining edge case — the bare word can still
+    // appear twice across overlay prose + a core engine atom — is a strictly
+    // better outcome than losing the melody or a dangling counter reference,
+    // and is flagged in the decision log rather than silently accepted.
+    const isCoreEngine = at.source !== 'overlay' && at.priority === 'core';
+    if (clash && !at.signature && !isCoreEngine) { doomed.add(at); continue; }
     h.forEach(x => claimed.add(x));
+    s.forEach(w => claimedSingles.add(w));
   }
   kept = kept.filter(at => !doomed.has(at));
   return kept;
@@ -5186,6 +5263,36 @@ const ROLE_SPEC = {
   color:   { key:'colour',  family:'colour',  register:'high',     fn:'accent',            priority:'decorative', chance:0.5 },
 };
 
+// ROLE BUDGET (2026-08-14, step 3 of the reliability pass, audit finding 1).
+// "collect() fills every role unconditionally, and only colour carries a
+// chance value (0.5)." Measured: pads/texture/lead/counter/harmony/movement
+// 100%, bass/strings ~96%, perc ~88%, groove ~83% present across 4,800 builds.
+//
+// TIERED FIRE-PROBABILITY, keyed off the `priority` field ROLE_SPEC already
+// carries (used elsewhere for reconcile's contest ranking — this is a second,
+// independent use of the same authored classification, not a new taxonomy):
+//   core       -> mandatory, chance 1   (bass, groove, pads, lead — the voices
+//                 that ARE the genre; required-role coverage already enforced
+//                 by validate-instruments.mjs REQUIRED, unaffected).
+//   support    -> preferred, chance 0.75 (strings, counter — present most of
+//                 the time, not guaranteed).
+//   decorative -> optional, chance 0.5   (perc, texture, colour — colour has
+//                 carried exactly this value since Phase B, 2026-07-23; perc
+//                 and texture now get the same treatment instead of being the
+//                 two decorative roles left at 100%/88%).
+// REASONED DESIGN CHOICE, same evidence class as SOFT_CHARACTER_RE in
+// core/knowledge.js: this is arrangement craft (a real small-ensemble mix
+// doesn't have every layer audible on every pass), not a Suno-tested finding
+// like NEGATIVE_RANKS. Numbers are provisional — flagged to John for
+// adjustment, same as every other unproven-but-reasoned value in this project.
+// compose() (core/atoms.js) already guards every non-core role's clause with
+// `if (x) ...`, so an absent perc/strings/texture/counter/colour atom drops
+// its clause cleanly with no broken fragment — verified by reading, not
+// assumed. A hard MAX-CONCURRENT-VOICE cap (the other half of spec §17) is
+// NOT built here — that needs a specific number from John, not one invented
+// to fill the gap; left open, logged as such.
+const TIER_CHANCE = { support: 0.75, decorative: 0.5 };
+
 // BLEND PALETTE (2026-08-14, John: "I noticed in the Balearic atom, that there
 // is no Blend function either"). The legacy path has always had blend
 // (core/constants.js filterPalette) — this was an atom-path gap, not a
@@ -5232,11 +5339,12 @@ function paletteAtoms(cluster, pal) {
     const a = { role: spec.family === 'drums' ? 'rhythm' : poolRole,
                 family: spec.family, register: spec.register, fn: spec.fn,
                 instrument: names.slice(), timbre: [], priority: spec.priority };
+    if (spec.chance != null) a.chance = spec.chance;
+    else if (TIER_CHANCE[spec.priority] != null) a.chance = TIER_CHANCE[spec.priority];
     if (spec.prominence) a.prominence = spec.prominence;
     if (spec.mix) a.mix = spec.mix;
     if (spec.dynamic) a.dynamic = spec.dynamic;
     if (spec.density) a.density = spec.density;
-    if (spec.chance != null) a.chance = spec.chance;
     atoms[spec.key] = a;
   }
   // harmony + movement are structural TEXT atoms drawn from cluster metadata.

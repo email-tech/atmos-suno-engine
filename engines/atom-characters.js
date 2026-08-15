@@ -49,6 +49,36 @@ const ROLE_SPEC = {
   color:   { key:'colour',  family:'colour',  register:'high',     fn:'accent',            priority:'decorative', chance:0.5 },
 };
 
+// ROLE BUDGET (2026-08-14, step 3 of the reliability pass, audit finding 1).
+// "collect() fills every role unconditionally, and only colour carries a
+// chance value (0.5)." Measured: pads/texture/lead/counter/harmony/movement
+// 100%, bass/strings ~96%, perc ~88%, groove ~83% present across 4,800 builds.
+//
+// TIERED FIRE-PROBABILITY, keyed off the `priority` field ROLE_SPEC already
+// carries (used elsewhere for reconcile's contest ranking — this is a second,
+// independent use of the same authored classification, not a new taxonomy):
+//   core       -> mandatory, chance 1   (bass, groove, pads, lead — the voices
+//                 that ARE the genre; required-role coverage already enforced
+//                 by validate-instruments.mjs REQUIRED, unaffected).
+//   support    -> preferred, chance 0.75 (strings, counter — present most of
+//                 the time, not guaranteed).
+//   decorative -> optional, chance 0.5   (perc, texture, colour — colour has
+//                 carried exactly this value since Phase B, 2026-07-23; perc
+//                 and texture now get the same treatment instead of being the
+//                 two decorative roles left at 100%/88%).
+// REASONED DESIGN CHOICE, same evidence class as SOFT_CHARACTER_RE in
+// core/knowledge.js: this is arrangement craft (a real small-ensemble mix
+// doesn't have every layer audible on every pass), not a Suno-tested finding
+// like NEGATIVE_RANKS. Numbers are provisional — flagged to John for
+// adjustment, same as every other unproven-but-reasoned value in this project.
+// compose() (core/atoms.js) already guards every non-core role's clause with
+// `if (x) ...`, so an absent perc/strings/texture/counter/colour atom drops
+// its clause cleanly with no broken fragment — verified by reading, not
+// assumed. A hard MAX-CONCURRENT-VOICE cap (the other half of spec §17) is
+// NOT built here — that needs a specific number from John, not one invented
+// to fill the gap; left open, logged as such.
+const TIER_CHANCE = { support: 0.75, decorative: 0.5 };
+
 // BLEND PALETTE (2026-08-14, John: "I noticed in the Balearic atom, that there
 // is no Blend function either"). The legacy path has always had blend
 // (core/constants.js filterPalette) — this was an atom-path gap, not a
@@ -95,11 +125,12 @@ function paletteAtoms(cluster, pal) {
     const a = { role: spec.family === 'drums' ? 'rhythm' : poolRole,
                 family: spec.family, register: spec.register, fn: spec.fn,
                 instrument: names.slice(), timbre: [], priority: spec.priority };
+    if (spec.chance != null) a.chance = spec.chance;
+    else if (TIER_CHANCE[spec.priority] != null) a.chance = TIER_CHANCE[spec.priority];
     if (spec.prominence) a.prominence = spec.prominence;
     if (spec.mix) a.mix = spec.mix;
     if (spec.dynamic) a.dynamic = spec.dynamic;
     if (spec.density) a.density = spec.density;
-    if (spec.chance != null) a.chance = spec.chance;
     atoms[spec.key] = a;
   }
   // harmony + movement are structural TEXT atoms drawn from cluster metadata.

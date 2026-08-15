@@ -123,7 +123,7 @@ export const ATOM_MODIFIERS = {
       // S2 — the prepared/plucked tell.
       prepared_pluck: { label: 'Prepared piano and pizzicato', atoms: {
         mo_colour:{ role:'colour', family:'colour', fn:'accent', priority:'signature',
-                    instrument:'prepared-piano and pizzicato accents, quiet under the melody' },
+                    instrument:'prepared-string and pizzicato accents, quiet under the melody' },
         mo_lead:  { role:'motif', family:'lead', fn:'foreground-melody', priority:'signature', signature:true,
                     instrument:'a spare solo tack-piano melody' },
         mo_counter:{ role:'counter', family:'counter', fn:'answer', priority:'support',
