@@ -2,6 +2,7 @@ import { ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette } f
 import { NEGATIVE_CAP, capNegativesOrdered, vocalRestraintCandidates } from './knowledge.js';
 import { compactPart } from './compress.js';
 import { slotFamily } from './overlays.js';
+import { pickTail, guardTail } from './interplay.js';
 
 /* ---- HARMONY BRIGHTNESS WEIGHTING (John, 2026-08-13) ----------------------
  * "Music played in a Major Key sounds too happy and sugary sweet... this key
@@ -78,6 +79,9 @@ export function resolveArrangement(engine, opts) {
 
   const arr = {
     engine: engine.id,
+    /* characterId (not just the display label) so renderStyle can reach this
+     * character's interplay pool for the render-time guard below. */
+    characterId,
     character: c.label,
     genre: c.genre,
     beatless: !!c.beatless,
@@ -105,9 +109,15 @@ export function resolveArrangement(engine, opts) {
 
   // interplay / arrangement layer — WOVEN into the style string (per John's Suno test).
   // role-generic tails that hang off already-named instruments (never re-name one).
+  //
+  // CONDITIONAL since 2026-08-17: the pool is filtered to tails whose references
+  // are satisfied by THIS arrangement before the draw, so a tail can no longer
+  // name a voice the build does not contain. See core/interplay.js. Still exactly
+  // one rng call per dimension, so seed behaviour is unchanged in shape (the
+  // phrase chosen for a given seed does change — that is the fix).
   const ipPool = (engine.interplay && engine.interplay[characterId]) || {};
   const one = (dim) => (ipPool[dim] && ipPool[dim].length)
-    ? ipPool[dim][Math.floor(rand() * ipPool[dim].length)] : null;
+    ? pickTail(ipPool[dim], arr, dim, rand) : null;
   arr.ip = {
     foundation:   one('foundation'),
     conversation: one('conversation'),
@@ -124,7 +134,17 @@ export function resolveArrangement(engine, opts) {
 //   genre -> tempo -> [drums+bass+foundation] -> [pads+lead+conversation] -> harmony
 //         -> [voice+voiceRel] -> [colour+colourRel if it fires] -> [movement+arc] -> mastering
 export function renderStyle(engine, arr) {
-  const ip = arr.ip || {};
+  /* RENDER-TIME INTERPLAY GUARD (2026-08-17). Pick-time filtering is not enough
+   * on its own: applyOverlay() rewrites arr.bass / arr.lead / arr.color / arr.pads
+   * AFTER the tails were chosen, and injects its own arc straight into arr.ip
+   * without passing any gate at all. Re-checking here means a tail is legal
+   * against the arrangement AS RENDERED, which is the only state that reaches
+   * Suno. Deterministic re-pick, no fresh randomness — see core/interplay.js. */
+  const ipPool = (engine && engine.interplay && engine.interplay[arr.characterId]) || {};
+  const ip = {};
+  for (const [dim, sel] of Object.entries(arr.ip || {})) {
+    ip[dim] = guardTail(ipPool[dim] || [], arr, dim, sel);
+  }
   const clauses = [arr.genre];
 
   // tempo + energy

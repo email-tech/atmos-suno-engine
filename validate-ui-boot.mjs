@@ -126,7 +126,31 @@ await new Promise(r => setTimeout(r, 60));
     if (jsErrors.length) jsErrors.forEach(e => bad(`selecting a composer threw: ${e.split('\n')[0]}`));
 
     const html = doc.getElementById('app').innerHTML;
-    ok(html.includes('secondary arrangement layer'), 'selecting Hans Zimmer should append the composer\'s secondary-layer clause to the style prompt (this exact silent failure was bug #2 — buildLegacyDNA/runMetatagEngine chain broken by a missing bundle entry)');
+    /* CONTRACT UPDATED 2026-08-17. This asserted the literal string "secondary
+     * arrangement layer" — the retired blanket clause that ensemble
+     * reconciliation deliberately removed, because John's objection was that a
+     * comma-list of five instruments under one blanket phrase "means nothing
+     * really in musical terms". validate-composer-layers was migrated to the new
+     * contract when the cast shipped; THIS check was not, and it did not fail
+     * because core/cast.js was missing from build.mjs's files[] so
+     * validate-ui-boot was still loading a pre-cast bundle. Two faults hiding
+     * each other. The contract now is the one that matters musically: the
+     * composer's instruments reach the style prompt individually, and the
+     * mastering tail stays last. */
+    const styleBlock = html.replace(/<[^>]+>/g, ' ');
+    ok(/low strings/i.test(styleBlock) || /French horns/i.test(styleBlock),
+      'selecting Hans Zimmer should put the composer\'s instruments into the style prompt as named voices in the reconciled cast');
+    ok(!/secondary arrangement layer/i.test(styleBlock),
+      'the retired blanket composer clause is back — it was removed because it names instruments it cannot describe');
+    const mastIdx = styleBlock.indexOf('Polished Dolby Atmos');
+    const compIdx = styleBlock.search(/low strings|French horns|trombones/i);
+    if (mastIdx >= 0 && compIdx >= 0) {
+      /* Position-based rather than "nothing after mastering": the page renders
+       * several blocks (style, negative, metatags) and the metatag block names
+       * instruments too, so a naive tail scan flags correct output. */
+      ok(compIdx < mastIdx,
+        'composer content must sit BEFORE the mastering tail — mastering is terminal by design (was 342/342 after it)');
+    }
     ok(html.includes('Metatags'), 'selecting a composer should surface a Metatags output block (this exact silent failure was the try/catch in generate.js swallowing bug #3)');
   }
 }

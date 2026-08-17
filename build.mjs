@@ -61,6 +61,7 @@ const files = [
   'core/constants.js',
   'core/compress.js',
   'core/overlays.js',
+  'core/interplay.js',
   'core/resolver.js',
   'core/atom-composers.js',
   'core/atom-producers.js',
@@ -72,6 +73,16 @@ const files = [
   'core/linking.js',
   'core/rules.js',
   'core/atom-modifiers.js',
+  /* core/cast.js was MISSING from this list when ensemble reconciliation shipped
+   * (fc58135, 2026-08-17). The bundler threw on every run from that commit on,
+   * so js/app.bundle.js was never regenerated and the committed bundle still
+   * carried the f1c9298 marker — the whole reconciliation (bed budget, lead
+   * budget, composer entering the cast, the expanded acoustic beds) was present
+   * in source and ABSENT from the app John actually opens. Found 2026-08-17 when
+   * the bundler refused to build core/interplay.js for the same reason. The
+   * guard did its job; nothing else would have caught it, because
+   * validate-ui-boot loads the COMMITTED bundle and that older bundle boots fine. */
+  'core/cast.js',
   'core/atoms.js',
   'core/instruments.js',      // must precede atom-characters.js, which imports eligible()
   'engines/atom-pools.js',
@@ -179,8 +190,33 @@ for (const f of orderedFiles) {
   src = src.replace(/export\s+async\s+function\s+([A-Za-z0-9_$]+)/g, (m, n) => { exports.push(n); return 'async function ' + n; });
   src = src.replace(/export\s+function\s+([A-Za-z0-9_$]+)/g, (m, n) => { exports.push(n); return 'function ' + n; });
   src = src.replace(/export\s+const\s+([A-Za-z0-9_$]+)/g, (m, n) => { exports.push(n); return 'const ' + n; });
-  // named imports -> pull from the shared registry (producer already ran)
-  src = src.replace(/import\s*{([^}]*)}\s*from\s*['"][^'"]*['"];?/g, (m, names) => `const {${names.trim().replace(/\s+/g, ' ')}} = window.__ATMOS;`);
+  /* Named imports -> pull from the shared registry (producer already ran).
+   *
+   * ALIAS SUPPORT (2026-08-17). `import { A as B }` was previously rewritten to
+   * `const { A as B } = ...`, which is not valid destructuring syntax — the
+   * rename form is `{ A: B }`. The bundle it produced threw "Unexpected
+   * identifier 'as'" on the FIRST LINE and the whole app rendered nothing.
+   * core/cast.js was the first file in the project to use an alias
+   * (SINGLETON_INSTRUMENT_WORDS as SINGLETON_WORDS), and because cast.js was
+   * also missing from files[] the bundler never got far enough to emit it, so
+   * two independent faults hid each other for a full session. */
+  src = src.replace(/import\s*{([^}]*)}\s*from\s*['"][^'"]*['"];?/g, (m, names) => {
+    const bindings = names.trim().replace(/\s+/g, ' ')
+      .replace(/\b([A-Za-z0-9_$]+)\s+as\s+([A-Za-z0-9_$]+)/g, '$1: $2');
+    return `const {${bindings}} = window.__ATMOS;`;
+  });
+
+  /* FAIL LOUDLY ON ANY MODULE SYNTAX THIS BUNDLER DOES NOT HANDLE.
+   * The alias bug was invisible because the bundler happily wrote a file it
+   * could not have parsed. Everything above rewrites a known form; anything
+   * left is a form nobody taught it, and shipping that silently is how a broken
+   * bundle reaches John's browser while every source-level validator passes.
+   * `import * as X`, `export default`, `export {…}` and `export * from` all land
+   * here rather than in the output. */
+  const leftover = src.match(/^\s*(import|export)\b.*$/m);
+  if (leftover) {
+    throw new Error(`build.mjs: ${f} uses module syntax the bundler does not support: ${leftover[0].trim()}`);
+  }
   const assign = exports.length ? `\nObject.assign(window.__ATMOS, { ${exports.join(', ')} });` : '';
   out += `\n/* ${f} */\n(function(){\n${src}${assign}\n})();\n`;
 }
