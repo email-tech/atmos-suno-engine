@@ -25,7 +25,12 @@
  *     inism, and it is dependency-injected so this module is testable offline).
  * ========================================================================*/
 
-import { CONTROL_OPTIONS, STRUCTURE_TEMPLATES, TEMPLATE_FOR_SUBGENRE, templateById } from './lyric-controls.js';
+import {
+  CONTROL_OPTIONS, STRUCTURE_TEMPLATES, TEMPLATE_FOR_SUBGENRE, templateById,
+  SOURCE_TYPE_GUIDANCE, THEME_LENS_GUIDANCE, PERSPECTIVE_GUIDANCE, HOOK_STYLE_GUIDANCE,
+  IMAGERY_DENSITY_GUIDANCE, NARRATIVE_CLARITY_GUIDANCE, VOCAL_FRAMING_GUIDANCE,
+  ERA_BIAS_GUIDANCE, DELIVERY_STYLE_GUIDANCE, LANGUAGE_MODE_GUIDANCE,
+} from './lyric-controls.js';
 import { DNA_CONSUMERS } from './dna.js';
 import { validateLyrics, QUALITY_THRESHOLD, MAX_LYRIC_ATTEMPTS } from './lyric-validator.js';
 
@@ -165,6 +170,37 @@ export function assembleLyricBrief(dna, cil, answers, structure, lockedMetatags)
     // independent validator: one source of truth, not two things that can drift.
     lineLength:   a['song.lineLength']   || 'Flexible',
     rhymeDensity: a['song.rhymeDensity'] || 'Moderate',
+    /* LYRIC-BRIEF CONTROL PANEL (John, 2026-08-17). The 2026-08-13 log entry
+     * recorded the gap precisely: "original design has ~20 fields, current
+     * live UI has 4". These are the remaining Tier 2 controls — vocabulary
+     * already existed in CONTROL_OPTIONS but nothing read it from answers and
+     * nothing rendered it to the model, so selecting one changed nothing.
+     * Each has a proven default so an untouched panel produces exactly the
+     * pre-2026-08-17 prompt content for these axes. */
+    hookStyle:        a['song.hookStyle']        || 'Subtle and emotional',
+    imageryDensity:   a['song.imageryDensity']   || 'Moderate',
+    narrativeClarity: a['song.narrativeClarity'] || 'Balanced',
+    vocalFraming:     a['song.vocalFraming']     || 'Lead vocal centered',
+    eraBias:          a['song.eraBias']          || 'Timeless',
+    deliveryStyle:    a['song.deliveryStyle']    || 'Controlled and intimate',
+    /* Foreign-language layer. OFF unless explicitly enabled — see
+     * languageLayerBlock() for why an always-on "layer: none" line is worse
+     * than omitting the block entirely. */
+    languageLayer: a['song.languageLayer.enabled'] ? {
+      language:  a['song.languageLayer.language']  || CONTROL_OPTIONS.languages[0],
+      mode:      a['song.languageLayer.mode']      || 'Foreign phrase layer',
+      placement: a['song.languageLayer.placement'] || CONTROL_OPTIONS.languagePlacement[0],
+      intensity: a['song.languageLayer.intensity'] || 'Light',
+    } : null,
+    /* SOURCE RESEARCH (step 1 of the two-step flow). Provenance only — the
+     * researched premise itself has already been folded into `subject` by
+     * js/generate.js before assembleLyricBrief() is called, so the prompt
+     * needs no new field and the model sees one coherent subject block.
+     * Recorded here so a result object can be traced back to whether the
+     * grounded pre-pass actually ran. */
+    sourceResearched:   !!(a['song.sourceResearched']),
+    sourceIdentified:   a['song.sourceIdentified'] || null,
+    sourceConfidence:   a['song.sourceConfidence'] || null,
     template,
     // structure-first pipeline section list (names + positions only). Null
     // when no structure was supplied — buildLyricPrompt() falls back to
@@ -346,11 +382,62 @@ Theme lens: ${brief.themeLens}
 Perspective: ${brief.perspective}
 Language style: ${brief.languageStyle}
 Optional title seed: ${brief.titleSeed || 'none - create a suitable title from the subject/topic'}
-Vocal delivery: ${brief.deliveryClass || 'lead-melodic'}
+Vocal delivery class: ${brief.deliveryClass || 'lead-melodic'}
+Delivery style: ${brief.deliveryStyle}
+Vocal framing: ${brief.vocalFraming}
+Hook style: ${brief.hookStyle}
+Imagery density: ${brief.imageryDensity}
+Narrative clarity: ${brief.narrativeClarity}
+Era bias (lyric idiom only, never production): ${brief.eraBias}
 Line length target: ${brief.lineLength}
 Rhyme density target: ${brief.rhymeDensity}
 Structure: ${structureLabel}
-Required sections in order: ${labels.join(', ')}`;
+Required sections in order: ${labels.join(', ')}
+
+Control guidance (these define the terms above \u2014 follow them, do not reinterpret the labels):
+${controlGuidance(brief)}${languageLayerBlock(brief)}`;
+}
+
+/* controlGuidance — one definition line per SELECTED option, never the whole
+ * vocabulary. The old engine's selectedGuidance() had this right and it is
+ * the reason these strings work: handing the model nine hook-style
+ * definitions when one was chosen dilutes the one that matters. Unknown
+ * values (a hand-edited state, a future vocabulary addition) fall through
+ * silently rather than emitting an empty "Hook style guidance: undefined". */
+function controlGuidance(brief) {
+  const lines = [
+    ['Source type',       SOURCE_TYPE_GUIDANCE[brief.sourceType]],
+    ['Theme lens',        THEME_LENS_GUIDANCE[brief.themeLens]],
+    ['Perspective',       PERSPECTIVE_GUIDANCE[brief.perspective]],
+    ['Hook style',        HOOK_STYLE_GUIDANCE[brief.hookStyle]],
+    ['Imagery density',   IMAGERY_DENSITY_GUIDANCE[brief.imageryDensity]],
+    ['Narrative clarity', NARRATIVE_CLARITY_GUIDANCE[brief.narrativeClarity]],
+    ['Vocal framing',     VOCAL_FRAMING_GUIDANCE[brief.vocalFraming]],
+    ['Delivery style',    DELIVERY_STYLE_GUIDANCE[brief.deliveryStyle]],
+    ['Era bias',          ERA_BIAS_GUIDANCE[brief.eraBias]],
+  ];
+  return lines.filter(([, text]) => !!text).map(([label, text]) => `- ${label}: ${text}`).join('\n');
+}
+
+/* languageLayerBlock — renders NOTHING when the layer is off. A permanent
+ * "Language layer enabled: false / Language: French / Mode: None" stanza (what
+ * the old engine emitted unconditionally) spends prompt attention telling the
+ * model about a feature it must ignore, and repeatedly names a language it
+ * must not use \u2014 the opposite of the intent. */
+function languageLayerBlock(brief) {
+  const L = brief.languageLayer;
+  if (!L) return '';
+  const modeGuidance = LANGUAGE_MODE_GUIDANCE[L.mode];
+  return [
+    '',
+    '',
+    `Foreign-language layer (ACTIVE): ${L.language}`,
+    `- Mode: ${L.mode}${modeGuidance ? ` \u2014 ${modeGuidance}` : ''}`,
+    `- Placement: ${L.placement}`,
+    `- Intensity: ${L.intensity} \u2014 ${L.intensity === 'Light' ? 'a few words only' : L.intensity === 'Prominent' ? 'a substantial and repeated presence' : 'a clearly audible but secondary presence'}.`,
+    '- The rest of the lyric stays English. Do not translate, gloss, transliterate, or explain the foreign lines anywhere in the output.',
+    '- Use correct, natural phrasing in that language. Do not invent words in a real language; if a sacred or invented-language texture is wanted, that is the Sacred / chant layer mode.',
+  ].join('\n');
 }
 function conceptRules() {
   return `Concept hierarchy:

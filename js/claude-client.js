@@ -45,7 +45,14 @@ export function setClaudeStoredTransportMode(mode) {
 // callClaude: the raw request. Shaped to match what runLyricEngine's
 // `transport({prompt, model, temperature, maxTokens}) -> string` contract
 // expects — see makeClaudeTransport() below for the adapter.
-export async function callClaude({ apiKey, model, temperature, maxTokens, prompt, transportMode }) {
+/* WEB GROUNDING (John, 2026-08-17) — see js/gemini-client.js for the full
+ * rationale, including why this is never attached to the creative lyric call.
+ * Anthropic's server-side web search tool; the model runs the searches itself
+ * and returns a normal assistant turn, so no tool-result round trip is needed
+ * here. */
+const CLAUDE_SEARCH_TOOL = { type: 'web_search_20250305', name: 'web_search' };
+
+export async function callClaude({ apiKey, model, temperature, maxTokens, prompt, transportMode, grounded }) {
   const mode = transportMode || getClaudeStoredTransportMode();
   if (mode === 'direct' && !(apiKey && apiKey.trim())) {
     throw new Error('Missing Claude API key. Enter a key in Claude Settings before generating.');
@@ -66,6 +73,7 @@ export async function callClaude({ apiKey, model, temperature, maxTokens, prompt
         max_tokens: Number(maxTokens) || 4096,
         temperature: temperature != null ? Number(temperature) : 0.9,
         messages: [{ role: 'user', content: prompt }],
+        ...(grounded ? { tools: [CLAUDE_SEARCH_TOOL] } : {}),
       }),
     });
   } catch (error) {
@@ -82,7 +90,19 @@ export async function callClaude({ apiKey, model, temperature, maxTokens, prompt
   }
 
   const data = await response.json();
-  const text = (data.content || []).map(item => item.text || '').join('\n').trim();
+  // Select TEXT-CARRYING BLOCKS, not positions. A grounded response
+  // interleaves server_tool_use and web_search_tool_result blocks with the
+  // assistant's own text; neither carries a `.text` field, and mapping them
+  // to '' left stray newlines wrapped around the JSON the caller has to
+  // parse. Tested on `.text` presence rather than a `type === 'text'`
+  // whitelist deliberately: it excludes every tool block just as reliably
+  // while staying tolerant of a block that omits `type`, which is how the
+  // mocks in validate-live-lyric.mjs are shaped and how a local proxy might
+  // legitimately relay a response.
+  const text = (data.content || [])
+    .filter(item => item && typeof item.text === 'string')
+    .map(item => item.text)
+    .join('\n').trim();
   if (!text) throw new Error('Claude returned an empty response.');
   return text;
 }
@@ -102,7 +122,7 @@ export async function testClaudeConnection(settings) {
 // is the ONE function that turns the (previously always-mocked) lyric
 // pipeline into a real, live call.
 export function makeClaudeTransport({ apiKey, transportMode }) {
-  return async function transport({ prompt, model, temperature, maxTokens }) {
-    return callClaude({ apiKey, transportMode, model, temperature, maxTokens, prompt });
+  return async function transport({ prompt, model, temperature, maxTokens, grounded }) {
+    return callClaude({ apiKey, transportMode, model, temperature, maxTokens, prompt, grounded });
   };
 }

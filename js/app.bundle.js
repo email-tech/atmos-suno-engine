@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"4b2ca8f","date":"2026-08-15"};
+window.__ATMOS_BUILD__ = {"commit":"fca347f","date":"2026-08-15"};
 
 /* core/constants.js */
 (function(){
@@ -6440,7 +6440,12 @@ Object.assign(window.__ATMOS, { resolveStructure, presetsForType, validateEnergy
 /* core/lyric-controls.js */
 (function(){
 const CONTROL_OPTIONS = {
-  sourceType: ["Movie", "Book", "Historical figure", "Myth / legend", "True event", "Cultural movement", "Original concept", "Personal memory"],
+  // 'TV series' added 2026-08-17 (John). The other eight are the proven set
+  // ported verbatim from archive/js/data-lyric-controls.js. Order matters to
+  // the UI only; core/source-research.js decides which of these trigger the
+  // grounded research pre-pass (everything except Original concept and
+  // Personal memory).
+  sourceType: ["Movie", "TV series", "Book", "Historical figure", "Myth / legend", "True event", "Cultural movement", "Original concept", "Personal memory"],
   themeLens: ["Faithful to source", "Inspired by source", "Loose metaphor only", "Dark reinterpretation", "Romantic reinterpretation", "Triumphant reinterpretation"],
   genreFamily: ["Synthpop", "Pop", "Dance-pop", "Rock", "Ballad", "R&B", "Soul", "Reggae", "Chillout / Balearic", "Cinematic / Score-pop", "Balearic chillout", "Downtempo pop", "Ethereal trance", "Trip-hop", "Ambient vocal", "Mystic electronic", "Cinematic pop"],
   eraBias: ["1980s", "1990s", "2000s", "2010s", "2020s", "Timeless / mixed-era", "Modern Suno polish", "Early 90s", "Late 90s", "Early 2000s", "Timeless"],
@@ -6523,7 +6528,365 @@ function templateById(id) {
   return STRUCTURE_TEMPLATES.find(t => t.id === id) || null;
 }
 
-Object.assign(window.__ATMOS, { templateById, CONTROL_OPTIONS, STRUCTURE_TEMPLATES, TEMPLATE_FOR_SUBGENRE });
+/* =========================================================================
+ * CONTROL GUIDANCE (2026-08-17) — the lyric-brief control panel build.
+ *
+ * The open question logged on 2026-08-13 was whether the Tier 1 controls
+ * should ship with full guidance text or bare labels first. Full text, for a
+ * reason that is not a preference: this vocabulary is PROVEN. It is ported
+ * from archive/js/prompt-lyric-builder.js's `guidance` object, which is the
+ * lyric engine John validated empirically before the DNA rewrite. A bare
+ * enum hands the LLM a word like "Cinematic" with no shared definition and
+ * lets it guess; the guidance string is the definition that produced good
+ * output. Reused, not rebuilt — same rule as STRUCTURE_TEMPLATES above.
+ *
+ * WHAT IS DELIBERATELY *NOT* HERE. Two entries in CONTROL_OPTIONS are dead
+ * weight in the DNA-era app and are NOT exposed as user controls (the other
+ * half of the 2026-08-13 open question):
+ *   - genreFamily: genre is owned by the style engine and arrives via
+ *     DNA.identity.genreAnchor. Exposing a second genre control would put
+ *     the same field in two places, violating the one-source-of-truth rule,
+ *     and would let a user pick "Rock" against a Balearic arrangement.
+ *   - structureCategory: superseded by the structure-first pipeline. Song
+ *     type -> structure preset is decision #1 and #2 (core/structure.js);
+ *     re-asking for a structure category downstream can only contradict it.
+ * Both stay in CONTROL_OPTIONS as vocabulary (STRUCTURE_TEMPLATES still
+ * groups by structureCategory internally) — they are simply never rendered.
+ *
+ * mood/energy guidance from the old file is also absent by design: both are
+ * DERIVED in core/lyric.js (mood from CIL affect, energy from tempo), not
+ * chosen by the user, so there is no control to attach guidance to.
+ * ====================================================================== */
+
+const SOURCE_TYPE_GUIDANCE = Object.freeze({
+  "Movie": "Use cinematic scene logic: visible moments, emotional turns, and implied action. Avoid summarising the plot; write from the emotional pressure inside it.",
+  "TV series": "Use the recurring emotional situation rather than one episode's events: what repeats, what never resolves, and what the characters keep returning to. Avoid recapping storylines.",
+  "Book": "Use literary interiority: memory, motive, contradiction, and symbolic objects. Let the lyric feel read-between-the-lines rather than plot-summary.",
+  "Historical figure": "Use human stakes behind public identity: cost, legacy, private doubt, devotion, sacrifice, or myth versus person.",
+  "Myth / legend": "Use archetypal imagery and fate-scale emotion, but keep the words singable and personal rather than encyclopaedic.",
+  "True event": "Use grounded realism and consequence. Avoid sensationalising; focus on the human aftermath, choice, loss, survival, or witness.",
+  "Cultural movement": "Use collective feeling, shared language, generational tension, resistance, belonging, or change. The song can speak as an individual within a wider current.",
+  "Original concept": "Build an invented emotional world from the subject. Choose concrete images that make the concept feel lived-in.",
+  "Personal memory": "Use intimate sensory evidence, small details, and emotional specificity. The lyric should feel remembered rather than explained.",
+});
+
+const THEME_LENS_GUIDANCE = Object.freeze({
+  "Faithful to source": "Stay close to the subject's literal emotional situation. Preserve its core conflict, setting, and stakes.",
+  "Inspired by source": "Use the subject as a springboard. Keep the central feeling but allow new scenes, images, and emotional framing.",
+  "Loose metaphor only": "Transform the subject into metaphor. Avoid literal references; turn the topic into weather, distance, ritual, ocean, city, light, or body imagery.",
+  "Dark reinterpretation": "Tilt the subject toward shadow, cost, obsession, grief, danger, or unresolved longing without becoming melodramatic.",
+  "Romantic reinterpretation": "Tilt the subject toward desire, devotion, tenderness, distance, reunion, or intimate vulnerability.",
+  "Triumphant reinterpretation": "Tilt the subject toward survival, release, courage, arrival, and earned uplift rather than simple positivity.",
+});
+
+const PERSPECTIVE_GUIDANCE = Object.freeze({
+  "First person": "One speaker throughout, saying 'I'. Keep the same voice in every section.",
+  "Second person": "Address someone directly as 'you' throughout. The speaker stays implied rather than described.",
+  "Third person": "Observe the subject from outside. No 'I' and no direct address.",
+  "Alternating first and second": "Move between 'I' and 'you' deliberately \u2014 verses inward, chorus addressed outward, or the reverse. Never mix both inside one line.",
+  "Omniscient / cinematic": "Narrate from above the scene, seeing more than any one character does. Describe rather than confess.",
+  "Collective voice": "Speak as 'we'. The feeling belongs to a group, not an individual.",
+  "Fragmented voices": "Let more than one speaker surface across sections without naming them. Keep each fragment internally consistent.",
+});
+
+/* HOOK / IMAGERY / NARRATIVE / VOCAL FRAMING — Tier 2. These four were named
+ * in the 2026-08-13 spec as net-new (vocabulary present in CONTROL_OPTIONS,
+ * no UI and no prompt-construction logic). Guidance written here for the
+ * first time rather than ported: the old engine listed these options but
+ * never defined them to the model either. Marked as such so a future session
+ * does not mistake them for John-validated language. */
+const HOOK_STYLE_GUIDANCE = Object.freeze({
+  "Immediate and memorable": "The hook lands on its first appearance. Short words, strong vowels, no setup required.",
+  "Subtle and emotional": "The hook earns its weight by repetition and context rather than by being catchy on contact.",
+  "Anthemic": "Built to be sung back by a room. Wide vowels, few syllables, a line that completes itself.",
+  "Intimate": "The hook is said close and quiet, as if to one person. Restraint over reach.",
+  "Mantra-like repetition": "One phrase repeated until it changes meaning. Minimal variation between repeats.",
+  "Short repeated phrase": "A three-to-five word figure returning verbatim in every chorus.",
+  "Question hook": "The hook asks something and does not answer it.",
+  "Title hook": "The song title is the hook line and appears in the chorus intact.",
+  "Mantra hook": "A chant-shaped hook built for repetition rather than narrative progress.",
+  "Call-and-response": "The hook is answered \u2014 lead states, backing replies, in the same breath.",
+  "Melodic vowel hook": "The hook rests on open sustained vowels more than on the words themselves.",
+});
+
+const IMAGERY_DENSITY_GUIDANCE = Object.freeze({
+  "Low": "One clear image per section. Let plain statement carry the rest.",
+  "Sparse": "Very few images, each given room. Silence between them is part of the writing.",
+  "Moderate": "An image roughly every other line, balanced against direct emotional statement.",
+  "Medium": "An image roughly every other line, balanced against direct emotional statement.",
+  "High": "Image-led throughout. Concrete nouns doing the emotional work rather than adjectives.",
+  "Rich": "Dense sensory writing \u2014 layered images per section, but each must still be concrete and singable.",
+  "Symbolic": "Recurring symbolic objects rather than descriptive scenery. The same few symbols return and accumulate meaning.",
+});
+
+const NARRATIVE_CLARITY_GUIDANCE = Object.freeze({
+  "Very clear storyline": "A listener should be able to retell what happened after one play. Events in order.",
+  "Clear story": "A listener should be able to retell what happened after one play. Events in order.",
+  "Mostly clear with some poetry": "The situation is legible; the language is allowed to be figurative around it.",
+  "Balanced": "Enough narrative to orient the listener, enough ambiguity to reward a second listen.",
+  "Abstract but coherent": "No literal plot, but a consistent emotional logic the listener can follow.",
+  "Abstract": "Impression over event. Coherence comes from tone and repetition, not sequence.",
+  "Emotional fragments": "Disconnected moments of feeling. No connective narrative tissue between them.",
+});
+
+const VOCAL_FRAMING_GUIDANCE = Object.freeze({
+  "Male lead": "Write for a single male lead voice.",
+  "Female lead": "Write for a single female lead voice.",
+  "Gender-neutral": "Avoid gendered self-reference and gendered address so either voice can carry it.",
+  "Duet": "Two lead voices in dialogue. Make clear from the writing which lines belong to which.",
+  "Lead vocal centered": "One voice carries everything; backing exists only to support the hook.",
+  "Airy lead with backing phrases": "A light lead with short answering backing phrases behind the hook.",
+  "Whispered layers": "A close, quiet lead with whispered doubles rather than sung harmony.",
+  "Choir shadows": "A solo lead shadowed by a group voice at the section peaks only.",
+  "Call-and-response": "Lead and answering voice trade phrases as the primary structural device.",
+});
+
+/* ERA BIAS — a lyric-language control only. It biases IDIOM AND REFERENCE
+ * FRAME (what a lyric of that period sounds like), never production, tempo or
+ * instrumentation, all of which belong to the style engine and DNA. Named
+ * explicitly because 'Era bias' reads like a production control and a future
+ * session could plausibly wire it to one. */
+const ERA_BIAS_GUIDANCE = Object.freeze({
+  "1980s": "Direct, declarative lyric idiom. Big simple emotional statements, few qualifiers.",
+  "1990s": "Plainer, more conversational phrasing with room for ambiguity and understatement.",
+  "2000s": "Polished, hook-forward phrasing with clean emotional resolution.",
+  "2010s": "Confessional and specific, with small concrete details standing in for large feelings.",
+  "2020s": "Fragmented, close, and unguarded. Short lines, present tense.",
+  "Early 90s": "Plain, slightly formal phrasing; emotion stated rather than performed.",
+  "Late 90s": "Smooth and melodic phrasing, comfortable with abstraction in the chorus.",
+  "Early 2000s": "Polished, hook-forward phrasing with clean emotional resolution.",
+  "Timeless": "Avoid period-specific idiom, slang, and technology. Nothing that dates the lyric.",
+  "Timeless / mixed-era": "Avoid period-specific idiom, slang, and technology. Nothing that dates the lyric.",
+  "Modern Suno polish": "Contemporary, clean, singable phrasing with no dated idiom and no filler syllables.",
+});
+
+/* VOCAL DELIVERY — resolves the second 2026-08-13 open question: how the old
+ * 'Delivery style' vocabulary relates to the already-wired
+ * vocal.deliveryClass. They are NOT the same axis and must not be merged.
+ *   vocal.deliveryClass (core/cil.js) = STRUCTURAL: is there a lexical lead
+ *     vocal at all, or is the voice chant/wordless/choir? It decides whether
+ *     conventional lyrics make sense, so it stays CIL-owned and inferred.
+ *   deliveryStyle (below) = EXPRESSIVE: how the lead is performed. Only
+ *     meaningful when deliveryClass is lead-melodic or spoken/chant.
+ * The panel shows deliveryStyle; deliveryClass keeps coming from CIL, with a
+ * manual override retained since it is already in the residue questions. */
+const DELIVERY_STYLE_GUIDANCE = Object.freeze({
+  "Controlled and intimate": "Held back and close. Emotion implied through restraint, never pushed.",
+  "Warm and emotional": "Open and expressive, but always singing rather than emoting over the line.",
+  "Cool and detached": "Even, unhurried delivery. The words carry the feeling; the voice does not add to it.",
+  "Confessional": "Written as if admitted rather than performed. Plain words, first person, no posture.",
+  "Dramatic but restrained": "Weight and scale in the writing, control in the delivery. No belting.",
+  "Soft intimate": "Very close and quiet. Short lines that fit inside one breath.",
+  "Breathy": "Airy and unpressed. Favour open vowels and avoid consonant clusters.",
+  "Chanted": "Rhythmic and repetitive rather than melodic. Short even phrases.",
+  "Ethereal": "Floating and unanchored. Sustained vowels, sparse consonants, few hard stops.",
+  "Pop direct": "Clear, forward, unambiguous. Every line lands on its meaning immediately.",
+});
+
+/* Foreign-language layer. Placement/mode/intensity vocabulary already exists
+ * in CONTROL_OPTIONS; this is the instruction text that turns a selection
+ * into something the model can act on. The layer is OFF by default and
+ * renders nothing into the prompt when off — an always-present "language
+ * layer: none" block is noise that measurably dilutes prompt attention. */
+const LANGUAGE_MODE_GUIDANCE = Object.freeze({
+  "Foreign phrase layer": "Use a small number of short phrases in the chosen language as a texture behind or beside the English line. Never a full translated verse.",
+  "Chorus line": "One line of the chorus is in the chosen language; the rest of the chorus stays English.",
+  "Full chorus": "The entire chorus is in the chosen language. Verses stay English.",
+  "Verse section": "One complete verse is in the chosen language. Chorus stays English.",
+  "Call-and-response": "The chosen language answers the English lead as a short response phrase.",
+  "Sacred / chant layer": "The chosen language appears only as a sustained chant or invocation layer, not as narrative lyric.",
+});
+
+Object.assign(window.__ATMOS, { templateById, CONTROL_OPTIONS, STRUCTURE_TEMPLATES, TEMPLATE_FOR_SUBGENRE, SOURCE_TYPE_GUIDANCE, THEME_LENS_GUIDANCE, PERSPECTIVE_GUIDANCE, HOOK_STYLE_GUIDANCE, IMAGERY_DENSITY_GUIDANCE, NARRATIVE_CLARITY_GUIDANCE, VOCAL_FRAMING_GUIDANCE, ERA_BIAS_GUIDANCE, DELIVERY_STYLE_GUIDANCE, LANGUAGE_MODE_GUIDANCE });
+})();
+
+/* core/source-research.js */
+(function(){
+/* ==========================================================================
+ * source-research.js — STEP 1 of the two-step lyric flow (John, 2026-08-17).
+ *
+ * WHAT THIS IS FOR
+ * John's brief: "The user might suggest a movie, The app would send this
+ * suggestion to an LLM to research the movie and report back in 1-2
+ * paragraphs the Premise. Then the app would use the premise to resend back
+ * to the LLM with the full spec built around the word density, rhyming,
+ * syllable count etc."
+ *
+ * WHY TWO CALLS AND NOT ONE. core/lyric.js's JSON schema already asks the
+ * model for a `themeBrief` ("1-2 paragraph internal creative brief") in the
+ * same pass, so a single-call version is technically available and was
+ * considered. It loses on cost, not on capability: if the model's reading of
+ * the work is wrong, a one-pass design burns the entire lyric generation AND
+ * its repair loop (thousands of output tokens, up to MAX_LYRIC_ATTEMPTS
+ * times) before that is detectable. This pre-pass is a few hundred tokens and
+ * fails early. It is also the only place web grounding can be attached
+ * without putting a search tool on the creative call, where it would invite
+ * the model to look up and echo existing song lyrics about the same subject —
+ * exactly what originalityRules() exists to prevent.
+ *
+ * GATING. This never fires for every build. needsSourceResearch() requires
+ * BOTH a known-work source type AND a non-empty subject. 'Original concept'
+ * and 'Personal memory' have no external work to look up and stay single-call,
+ * which is the common case.
+ *
+ * GROUNDING (John, 2026-08-17: "The Call gets Web grounding"). The research
+ * transport is invoked with grounded:true; js/gemini-client.js and
+ * js/claude-client.js each attach their provider's own web-search tool. An
+ * ungrounded model will confidently invent a premise for anything obscure,
+ * which then silently becomes the emotional basis of the whole lyric.
+ *
+ * NOT SHOWN IN THE UI (John, 2026-08-17: "Don't show the premise in the UI").
+ * The premise flows straight through into the lyric brief. It is still
+ * RETURNED on the result object so it can be inspected in a test harness and
+ * so a future UI pass can surface it without touching this module.
+ * ========================================================================*/
+
+/* Source types that name an EXTERNAL WORK OR SUBJECT worth looking up.
+ * 'TV series' added 2026-08-17 (John: "Perfect now you've added a TV Show").
+ * Deliberately NOT here: 'Original concept' and 'Personal memory' — there is
+ * nothing external to research, and a search on a personal memory is both
+ * useless and a privacy smell. */
+const RESEARCHABLE_SOURCE_TYPES = Object.freeze([
+  'Movie', 'TV series', 'Book', 'Historical figure', 'Myth / legend',
+  'True event', 'Cultural movement',
+]);
+
+function isResearchableSourceType(sourceType) {
+  return RESEARCHABLE_SOURCE_TYPES.includes(String(sourceType || '').trim());
+}
+
+/* needsSourceResearch — the gate. Both conditions required: a researchable
+ * type AND something to research. "Movie" with an empty subject means the
+ * user picked a type and never named a film; researching nothing would waste
+ * a call and return a hallucinated premise for an unnamed work. */
+function needsSourceResearch(sourceType, subject) {
+  return isResearchableSourceType(sourceType) && !!String(subject || '').trim();
+}
+
+/* Per-type framing for the research call. This asks for DIFFERENT FACTS per
+ * type, because the useful raw material differs: a film's premise is its
+ * dramatic situation, a historical figure's is the human cost behind a public
+ * record. Distinct from core/lyric-controls.js's SOURCE_TYPE_GUIDANCE, which
+ * tells the LYRIC call how to WRITE from the material — this tells the
+ * RESEARCH call what to GO AND FIND. */
+const RESEARCH_FOCUS = Object.freeze({
+  'Movie':             'the dramatic premise, the central conflict, who wants what and what stands in the way, the setting and period, and the emotional register of the ending.',
+  'TV series':         'the series premise, its recurring central conflict, the main character situation, the setting and period, and the emotional register the show sustains across episodes.',
+  'Book':              'the narrative premise, the central conflict, the protagonist\u2019s interior problem, the setting and period, and the emotional register of the resolution.',
+  'Historical figure': 'who they were, what they are actually known for, the human cost or private tension behind the public record, the period and place, and how they are remembered.',
+  'Myth / legend':     'the story as commonly told, its central transgression or trial, the figures involved, the culture and period it belongs to, and the moral or emotional weight it carries.',
+  'True event':        'what actually happened, when and where, who it happened to, what was at stake, and the documented human aftermath.',
+  'Cultural movement': 'what the movement was, when and where it happened, what it was reacting against, what it felt like to be inside it, and what it left behind.',
+});
+
+/* buildSourceResearchPrompt — deterministic, testable, no network.
+ *
+ * COPYRIGHT GUARDRAIL. Grounding means this call really does fetch source
+ * material, so the prompt has to forbid reproduction explicitly rather than
+ * relying on the model's own restraint. A factual premise stated in the
+ * model's own words is fine; dialogue, script text, prose passages and song
+ * lyrics are not, and a verbatim passage arriving here would be laundered
+ * straight into the lyric call where nothing downstream would recognise it.
+ *
+ * The `confidence` field exists so a low-confidence premise is at least
+ * visible to the caller rather than indistinguishable from a solid one. */
+function buildSourceResearchPrompt({ sourceType, subject }) {
+  const type = String(sourceType || '').trim();
+  const title = String(subject || '').trim();
+  const focus = RESEARCH_FOCUS[type] || 'the premise, the central conflict, the setting and period, and the emotional register.';
+  return [
+    'You are a research assistant for a songwriting tool. Use web search to check your facts before answering.',
+    `Research this ${type.toLowerCase()}: "${title}".`,
+    `Report ${focus}`,
+    '',
+    'Return valid JSON only. No markdown fences, no commentary outside the JSON.',
+    `{
+  "identified": "The full canonical title/name you actually researched, with year where one applies. Use \\"unknown\\" if you could not confidently identify it.",
+  "premise": "One to two paragraphs of plain factual premise, written entirely in your own words.",
+  "conflict": "One sentence: the central conflict or tension.",
+  "emotionalCore": "One sentence: the dominant emotional register.",
+  "setting": "Place and period, briefly.",
+  "confidence": "high | medium | low"
+}`,
+    '',
+    'Rules:',
+    '- Write everything in your own words. Do NOT quote or closely paraphrase dialogue, script text, prose passages, poetry, or song lyrics from the work or from any source you find. Not one line.',
+    '- Do NOT return a scene-by-scene plot summary. The premise is the situation and its emotional pressure, not a retelling.',
+    '- Report facts, not reviews. No critical opinion, no ratings, no marketing language.',
+    '- If web search does not confirm the work exists, set identified to "unknown" and confidence to "low", and write the premise from whatever the user\u2019s wording most plausibly means rather than inventing a fake work.',
+    '- Never fabricate names, dates or events to fill a gap. An honest gap is more useful here than a confident invention.',
+  ].join('\n');
+}
+
+function parseSourceResearch(text) {
+  if (!text) return null;
+  const clean = String(text).replace(/```json|```/g, '').trim();
+  // A grounded response can arrive with citation prose wrapped around the
+  // JSON even when the prompt forbids it (search-tool responses are chattier
+  // than plain ones), so fall back to the first balanced-looking JSON object
+  // rather than failing the whole pre-pass on a stray sentence.
+  try { return JSON.parse(clean); } catch { /* fall through */ }
+  const start = clean.indexOf('{');
+  const end = clean.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  try { return JSON.parse(clean.slice(start, end + 1)); } catch { return null; }
+}
+
+/* researchToSubject — collapses the researched object into the single block
+ * of subject material the lyric call consumes. Kept separate from the parse
+ * so the shape of what reaches the lyric prompt is testable without a
+ * transport, and so the lyric engine keeps its existing single `subject`
+ * contract instead of growing a parallel research-shaped input. */
+function researchToSubject(research, fallbackSubject) {
+  if (!research || !research.premise) return String(fallbackSubject || '');
+  const bits = [
+    `${String(fallbackSubject || '').trim()}${research.identified && research.identified !== 'unknown' ? ` (researched as: ${research.identified})` : ''}`,
+    String(research.premise).trim(),
+  ];
+  if (research.conflict)      bits.push(`Central conflict: ${String(research.conflict).trim()}`);
+  if (research.emotionalCore) bits.push(`Emotional core: ${String(research.emotionalCore).trim()}`);
+  if (research.setting)       bits.push(`Setting: ${String(research.setting).trim()}`);
+  return bits.filter(Boolean).join('\n');
+}
+
+/* runSourceResearch — the driver. `transport` is the SAME injected
+ * {prompt, model, temperature, maxTokens, grounded} -> string function
+ * runLyricEngine() takes, so both steps of the flow go through one provider
+ * abstraction and a test can fake either independently.
+ *
+ * FAILS SOFT ON PURPOSE. A dead search tool, a provider that ignores the
+ * grounded flag, or unparseable output must not take the whole lyric
+ * generation down with it — the pipeline degrades to the pre-2026-08-17
+ * behaviour (bare subject line, model works from its own knowledge) and
+ * reports why via `error`. Temperature 0: this step is retrieval, not
+ * creativity. */
+async function runSourceResearch({ sourceType, subject, transport, model, maxTokens }) {
+  if (!needsSourceResearch(sourceType, subject)) {
+    return { researched: false, reason: 'not-a-researchable-source', subject: String(subject || ''), research: null };
+  }
+  if (typeof transport !== 'function') throw new Error('runSourceResearch needs a transport(prompt)->text function.');
+
+  const prompt = buildSourceResearchPrompt({ sourceType, subject });
+  let raw;
+  try {
+    raw = await transport({ prompt, model, temperature: 0, maxTokens: Number(maxTokens) || 1200, grounded: true });
+  } catch (e) {
+    return { researched: false, reason: 'transport-failed', error: e.message, subject: String(subject || ''), research: null };
+  }
+  const research = parseSourceResearch(raw);
+  if (!research || !research.premise) {
+    return { researched: false, reason: 'unparseable-response', subject: String(subject || ''), research: null };
+  }
+  return {
+    researched: true,
+    reason: null,
+    subject: researchToSubject(research, subject),
+    research,
+    confidence: research.confidence || null,
+  };
+}
+
+Object.assign(window.__ATMOS, { runSourceResearch, isResearchableSourceType, needsSourceResearch, buildSourceResearchPrompt, parseSourceResearch, researchToSubject, RESEARCHABLE_SOURCE_TYPES });
 })();
 
 /* core/lyric-validator.js */
@@ -6854,7 +7217,7 @@ Object.assign(window.__ATMOS, { countSyllables, lineSyllables, rhymeKey, wordsRh
  *     inism, and it is dependency-injected so this module is testable offline).
  * ========================================================================*/
 
-const {CONTROL_OPTIONS, STRUCTURE_TEMPLATES, TEMPLATE_FOR_SUBGENRE, templateById} = window.__ATMOS;
+const {CONTROL_OPTIONS, STRUCTURE_TEMPLATES, TEMPLATE_FOR_SUBGENRE, templateById, SOURCE_TYPE_GUIDANCE, THEME_LENS_GUIDANCE, PERSPECTIVE_GUIDANCE, HOOK_STYLE_GUIDANCE, IMAGERY_DENSITY_GUIDANCE, NARRATIVE_CLARITY_GUIDANCE, VOCAL_FRAMING_GUIDANCE, ERA_BIAS_GUIDANCE, DELIVERY_STYLE_GUIDANCE, LANGUAGE_MODE_GUIDANCE,} = window.__ATMOS;
 const {DNA_CONSUMERS} = window.__ATMOS;
 const {validateLyrics, QUALITY_THRESHOLD, MAX_LYRIC_ATTEMPTS} = window.__ATMOS;
 
@@ -6994,6 +7357,37 @@ function assembleLyricBrief(dna, cil, answers, structure, lockedMetatags) {
     // independent validator: one source of truth, not two things that can drift.
     lineLength:   a['song.lineLength']   || 'Flexible',
     rhymeDensity: a['song.rhymeDensity'] || 'Moderate',
+    /* LYRIC-BRIEF CONTROL PANEL (John, 2026-08-17). The 2026-08-13 log entry
+     * recorded the gap precisely: "original design has ~20 fields, current
+     * live UI has 4". These are the remaining Tier 2 controls — vocabulary
+     * already existed in CONTROL_OPTIONS but nothing read it from answers and
+     * nothing rendered it to the model, so selecting one changed nothing.
+     * Each has a proven default so an untouched panel produces exactly the
+     * pre-2026-08-17 prompt content for these axes. */
+    hookStyle:        a['song.hookStyle']        || 'Subtle and emotional',
+    imageryDensity:   a['song.imageryDensity']   || 'Moderate',
+    narrativeClarity: a['song.narrativeClarity'] || 'Balanced',
+    vocalFraming:     a['song.vocalFraming']     || 'Lead vocal centered',
+    eraBias:          a['song.eraBias']          || 'Timeless',
+    deliveryStyle:    a['song.deliveryStyle']    || 'Controlled and intimate',
+    /* Foreign-language layer. OFF unless explicitly enabled — see
+     * languageLayerBlock() for why an always-on "layer: none" line is worse
+     * than omitting the block entirely. */
+    languageLayer: a['song.languageLayer.enabled'] ? {
+      language:  a['song.languageLayer.language']  || CONTROL_OPTIONS.languages[0],
+      mode:      a['song.languageLayer.mode']      || 'Foreign phrase layer',
+      placement: a['song.languageLayer.placement'] || CONTROL_OPTIONS.languagePlacement[0],
+      intensity: a['song.languageLayer.intensity'] || 'Light',
+    } : null,
+    /* SOURCE RESEARCH (step 1 of the two-step flow). Provenance only — the
+     * researched premise itself has already been folded into `subject` by
+     * js/generate.js before assembleLyricBrief() is called, so the prompt
+     * needs no new field and the model sees one coherent subject block.
+     * Recorded here so a result object can be traced back to whether the
+     * grounded pre-pass actually ran. */
+    sourceResearched:   !!(a['song.sourceResearched']),
+    sourceIdentified:   a['song.sourceIdentified'] || null,
+    sourceConfidence:   a['song.sourceConfidence'] || null,
     template,
     // structure-first pipeline section list (names + positions only). Null
     // when no structure was supplied — buildLyricPrompt() falls back to
@@ -7175,11 +7569,62 @@ Theme lens: ${brief.themeLens}
 Perspective: ${brief.perspective}
 Language style: ${brief.languageStyle}
 Optional title seed: ${brief.titleSeed || 'none - create a suitable title from the subject/topic'}
-Vocal delivery: ${brief.deliveryClass || 'lead-melodic'}
+Vocal delivery class: ${brief.deliveryClass || 'lead-melodic'}
+Delivery style: ${brief.deliveryStyle}
+Vocal framing: ${brief.vocalFraming}
+Hook style: ${brief.hookStyle}
+Imagery density: ${brief.imageryDensity}
+Narrative clarity: ${brief.narrativeClarity}
+Era bias (lyric idiom only, never production): ${brief.eraBias}
 Line length target: ${brief.lineLength}
 Rhyme density target: ${brief.rhymeDensity}
 Structure: ${structureLabel}
-Required sections in order: ${labels.join(', ')}`;
+Required sections in order: ${labels.join(', ')}
+
+Control guidance (these define the terms above \u2014 follow them, do not reinterpret the labels):
+${controlGuidance(brief)}${languageLayerBlock(brief)}`;
+}
+
+/* controlGuidance — one definition line per SELECTED option, never the whole
+ * vocabulary. The old engine's selectedGuidance() had this right and it is
+ * the reason these strings work: handing the model nine hook-style
+ * definitions when one was chosen dilutes the one that matters. Unknown
+ * values (a hand-edited state, a future vocabulary addition) fall through
+ * silently rather than emitting an empty "Hook style guidance: undefined". */
+function controlGuidance(brief) {
+  const lines = [
+    ['Source type',       SOURCE_TYPE_GUIDANCE[brief.sourceType]],
+    ['Theme lens',        THEME_LENS_GUIDANCE[brief.themeLens]],
+    ['Perspective',       PERSPECTIVE_GUIDANCE[brief.perspective]],
+    ['Hook style',        HOOK_STYLE_GUIDANCE[brief.hookStyle]],
+    ['Imagery density',   IMAGERY_DENSITY_GUIDANCE[brief.imageryDensity]],
+    ['Narrative clarity', NARRATIVE_CLARITY_GUIDANCE[brief.narrativeClarity]],
+    ['Vocal framing',     VOCAL_FRAMING_GUIDANCE[brief.vocalFraming]],
+    ['Delivery style',    DELIVERY_STYLE_GUIDANCE[brief.deliveryStyle]],
+    ['Era bias',          ERA_BIAS_GUIDANCE[brief.eraBias]],
+  ];
+  return lines.filter(([, text]) => !!text).map(([label, text]) => `- ${label}: ${text}`).join('\n');
+}
+
+/* languageLayerBlock — renders NOTHING when the layer is off. A permanent
+ * "Language layer enabled: false / Language: French / Mode: None" stanza (what
+ * the old engine emitted unconditionally) spends prompt attention telling the
+ * model about a feature it must ignore, and repeatedly names a language it
+ * must not use \u2014 the opposite of the intent. */
+function languageLayerBlock(brief) {
+  const L = brief.languageLayer;
+  if (!L) return '';
+  const modeGuidance = LANGUAGE_MODE_GUIDANCE[L.mode];
+  return [
+    '',
+    '',
+    `Foreign-language layer (ACTIVE): ${L.language}`,
+    `- Mode: ${L.mode}${modeGuidance ? ` \u2014 ${modeGuidance}` : ''}`,
+    `- Placement: ${L.placement}`,
+    `- Intensity: ${L.intensity} \u2014 ${L.intensity === 'Light' ? 'a few words only' : L.intensity === 'Prominent' ? 'a substantial and repeated presence' : 'a clearly audible but secondary presence'}.`,
+    '- The rest of the lyric stays English. Do not translate, gloss, transliterate, or explain the foreign lines anywhere in the output.',
+    '- Use correct, natural phrasing in that language. Do not invent words in a real language; if a sacred or invented-language texture is wanted, that is the Sacred / chant layer mode.',
+  ].join('\n');
 }
 function conceptRules() {
   return `Concept hierarchy:
@@ -11257,7 +11702,14 @@ function setClaudeStoredTransportMode(mode) {
 // callClaude: the raw request. Shaped to match what runLyricEngine's
 // `transport({prompt, model, temperature, maxTokens}) -> string` contract
 // expects — see makeClaudeTransport() below for the adapter.
-async function callClaude({ apiKey, model, temperature, maxTokens, prompt, transportMode }) {
+/* WEB GROUNDING (John, 2026-08-17) — see js/gemini-client.js for the full
+ * rationale, including why this is never attached to the creative lyric call.
+ * Anthropic's server-side web search tool; the model runs the searches itself
+ * and returns a normal assistant turn, so no tool-result round trip is needed
+ * here. */
+const CLAUDE_SEARCH_TOOL = { type: 'web_search_20250305', name: 'web_search' };
+
+async function callClaude({ apiKey, model, temperature, maxTokens, prompt, transportMode, grounded }) {
   const mode = transportMode || getClaudeStoredTransportMode();
   if (mode === 'direct' && !(apiKey && apiKey.trim())) {
     throw new Error('Missing Claude API key. Enter a key in Claude Settings before generating.');
@@ -11278,6 +11730,7 @@ async function callClaude({ apiKey, model, temperature, maxTokens, prompt, trans
         max_tokens: Number(maxTokens) || 4096,
         temperature: temperature != null ? Number(temperature) : 0.9,
         messages: [{ role: 'user', content: prompt }],
+        ...(grounded ? { tools: [CLAUDE_SEARCH_TOOL] } : {}),
       }),
     });
   } catch (error) {
@@ -11294,7 +11747,19 @@ async function callClaude({ apiKey, model, temperature, maxTokens, prompt, trans
   }
 
   const data = await response.json();
-  const text = (data.content || []).map(item => item.text || '').join('\n').trim();
+  // Select TEXT-CARRYING BLOCKS, not positions. A grounded response
+  // interleaves server_tool_use and web_search_tool_result blocks with the
+  // assistant's own text; neither carries a `.text` field, and mapping them
+  // to '' left stray newlines wrapped around the JSON the caller has to
+  // parse. Tested on `.text` presence rather than a `type === 'text'`
+  // whitelist deliberately: it excludes every tool block just as reliably
+  // while staying tolerant of a block that omits `type`, which is how the
+  // mocks in validate-live-lyric.mjs are shaped and how a local proxy might
+  // legitimately relay a response.
+  const text = (data.content || [])
+    .filter(item => item && typeof item.text === 'string')
+    .map(item => item.text)
+    .join('\n').trim();
   if (!text) throw new Error('Claude returned an empty response.');
   return text;
 }
@@ -11314,8 +11779,8 @@ async function testClaudeConnection(settings) {
 // is the ONE function that turns the (previously always-mocked) lyric
 // pipeline into a real, live call.
 function makeClaudeTransport({ apiKey, transportMode }) {
-  return async function transport({ prompt, model, temperature, maxTokens }) {
-    return callClaude({ apiKey, transportMode, model, temperature, maxTokens, prompt });
+  return async function transport({ prompt, model, temperature, maxTokens, grounded }) {
+    return callClaude({ apiKey, transportMode, model, temperature, maxTokens, prompt, grounded });
   };
 }
 
@@ -11376,7 +11841,17 @@ function setGeminiStoredTransportMode(mode) {
 // callGemini: the raw request. Shaped to match what runLyricEngine's
 // `transport({prompt, model, temperature, maxTokens}) -> string` contract
 // expects — see makeGeminiTransport() below for the adapter.
-async function callGemini({ apiKey, model, temperature, maxTokens, prompt, transportMode }) {
+/* WEB GROUNDING (John, 2026-08-17: "The Call gets Web grounding").
+ * Attached ONLY when the caller passes grounded:true — in practice only
+ * core/source-research.js's premise pre-pass. Deliberately NOT enabled on the
+ * creative lyric call: a search tool on that call invites the model to look
+ * up existing songs about the same subject and echo their phrasing, which is
+ * precisely what core/lyric.js's originalityRules() exists to prevent.
+ * Gemini's grounding tool is declared as {google_search:{}} on the request's
+ * `tools` array. */
+const GEMINI_SEARCH_TOOL = { google_search: {} };
+
+async function callGemini({ apiKey, model, temperature, maxTokens, prompt, transportMode, grounded }) {
   const mode = transportMode || getGeminiStoredTransportMode();
   if (mode === 'direct' && !(apiKey && apiKey.trim())) {
     throw new Error('Missing Gemini API key. Enter a key in Gemini Settings before generating.');
@@ -11398,6 +11873,7 @@ async function callGemini({ apiKey, model, temperature, maxTokens, prompt, trans
           temperature: temperature != null ? Number(temperature) : 0.9,
           maxOutputTokens: Number(maxTokens) || 4096,
         },
+        ...(grounded ? { tools: [GEMINI_SEARCH_TOOL] } : {}),
       }),
     });
   } catch (error) {
@@ -11439,8 +11915,8 @@ async function testGeminiConnection(settings) {
 // {prompt, model, temperature, maxTokens} -> string function shape that
 // core/lyric.js's runLyricEngine() expects as its `transport` argument.
 function makeGeminiTransport({ apiKey, transportMode }) {
-  return async function transport({ prompt, model, temperature, maxTokens }) {
-    return callGemini({ apiKey, transportMode, model, temperature, maxTokens, prompt });
+  return async function transport({ prompt, model, temperature, maxTokens, grounded }) {
+    return callGemini({ apiKey, transportMode, model, temperature, maxTokens, prompt, grounded });
   };
 }
 
@@ -11488,8 +11964,34 @@ function initState() {
               // user override John asked about (defaults to LLM-invented when
               // blank); lineLength/rhymeDensity are the two the quality gate
               // (core/lyric-validator.js) actually checks against.
+              // LYRIC-BRIEF CONTROL PANEL (John, 2026-08-17). Was four fields;
+              // the 2026-08-13 log entry recorded the gap ("original design
+              // has ~20 fields, current live UI has 4") and it was the
+              // standing priority-1 blocker on Suno testing. Every default
+              // below reproduces the pre-2026-08-17 prompt content for its
+              // axis, so an untouched panel changes nothing.
               lyric: {
                 subject: '', title: '', lineLength: 'Flexible', rhymeDensity: 'Moderate',
+                // Tier 1 — vocabulary and brief fields already existed; only
+                // the UI was missing, so these were fixed at their defaults.
+                sourceType: 'Original concept',
+                themeLens: 'Inspired by source',
+                perspective: 'First person',
+                languageStyle: 'Poetic',
+                deliveryStyle: 'Controlled and intimate',
+                // Tier 2 — net-new: vocabulary existed in CONTROL_OPTIONS but
+                // nothing read it from answers or rendered it to the model.
+                hookStyle: 'Subtle and emotional',
+                imageryDensity: 'Moderate',
+                narrativeClarity: 'Balanced',
+                vocalFraming: 'Lead vocal centered',
+                eraBias: 'Timeless',
+                // Foreign-language sub-feature. Off by default; when off,
+                // core/lyric.js renders no language block at all.
+                languageLayer: {
+                  enabled: false, language: 'French', mode: 'Foreign phrase layer',
+                  placement: 'Chorus or backing phrase', intensity: 'Light',
+                },
                 status: 'idle', // 'idle' | 'running' | 'done' | 'error'
                 result: null, error: null,
               },
@@ -11516,6 +12018,12 @@ function setStructurePreset(S, presetId) {
 // generation flow itself (see js/generate.js's generateLyricsLive()).
 function setLyricInputs(S, patch) {
   Object.assign(S.lyric, patch);
+}
+
+// The language layer is nested, so Object.assign at the top level would
+// replace the whole sub-object and drop the fields the caller didn't send.
+function setLanguageLayer(S, patch) {
+  Object.assign(S.lyric.languageLayer, patch);
 }
 
 function setClaudeSettings(S, patch) {
@@ -11584,7 +12092,7 @@ function syncEngineDefaults(S, engineId) {
   }
 }
 
-Object.assign(window.__ATMOS, { newSeed, initState, setSongType, setStructurePreset, setLyricInputs, setClaudeSettings, setGeminiSettings, setProvider, syncEngineDefaults });
+Object.assign(window.__ATMOS, { newSeed, initState, setSongType, setStructurePreset, setLyricInputs, setLanguageLayer, setClaudeSettings, setGeminiSettings, setProvider, syncEngineDefaults });
 })();
 
 /* js/generate.js */
@@ -11602,6 +12110,7 @@ const {buildResolverDNA} = window.__ATMOS;
 const {buildLegacyDNA} = window.__ATMOS;
 const {inferCIL} = window.__ATMOS;
 const {runLyricEngine} = window.__ATMOS;
+const {needsSourceResearch, runSourceResearch} = window.__ATMOS;
 const {runMetatagEngine} = window.__ATMOS;
 const {COMPOSER_LAYERS, composerStyleLayer} = window.__ATMOS;
 const {atomCharacterForPalette} = window.__ATMOS;
@@ -11879,11 +12388,35 @@ function buildLiveLyricRequest(S) {
   }
 
   const l = S.lyric || {};
+  // LYRIC-BRIEF CONTROL PANEL (2026-08-17). Previously only three of these
+  // reached the brief; the rest of the vocabulary existed but was never read
+  // from state, so the controls that did exist upstream were inert. Anything
+  // omitted here still falls back to assembleLyricBrief()'s own defaults, so
+  // a partially-populated state (an old saved session, a test harness) stays
+  // valid rather than throwing.
   const answers = {
     'song.subject': l.subject || '',
     'song.lineLength': l.lineLength || 'Flexible',
     'song.rhymeDensity': l.rhymeDensity || 'Moderate',
+    'song.sourceType': l.sourceType || 'Original concept',
+    'song.themeLens': l.themeLens || 'Inspired by source',
+    'song.perspective': l.perspective || 'First person',
+    'song.languageStyle': l.languageStyle || 'Poetic',
+    'song.deliveryStyle': l.deliveryStyle || 'Controlled and intimate',
+    'song.hookStyle': l.hookStyle || 'Subtle and emotional',
+    'song.imageryDensity': l.imageryDensity || 'Moderate',
+    'song.narrativeClarity': l.narrativeClarity || 'Balanced',
+    'song.vocalFraming': l.vocalFraming || 'Lead vocal centered',
+    'song.eraBias': l.eraBias || 'Timeless',
   };
+  const LL = l.languageLayer;
+  if (LL && LL.enabled) {
+    answers['song.languageLayer.enabled'] = true;
+    answers['song.languageLayer.language'] = LL.language;
+    answers['song.languageLayer.mode'] = LL.mode;
+    answers['song.languageLayer.placement'] = LL.placement;
+    answers['song.languageLayer.intensity'] = LL.intensity;
+  }
   if (l.title && l.title.trim()) answers['song.title'] = l.title.trim(); // user override; LLM invents one if absent
 
   // Provider choice (2026-08-13, John): Gemini is the default for lyrics,
@@ -11903,12 +12436,48 @@ function buildLiveLyricRequest(S) {
 // app to use the real Claude transport built above.
 async function generateLyricsLive(S, transportOverride) {
   const req = buildLiveLyricRequest(S);
-  return runLyricEngine({
+  const transport = transportOverride || req.transport;
+
+  /* STEP 1 — GROUNDED SOURCE RESEARCH (John, 2026-08-17). Fires only for a
+   * researchable source type with a named subject (see
+   * core/source-research.js's gate); Original concept and Personal memory
+   * skip it entirely and the flow stays a single call, which is the common
+   * case. The researched premise REPLACES song.subject rather than arriving
+   * as a parallel field, so the lyric prompt keeps one coherent subject block
+   * and every downstream consumer (repair prompt, validator, batch builder)
+   * needs no change at all.
+   *
+   * Skipped for an instrumental build: there is no lyric call to ground, and
+   * spending a search on a track that short-circuits to [Instrumental] is
+   * pure waste. runLyricEngine() does that short-circuit itself, but only
+   * after this point, so the check is repeated here.
+   *
+   * Fails soft — see runSourceResearch()'s header. A failed pre-pass degrades
+   * to the bare subject line, never to a failed generation. */
+  let sourceResearch = null;
+  const instrumentalBuild = S.songType === 'instrumental';
+  if (!instrumentalBuild && needsSourceResearch(req.answers['song.sourceType'], req.answers['song.subject'])) {
+    sourceResearch = await runSourceResearch({
+      sourceType: req.answers['song.sourceType'],
+      subject: req.answers['song.subject'],
+      transport, model: req.model,
+    });
+    if (sourceResearch.researched) {
+      req.answers['song.subject'] = sourceResearch.subject;
+      req.answers['song.sourceResearched'] = true;
+      req.answers['song.sourceIdentified'] = (sourceResearch.research && sourceResearch.research.identified) || null;
+      req.answers['song.sourceConfidence'] = sourceResearch.confidence || null;
+    }
+  }
+
+  /* STEP 2 — the creative call, ungrounded, with the full spec. */
+  const out = await runLyricEngine({
     dna: req.dna, cil: req.cil, structure: req.structure, answers: req.answers,
     lockedMetatags: req.lockedMetatags,
-    transport: transportOverride || req.transport,
+    transport,
     model: req.model, repair: true,
   });
+  return { ...out, sourceResearch };
 }
 // Each role is either locked (chosen) or drawn fresh from the proven STYLE_ENGINES array.
 function resolveClassicSlots(engineId, l, seed) {
@@ -11995,13 +12564,14 @@ Object.assign(window.__ATMOS, { generateLyricsLive, generate, buildLiveLyricRequ
 /* js/ui.js */
 (function(){
 const {ENGINES, getEngine, RESOLVER_ROLES, resolverCharacters, resolverRolePool, atomCharacterList, atomOverlays, legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,} = window.__ATMOS;
-const {syncEngineDefaults, newSeed, setSongType, setStructurePreset, setLyricInputs, setClaudeSettings, setGeminiSettings, setProvider} = window.__ATMOS;
+const {syncEngineDefaults, newSeed, setSongType, setStructurePreset, setLyricInputs, setLanguageLayer, setClaudeSettings, setGeminiSettings, setProvider} = window.__ATMOS;
 const {generate, generateLyricsLive} = window.__ATMOS;
 const {overlayList} = window.__ATMOS;
 const {favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll} = window.__ATMOS;
 const {composerLayerList} = window.__ATMOS;
 const {SONG_TYPES, presetsForType, resolveStructure} = window.__ATMOS;
 const {CONTROL_OPTIONS} = window.__ATMOS;
+const {isResearchableSourceType} = window.__ATMOS;
 const {CLAUDE_MODELS} = window.__ATMOS;
 const {GEMINI_MODELS} = window.__ATMOS;
 
@@ -12338,20 +12908,71 @@ function lyricPanel(root) {
 
   const l = S.lyric;
 
-  box.appendChild(field('Subject / topic', el('input', {
-    type: 'text', value: l.subject, placeholder: 'leave blank to let the LLM invent one',
+  // opt(key, options) — every one of these writes to S.lyric[key] and is read
+  // back out in js/generate.js's buildLiveLyricRequest(). A control that
+  // doesn't appear in both places is inert, which is exactly the state the
+  // panel was in before 2026-08-17 (vocabulary present, nothing wired).
+  const opt = (key, options) => select(options.map(v => ({ value: v, label: v })), l[key],
+    v => { setLyricInputs(S, { [key]: v }); renderAll(); });
+
+  box.appendChild(el('h5', { text: 'Song concept', style: 'margin:10px 0 4px;' }));
+  box.appendChild(field('Source type', opt('sourceType', CONTROL_OPTIONS.sourceType)));
+
+  // Subject label and placeholder change with source type, because what the
+  // field wants changes: a researchable type wants the WORK'S NAME (it gets
+  // looked up), everything else wants a free description. Without this the
+  // same box silently means two different things.
+  const researchable = isResearchableSourceType(l.sourceType);
+  box.appendChild(field(researchable ? `${l.sourceType} title` : 'Subject / topic', el('input', {
+    type: 'text', value: l.subject,
+    placeholder: researchable ? 'name the work \u2014 it will be researched before the lyrics are written'
+                              : 'leave blank to let the LLM invent one',
     oninput: e => setLyricInputs(S, { subject: e.target.value }),
   })));
+  if (researchable) {
+    box.appendChild(el('p', { class: 'note',
+      text: 'Two-step flow: the title is researched with web grounding first, and the premise that comes back becomes the subject material for the lyric call.' }));
+  }
+
   box.appendChild(field('Title (optional override)', el('input', {
     type: 'text', value: l.title, placeholder: 'leave blank for an LLM-generated title',
     oninput: e => setLyricInputs(S, { title: e.target.value }),
   })));
-  box.appendChild(field('Line length target',
-    select(CONTROL_OPTIONS.lineLength.map(v => ({ value: v, label: v })), l.lineLength,
-      v => setLyricInputs(S, { lineLength: v }))));
-  box.appendChild(field('Rhyme density target',
-    select(CONTROL_OPTIONS.rhymeDensity.map(v => ({ value: v, label: v })), l.rhymeDensity,
-      v => setLyricInputs(S, { rhymeDensity: v }))));
+  box.appendChild(field('Theme lens', opt('themeLens', CONTROL_OPTIONS.themeLens)));
+  box.appendChild(field('Perspective', opt('perspective', CONTROL_OPTIONS.perspective)));
+  box.appendChild(field('Era bias (lyric idiom only)', opt('eraBias', CONTROL_OPTIONS.eraBias)));
+
+  box.appendChild(el('h5', { text: 'Writing', style: 'margin:10px 0 4px;' }));
+  box.appendChild(field('Language style', opt('languageStyle', CONTROL_OPTIONS.languageStyle)));
+  box.appendChild(field('Hook style', opt('hookStyle', CONTROL_OPTIONS.hookStyle)));
+  box.appendChild(field('Imagery density', opt('imageryDensity', CONTROL_OPTIONS.imageryDensity)));
+  box.appendChild(field('Narrative clarity', opt('narrativeClarity', CONTROL_OPTIONS.narrativeClarity)));
+  box.appendChild(field('Line length target', opt('lineLength', CONTROL_OPTIONS.lineLength)));
+  box.appendChild(field('Rhyme density target', opt('rhymeDensity', CONTROL_OPTIONS.rhymeDensity)));
+
+  box.appendChild(el('h5', { text: 'Voice', style: 'margin:10px 0 4px;' }));
+  box.appendChild(field('Vocal framing', opt('vocalFraming', CONTROL_OPTIONS.vocalFraming)));
+  box.appendChild(field('Delivery style', opt('deliveryStyle', CONTROL_OPTIONS.deliveryStyle)));
+
+  // Foreign-language layer. Collapsed to a single toggle until enabled — four
+  // permanently-visible controls for an off-by-default feature is exactly the
+  // control-burden problem the novice model is meant to avoid.
+  const LL = l.languageLayer;
+  box.appendChild(el('h5', { text: 'Foreign-language layer', style: 'margin:10px 0 4px;' }));
+  box.appendChild(field('Enabled', segmented(
+    [{ value: 'off', label: 'Off' }, { value: 'on', label: 'On' }], LL.enabled ? 'on' : 'off',
+    v => { setLanguageLayer(S, { enabled: v === 'on' }); renderAll(); })));
+  if (LL.enabled) {
+    const llOpt = (key, options) => select(options.map(v => ({ value: v, label: v })), LL[key],
+      v => { setLanguageLayer(S, { [key]: v }); renderAll(); });
+    box.appendChild(field('Language', llOpt('language', CONTROL_OPTIONS.languages)));
+    // 'None' is dropped from the mode list here: the Off/On toggle above is
+    // the enable mechanism, so a second "None" would be a mode that means
+    // "ignore the layer I just switched on".
+    box.appendChild(field('Mode', llOpt('mode', CONTROL_OPTIONS.languageModes.filter(m => m !== 'None'))));
+    box.appendChild(field('Placement', llOpt('placement', CONTROL_OPTIONS.languagePlacement)));
+    box.appendChild(field('Intensity', llOpt('intensity', CONTROL_OPTIONS.languageIntensity)));
+  }
 
   box.appendChild(el('h4', { text: 'Model provider', style: 'margin-top:14px;' }));
   box.appendChild(field('Provider', segmented(
@@ -12429,6 +13050,19 @@ function lyricPanel(root) {
           text: r.brief.lockedMetatags
             ? 'Metatags: locked \u2014 the real per-section tags above were handed to the model as fixed content.'
             : 'Metatags: generic \u2014 no locked tags were available for this build; the model invented its own.' }));
+      }
+      // Source-research provenance (2026-08-17). John's direction was NOT to
+      // show the premise itself in the UI — this is one line saying whether
+      // the grounded pre-pass ran and how sure it was, not the premise text.
+      // Without it a soft failure (search unavailable, unparseable response)
+      // is indistinguishable from a successful lookup, and a Suno result
+      // couldn't be traced back to which of the two produced it.
+      if (r.sourceResearch) {
+        const sr = r.sourceResearch;
+        box.appendChild(el('p', { class: 'note',
+          text: sr.researched
+            ? `Source research: ran with web grounding \u2014 identified "${(sr.research && sr.research.identified) || 'unknown'}", confidence ${sr.confidence || 'unstated'}.`
+            : `Source research: did not run (${sr.reason}). Lyrics were written from the subject line alone.` }));
       }
       if (r.title) box.appendChild(el('p', { text: `Title: ${r.title}` }));
       if (r.lyrics) box.appendChild(el('pre', { text: r.lyrics, style: 'white-space:pre-wrap; font-size:12px;' }));

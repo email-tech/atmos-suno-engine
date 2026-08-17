@@ -50,7 +50,17 @@ export function setGeminiStoredTransportMode(mode) {
 // callGemini: the raw request. Shaped to match what runLyricEngine's
 // `transport({prompt, model, temperature, maxTokens}) -> string` contract
 // expects — see makeGeminiTransport() below for the adapter.
-export async function callGemini({ apiKey, model, temperature, maxTokens, prompt, transportMode }) {
+/* WEB GROUNDING (John, 2026-08-17: "The Call gets Web grounding").
+ * Attached ONLY when the caller passes grounded:true — in practice only
+ * core/source-research.js's premise pre-pass. Deliberately NOT enabled on the
+ * creative lyric call: a search tool on that call invites the model to look
+ * up existing songs about the same subject and echo their phrasing, which is
+ * precisely what core/lyric.js's originalityRules() exists to prevent.
+ * Gemini's grounding tool is declared as {google_search:{}} on the request's
+ * `tools` array. */
+const GEMINI_SEARCH_TOOL = { google_search: {} };
+
+export async function callGemini({ apiKey, model, temperature, maxTokens, prompt, transportMode, grounded }) {
   const mode = transportMode || getGeminiStoredTransportMode();
   if (mode === 'direct' && !(apiKey && apiKey.trim())) {
     throw new Error('Missing Gemini API key. Enter a key in Gemini Settings before generating.');
@@ -72,6 +82,7 @@ export async function callGemini({ apiKey, model, temperature, maxTokens, prompt
           temperature: temperature != null ? Number(temperature) : 0.9,
           maxOutputTokens: Number(maxTokens) || 4096,
         },
+        ...(grounded ? { tools: [GEMINI_SEARCH_TOOL] } : {}),
       }),
     });
   } catch (error) {
@@ -113,7 +124,7 @@ export async function testGeminiConnection(settings) {
 // {prompt, model, temperature, maxTokens} -> string function shape that
 // core/lyric.js's runLyricEngine() expects as its `transport` argument.
 export function makeGeminiTransport({ apiKey, transportMode }) {
-  return async function transport({ prompt, model, temperature, maxTokens }) {
-    return callGemini({ apiKey, transportMode, model, temperature, maxTokens, prompt });
+  return async function transport({ prompt, model, temperature, maxTokens, grounded }) {
+    return callGemini({ apiKey, transportMode, model, temperature, maxTokens, prompt, grounded });
   };
 }

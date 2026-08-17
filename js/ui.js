@@ -3,13 +3,14 @@ import {
   atomCharacterList, atomOverlays,
   legacyClusters, legacyClassic, legacyCluster, legacyClusterRolePool, CLUSTER_ROLES,
 } from './registry.js';
-import { syncEngineDefaults, newSeed, setSongType, setStructurePreset, setLyricInputs, setClaudeSettings, setGeminiSettings, setProvider } from './state.js';
+import { syncEngineDefaults, newSeed, setSongType, setStructurePreset, setLyricInputs, setLanguageLayer, setClaudeSettings, setGeminiSettings, setProvider } from './state.js';
 import { generate, generateLyricsLive } from './generate.js';
 import { overlayList } from '../core/overlays.js';
 import { favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll } from '../core/favourites.js';
 import { composerLayerList } from '../core/composer-layers.js';
 import { SONG_TYPES, presetsForType, resolveStructure } from '../core/structure.js';
 import { CONTROL_OPTIONS } from '../core/lyric-controls.js';
+import { isResearchableSourceType } from '../core/source-research.js';
 import { CLAUDE_MODELS } from './claude-client.js';
 import { GEMINI_MODELS } from './gemini-client.js';
 
@@ -346,20 +347,71 @@ function lyricPanel(root) {
 
   const l = S.lyric;
 
-  box.appendChild(field('Subject / topic', el('input', {
-    type: 'text', value: l.subject, placeholder: 'leave blank to let the LLM invent one',
+  // opt(key, options) — every one of these writes to S.lyric[key] and is read
+  // back out in js/generate.js's buildLiveLyricRequest(). A control that
+  // doesn't appear in both places is inert, which is exactly the state the
+  // panel was in before 2026-08-17 (vocabulary present, nothing wired).
+  const opt = (key, options) => select(options.map(v => ({ value: v, label: v })), l[key],
+    v => { setLyricInputs(S, { [key]: v }); renderAll(); });
+
+  box.appendChild(el('h5', { text: 'Song concept', style: 'margin:10px 0 4px;' }));
+  box.appendChild(field('Source type', opt('sourceType', CONTROL_OPTIONS.sourceType)));
+
+  // Subject label and placeholder change with source type, because what the
+  // field wants changes: a researchable type wants the WORK'S NAME (it gets
+  // looked up), everything else wants a free description. Without this the
+  // same box silently means two different things.
+  const researchable = isResearchableSourceType(l.sourceType);
+  box.appendChild(field(researchable ? `${l.sourceType} title` : 'Subject / topic', el('input', {
+    type: 'text', value: l.subject,
+    placeholder: researchable ? 'name the work \u2014 it will be researched before the lyrics are written'
+                              : 'leave blank to let the LLM invent one',
     oninput: e => setLyricInputs(S, { subject: e.target.value }),
   })));
+  if (researchable) {
+    box.appendChild(el('p', { class: 'note',
+      text: 'Two-step flow: the title is researched with web grounding first, and the premise that comes back becomes the subject material for the lyric call.' }));
+  }
+
   box.appendChild(field('Title (optional override)', el('input', {
     type: 'text', value: l.title, placeholder: 'leave blank for an LLM-generated title',
     oninput: e => setLyricInputs(S, { title: e.target.value }),
   })));
-  box.appendChild(field('Line length target',
-    select(CONTROL_OPTIONS.lineLength.map(v => ({ value: v, label: v })), l.lineLength,
-      v => setLyricInputs(S, { lineLength: v }))));
-  box.appendChild(field('Rhyme density target',
-    select(CONTROL_OPTIONS.rhymeDensity.map(v => ({ value: v, label: v })), l.rhymeDensity,
-      v => setLyricInputs(S, { rhymeDensity: v }))));
+  box.appendChild(field('Theme lens', opt('themeLens', CONTROL_OPTIONS.themeLens)));
+  box.appendChild(field('Perspective', opt('perspective', CONTROL_OPTIONS.perspective)));
+  box.appendChild(field('Era bias (lyric idiom only)', opt('eraBias', CONTROL_OPTIONS.eraBias)));
+
+  box.appendChild(el('h5', { text: 'Writing', style: 'margin:10px 0 4px;' }));
+  box.appendChild(field('Language style', opt('languageStyle', CONTROL_OPTIONS.languageStyle)));
+  box.appendChild(field('Hook style', opt('hookStyle', CONTROL_OPTIONS.hookStyle)));
+  box.appendChild(field('Imagery density', opt('imageryDensity', CONTROL_OPTIONS.imageryDensity)));
+  box.appendChild(field('Narrative clarity', opt('narrativeClarity', CONTROL_OPTIONS.narrativeClarity)));
+  box.appendChild(field('Line length target', opt('lineLength', CONTROL_OPTIONS.lineLength)));
+  box.appendChild(field('Rhyme density target', opt('rhymeDensity', CONTROL_OPTIONS.rhymeDensity)));
+
+  box.appendChild(el('h5', { text: 'Voice', style: 'margin:10px 0 4px;' }));
+  box.appendChild(field('Vocal framing', opt('vocalFraming', CONTROL_OPTIONS.vocalFraming)));
+  box.appendChild(field('Delivery style', opt('deliveryStyle', CONTROL_OPTIONS.deliveryStyle)));
+
+  // Foreign-language layer. Collapsed to a single toggle until enabled — four
+  // permanently-visible controls for an off-by-default feature is exactly the
+  // control-burden problem the novice model is meant to avoid.
+  const LL = l.languageLayer;
+  box.appendChild(el('h5', { text: 'Foreign-language layer', style: 'margin:10px 0 4px;' }));
+  box.appendChild(field('Enabled', segmented(
+    [{ value: 'off', label: 'Off' }, { value: 'on', label: 'On' }], LL.enabled ? 'on' : 'off',
+    v => { setLanguageLayer(S, { enabled: v === 'on' }); renderAll(); })));
+  if (LL.enabled) {
+    const llOpt = (key, options) => select(options.map(v => ({ value: v, label: v })), LL[key],
+      v => { setLanguageLayer(S, { [key]: v }); renderAll(); });
+    box.appendChild(field('Language', llOpt('language', CONTROL_OPTIONS.languages)));
+    // 'None' is dropped from the mode list here: the Off/On toggle above is
+    // the enable mechanism, so a second "None" would be a mode that means
+    // "ignore the layer I just switched on".
+    box.appendChild(field('Mode', llOpt('mode', CONTROL_OPTIONS.languageModes.filter(m => m !== 'None'))));
+    box.appendChild(field('Placement', llOpt('placement', CONTROL_OPTIONS.languagePlacement)));
+    box.appendChild(field('Intensity', llOpt('intensity', CONTROL_OPTIONS.languageIntensity)));
+  }
 
   box.appendChild(el('h4', { text: 'Model provider', style: 'margin-top:14px;' }));
   box.appendChild(field('Provider', segmented(
@@ -437,6 +489,19 @@ function lyricPanel(root) {
           text: r.brief.lockedMetatags
             ? 'Metatags: locked \u2014 the real per-section tags above were handed to the model as fixed content.'
             : 'Metatags: generic \u2014 no locked tags were available for this build; the model invented its own.' }));
+      }
+      // Source-research provenance (2026-08-17). John's direction was NOT to
+      // show the premise itself in the UI — this is one line saying whether
+      // the grounded pre-pass ran and how sure it was, not the premise text.
+      // Without it a soft failure (search unavailable, unparseable response)
+      // is indistinguishable from a successful lookup, and a Suno result
+      // couldn't be traced back to which of the two produced it.
+      if (r.sourceResearch) {
+        const sr = r.sourceResearch;
+        box.appendChild(el('p', { class: 'note',
+          text: sr.researched
+            ? `Source research: ran with web grounding \u2014 identified "${(sr.research && sr.research.identified) || 'unknown'}", confidence ${sr.confidence || 'unstated'}.`
+            : `Source research: did not run (${sr.reason}). Lyrics were written from the subject line alone.` }));
       }
       if (r.title) box.appendChild(el('p', { text: `Title: ${r.title}` }));
       if (r.lyrics) box.appendChild(el('pre', { text: r.lyrics, style: 'white-space:pre-wrap; font-size:12px;' }));

@@ -37,8 +37,34 @@ export function initState() {
               // user override John asked about (defaults to LLM-invented when
               // blank); lineLength/rhymeDensity are the two the quality gate
               // (core/lyric-validator.js) actually checks against.
+              // LYRIC-BRIEF CONTROL PANEL (John, 2026-08-17). Was four fields;
+              // the 2026-08-13 log entry recorded the gap ("original design
+              // has ~20 fields, current live UI has 4") and it was the
+              // standing priority-1 blocker on Suno testing. Every default
+              // below reproduces the pre-2026-08-17 prompt content for its
+              // axis, so an untouched panel changes nothing.
               lyric: {
                 subject: '', title: '', lineLength: 'Flexible', rhymeDensity: 'Moderate',
+                // Tier 1 — vocabulary and brief fields already existed; only
+                // the UI was missing, so these were fixed at their defaults.
+                sourceType: 'Original concept',
+                themeLens: 'Inspired by source',
+                perspective: 'First person',
+                languageStyle: 'Poetic',
+                deliveryStyle: 'Controlled and intimate',
+                // Tier 2 — net-new: vocabulary existed in CONTROL_OPTIONS but
+                // nothing read it from answers or rendered it to the model.
+                hookStyle: 'Subtle and emotional',
+                imageryDensity: 'Moderate',
+                narrativeClarity: 'Balanced',
+                vocalFraming: 'Lead vocal centered',
+                eraBias: 'Timeless',
+                // Foreign-language sub-feature. Off by default; when off,
+                // core/lyric.js renders no language block at all.
+                languageLayer: {
+                  enabled: false, language: 'French', mode: 'Foreign phrase layer',
+                  placement: 'Chorus or backing phrase', intensity: 'Light',
+                },
                 status: 'idle', // 'idle' | 'running' | 'done' | 'error'
                 result: null, error: null,
               },
@@ -65,6 +91,12 @@ export function setStructurePreset(S, presetId) {
 // generation flow itself (see js/generate.js's generateLyricsLive()).
 export function setLyricInputs(S, patch) {
   Object.assign(S.lyric, patch);
+}
+
+// The language layer is nested, so Object.assign at the top level would
+// replace the whole sub-object and drop the fields the caller didn't send.
+export function setLanguageLayer(S, patch) {
+  Object.assign(S.lyric.languageLayer, patch);
 }
 
 export function setClaudeSettings(S, patch) {

@@ -11,6 +11,7 @@ import { buildResolverDNA } from '../core/dna-resolver.js';
 import { buildLegacyDNA } from '../core/dna-legacy.js';
 import { inferCIL } from '../core/cil.js';
 import { runLyricEngine } from '../core/lyric.js';
+import { needsSourceResearch, runSourceResearch } from '../core/source-research.js';
 import { runMetatagEngine } from '../core/metatag.js';
 import { COMPOSER_LAYERS, composerStyleLayer } from '../core/composer-layers.js';
 import { atomCharacterForPalette } from '../engines/atom-characters.js';
@@ -288,11 +289,35 @@ export function buildLiveLyricRequest(S) {
   }
 
   const l = S.lyric || {};
+  // LYRIC-BRIEF CONTROL PANEL (2026-08-17). Previously only three of these
+  // reached the brief; the rest of the vocabulary existed but was never read
+  // from state, so the controls that did exist upstream were inert. Anything
+  // omitted here still falls back to assembleLyricBrief()'s own defaults, so
+  // a partially-populated state (an old saved session, a test harness) stays
+  // valid rather than throwing.
   const answers = {
     'song.subject': l.subject || '',
     'song.lineLength': l.lineLength || 'Flexible',
     'song.rhymeDensity': l.rhymeDensity || 'Moderate',
+    'song.sourceType': l.sourceType || 'Original concept',
+    'song.themeLens': l.themeLens || 'Inspired by source',
+    'song.perspective': l.perspective || 'First person',
+    'song.languageStyle': l.languageStyle || 'Poetic',
+    'song.deliveryStyle': l.deliveryStyle || 'Controlled and intimate',
+    'song.hookStyle': l.hookStyle || 'Subtle and emotional',
+    'song.imageryDensity': l.imageryDensity || 'Moderate',
+    'song.narrativeClarity': l.narrativeClarity || 'Balanced',
+    'song.vocalFraming': l.vocalFraming || 'Lead vocal centered',
+    'song.eraBias': l.eraBias || 'Timeless',
   };
+  const LL = l.languageLayer;
+  if (LL && LL.enabled) {
+    answers['song.languageLayer.enabled'] = true;
+    answers['song.languageLayer.language'] = LL.language;
+    answers['song.languageLayer.mode'] = LL.mode;
+    answers['song.languageLayer.placement'] = LL.placement;
+    answers['song.languageLayer.intensity'] = LL.intensity;
+  }
   if (l.title && l.title.trim()) answers['song.title'] = l.title.trim(); // user override; LLM invents one if absent
 
   // Provider choice (2026-08-13, John): Gemini is the default for lyrics,
@@ -312,12 +337,48 @@ export function buildLiveLyricRequest(S) {
 // app to use the real Claude transport built above.
 export async function generateLyricsLive(S, transportOverride) {
   const req = buildLiveLyricRequest(S);
-  return runLyricEngine({
+  const transport = transportOverride || req.transport;
+
+  /* STEP 1 — GROUNDED SOURCE RESEARCH (John, 2026-08-17). Fires only for a
+   * researchable source type with a named subject (see
+   * core/source-research.js's gate); Original concept and Personal memory
+   * skip it entirely and the flow stays a single call, which is the common
+   * case. The researched premise REPLACES song.subject rather than arriving
+   * as a parallel field, so the lyric prompt keeps one coherent subject block
+   * and every downstream consumer (repair prompt, validator, batch builder)
+   * needs no change at all.
+   *
+   * Skipped for an instrumental build: there is no lyric call to ground, and
+   * spending a search on a track that short-circuits to [Instrumental] is
+   * pure waste. runLyricEngine() does that short-circuit itself, but only
+   * after this point, so the check is repeated here.
+   *
+   * Fails soft — see runSourceResearch()'s header. A failed pre-pass degrades
+   * to the bare subject line, never to a failed generation. */
+  let sourceResearch = null;
+  const instrumentalBuild = S.songType === 'instrumental';
+  if (!instrumentalBuild && needsSourceResearch(req.answers['song.sourceType'], req.answers['song.subject'])) {
+    sourceResearch = await runSourceResearch({
+      sourceType: req.answers['song.sourceType'],
+      subject: req.answers['song.subject'],
+      transport, model: req.model,
+    });
+    if (sourceResearch.researched) {
+      req.answers['song.subject'] = sourceResearch.subject;
+      req.answers['song.sourceResearched'] = true;
+      req.answers['song.sourceIdentified'] = (sourceResearch.research && sourceResearch.research.identified) || null;
+      req.answers['song.sourceConfidence'] = sourceResearch.confidence || null;
+    }
+  }
+
+  /* STEP 2 — the creative call, ungrounded, with the full spec. */
+  const out = await runLyricEngine({
     dna: req.dna, cil: req.cil, structure: req.structure, answers: req.answers,
     lockedMetatags: req.lockedMetatags,
-    transport: transportOverride || req.transport,
+    transport,
     model: req.model, repair: true,
   });
+  return { ...out, sourceResearch };
 }
 // Each role is either locked (chosen) or drawn fresh from the proven STYLE_ENGINES array.
 function resolveClassicSlots(engineId, l, seed) {
