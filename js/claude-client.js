@@ -25,6 +25,8 @@ export const CLAUDE_MODELS = [
   'claude-haiku-4-5-20251001',
 ];
 
+import { sendWithParamRetry } from './llm-params.js';
+
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const PROXY_URL = 'http://127.0.0.1:8787/v1/messages';
 const TRANSPORT_MODE_KEY = 'atmos.claudeTransportMode';
@@ -58,24 +60,44 @@ export async function callClaude({ apiKey, model, temperature, maxTokens, prompt
     throw new Error('Missing Claude API key. Enter a key in Claude Settings before generating.');
   }
 
-  let response;
+  const headers = {
+    'content-type': 'application/json',
+    ...(mode === 'direct' ? { 'x-api-key': apiKey.trim() } : {}),
+    'anthropic-version': '2023-06-01',
+    ...(mode === 'direct' ? { 'anthropic-dangerous-direct-browser-access': 'true' } : {}),
+  };
+  const url = mode === 'proxy' ? PROXY_URL : API_URL;
+
+  /* Tuning params are passed SEPARATELY from the essential request fields so
+   * js/llm-params.js can drop one without touching model/messages/max_tokens.
+   * 2026-08-17: a live call returned 400 "`temperature` is deprecated for this
+   * model" — see that module's header for why the fix is a general retry
+   * rather than deleting the field. */
+  const tuning = { temperature: temperature != null ? Number(temperature) : 0.9 };
+
+  let response, lastBody = '';
   try {
-    response = await fetch(mode === 'proxy' ? PROXY_URL : API_URL, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(mode === 'direct' ? { 'x-api-key': apiKey.trim() } : {}),
-        'anthropic-version': '2023-06-01',
-        ...(mode === 'direct' ? { 'anthropic-dangerous-direct-browser-access': 'true' } : {}),
+    const result = await sendWithParamRetry({
+      provider: 'claude', model, params: tuning,
+      attempt: async (params) => {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model,
+            max_tokens: Number(maxTokens) || 4096,
+            ...params,
+            messages: [{ role: 'user', content: prompt }],
+            ...(grounded ? { tools: [CLAUDE_SEARCH_TOOL] } : {}),
+          }),
+        });
+        // The body is read here rather than after the loop because a Response
+        // can only be consumed once, and the retry decision needs to read it.
+        const body = res.ok ? '' : await res.text().catch(() => '');
+        return { ok: res.ok, status: res.status, body, res };
       },
-      body: JSON.stringify({
-        model,
-        max_tokens: Number(maxTokens) || 4096,
-        temperature: temperature != null ? Number(temperature) : 0.9,
-        messages: [{ role: 'user', content: prompt }],
-        ...(grounded ? { tools: [CLAUDE_SEARCH_TOOL] } : {}),
-      }),
     });
+    response = result.res; lastBody = result.body;
   } catch (error) {
     const help = mode === 'direct'
       ? 'Direct browser mode may be blocked by CORS. Switch to Local proxy mode and start the optional proxy.'
@@ -84,9 +106,8 @@ export async function callClaude({ apiKey, model, temperature, maxTokens, prompt
   }
 
   if (!response.ok) {
-    const body = await response.text().catch(() => '');
     const modelHint = response.status === 404 ? ` The selected model ("${model}") may not be available to this API key.` : '';
-    throw new Error(`Claude request failed (${response.status}).${modelHint} ${body || 'Check API key, model, quota, or browser CORS policy.'}`);
+    throw new Error(`Claude request failed (${response.status}).${modelHint} ${lastBody || 'Check API key, model, quota, or browser CORS policy.'}`);
   }
 
   const data = await response.json();

@@ -97,6 +97,7 @@ const files = [
   'core/dna-legacy.js',
   'core/favourites.js',
   'js/registry.js',
+  'js/llm-params.js',
   'js/claude-client.js',
   'js/gemini-client.js',
   'js/state.js',

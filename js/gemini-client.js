@@ -30,6 +30,8 @@ export const GEMINI_MODELS = [
   'gemini-3-flash-preview',
 ];
 
+import { sendWithParamRetry } from './llm-params.js';
+
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const PROXY_URL = 'http://127.0.0.1:8788/v1beta/generateContent'; // different port than claude-client's proxy — the two can run side by side
 const TRANSPORT_MODE_KEY = 'atmos.geminiTransportMode';
@@ -67,24 +69,42 @@ export async function callGemini({ apiKey, model, temperature, maxTokens, prompt
   }
   const m = model || GEMINI_DEFAULT_MODEL;
   const url = mode === 'proxy' ? PROXY_URL : `${API_BASE}/${encodeURIComponent(m)}:generateContent`;
+  const headers = {
+    'content-type': 'application/json',
+    ...(mode === 'direct' ? { 'x-goog-api-key': apiKey.trim() } : {}),
+  };
 
-  let response;
+  /* Tuning params kept separate from the essential request fields so
+   * js/llm-params.js can drop one without touching contents/tools. Gemini
+   * NESTS these under generationConfig, so the driver works on a flat object
+   * here and the attempt callback re-nests whatever survives — the drop logic
+   * stays provider-agnostic and doesn't need to know about the wrapper.
+   * See js/llm-params.js for the full rationale (John, 2026-08-17, after a
+   * live 400: "`temperature` is deprecated for this model"). */
+  const tuning = {
+    temperature: temperature != null ? Number(temperature) : 0.9,
+    maxOutputTokens: Number(maxTokens) || 4096,
+  };
+
+  let response, lastBody = '';
   try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(mode === 'direct' ? { 'x-goog-api-key': apiKey.trim() } : {}),
+    const result = await sendWithParamRetry({
+      provider: 'gemini', model: m, params: tuning,
+      attempt: async (params) => {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { ...params },
+            ...(grounded ? { tools: [GEMINI_SEARCH_TOOL] } : {}),
+          }),
+        });
+        const body = res.ok ? '' : await res.text().catch(() => '');
+        return { ok: res.ok, status: res.status, body, res };
       },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: temperature != null ? Number(temperature) : 0.9,
-          maxOutputTokens: Number(maxTokens) || 4096,
-        },
-        ...(grounded ? { tools: [GEMINI_SEARCH_TOOL] } : {}),
-      }),
     });
+    response = result.res; lastBody = result.body;
   } catch (error) {
     const help = mode === 'direct'
       ? 'Direct browser mode may be blocked by CORS. Switch to Local proxy mode and start the optional proxy.'
@@ -93,9 +113,8 @@ export async function callGemini({ apiKey, model, temperature, maxTokens, prompt
   }
 
   if (!response.ok) {
-    const body = await response.text().catch(() => '');
     const modelHint = response.status === 404 ? ` The selected model ("${m}") may not exist or may have been renamed — Google renames Gemini models more often than most providers.` : '';
-    throw new Error(`Gemini request failed (${response.status}).${modelHint} ${body || 'Check API key, model, quota, or browser CORS policy.'}`);
+    throw new Error(`Gemini request failed (${response.status}).${modelHint} ${lastBody || 'Check API key, model, quota, or browser CORS policy.'}`);
   }
 
   const data = await response.json();
