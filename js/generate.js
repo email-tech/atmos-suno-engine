@@ -31,6 +31,41 @@ function applyMax(style, on) {
   return out.length <= CHAR_LIMIT ? out : out.slice(0, CHAR_LIMIT - 3).trimEnd() + '...';
 }
 
+/* MAX MODE LYRIC MARKER (John, 2026-08-17, after the first live generation):
+ * "Whether it's a Vocal or Instrumental song, when MAX MODE is selected, the
+ * Lyric prompt field must have the slash-star marker (see MAX_LYRIC_MARKER
+ * below for the exact literal) at the very top."
+ *
+ * This is a SEPARATE mechanism from applyMax() above, which prefixes the
+ * STYLE field with MAX_MODE_STR. Two different Suno inputs, two different
+ * markers — the style block is the [Is_MAX_MODE: MAX](MAX) directive set, the
+ * lyrics box takes this delimiter. Conflating them would put the wrong text
+ * in the wrong field.
+ *
+ * Provenance: this is John's own instruction, and it is the standing item
+ * from the prior app's NEXT_SESSION_HANDOFF.txt ("Next alteration reminder:
+ * Prefix Lyric prompt with the following line: <the same marker>"), which was
+ * recorded but never implemented in either the old app or this one.
+ *
+ * VERY TOP means above everything, including the first section marker — so it
+ * is prepended, never merged into an existing line. Applied to BOTH song
+ * types per John's wording: an instrumental build's lyrics field carries the
+ * metatag block, and that still needs the marker.
+ *
+ * NOT length-capped, unlike applyMax(): CHAR_LIMIT is the style field's 1000-
+ * character budget. The lyrics box has no such limit, and truncating a lyric
+ * to fit a style-field constraint would silently destroy the song. */
+export const MAX_LYRIC_MARKER = '///*****///';
+
+export function applyMaxToLyrics(lyrics, on) {
+  if (!on) return lyrics;
+  const text = String(lyrics == null ? '' : lyrics);
+  // Idempotent: a lyric that already carries the marker (a recalled
+  // favourite, a re-render of the same result) must not accumulate copies.
+  if (text.trimStart().startsWith(MAX_LYRIC_MARKER)) return text;
+  return MAX_LYRIC_MARKER + '\n' + text;
+}
+
 // SONG-TYPE GATE (structure-first pipeline, Phase 2 — docs/architecture/
 // structure-first-pipeline-plan.md, approved by John 2026-08-12; guide §2:
 // "Lyrics field = [Instrumental] ... with the structural markers only" when
@@ -41,7 +76,7 @@ function applyMax(style, on) {
 // what generate() actually returns, so switching back to Vocal restores the
 // user's own choice.
 function songTypeLyrics(S, fallback) {
-  return S.songType === 'instrumental' ? '[Instrumental]' : fallback;
+  return applyMaxToLyrics(S.songType === 'instrumental' ? '[Instrumental]' : fallback, S.maxMode);
 }
 
 // Phase 3/4 (approved by John 2026-08-12, "names and positions only" — no
@@ -134,7 +169,7 @@ export function generate(S) {
 
     return {
       style, negative: out.negative,
-      lyrics: instrumental ? (metatags || '[Instrumental]') : songTypeLyrics(S, ''),
+      lyrics: instrumental ? applyMaxToLyrics(metatags || '[Instrumental]', S.maxMode) : songTypeLyrics(S, ''),
       metatags: instrumental ? '' : metatags,
       length: style.length, over: style.length > CHAR_LIMIT,
       arrangement: out.arrangement, overlayNote: out.overlayNote,
@@ -182,7 +217,7 @@ export function generate(S) {
     return {
       style,
       negative: buildNegativePrompt(state),
-      lyrics: buildLyricsField(state),
+      lyrics: applyMaxToLyrics(songTypeLyrics(S, buildLyricsField(state)), S.maxMode),
       length: style.length,
       over: style.length > CHAR_LIMIT,
       arrangement: built.arrangement,
@@ -378,7 +413,13 @@ export async function generateLyricsLive(S, transportOverride) {
     transport,
     model: req.model, repair: true,
   });
-  return { ...out, sourceResearch };
+  /* The generated lyric is a SECOND route into Suno's lyrics box, separate
+   * from generate()'s `lyrics` field — this is the text John actually pastes
+   * for a vocal track, so it needs the Max marker on the same terms. Applied
+   * here rather than inside runLyricEngine() because Max Mode is shell state
+   * (S.maxMode), and core/lyric.js is deliberately free of shell concerns. */
+  const lyrics = applyMaxToLyrics(out.lyrics, S.maxMode);
+  return { ...out, lyrics, sourceResearch };
 }
 // Each role is either locked (chosen) or drawn fresh from the proven STYLE_ENGINES array.
 function resolveClassicSlots(engineId, l, seed) {

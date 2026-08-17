@@ -496,6 +496,14 @@ function lyricPanel(root) {
       // Without it a soft failure (search unavailable, unparseable response)
       // is indistinguishable from a successful lookup, and a Suno result
       // couldn't be traced back to which of the two produced it.
+      // Source type on the readout (John, 2026-08-17: "Will there be a
+      // section stating what the source is"). The control itself is the first
+      // field in the panel above; this echoes the resolved value back on the
+      // OUTPUT so a saved or pasted result is self-describing rather than
+      // requiring the user to scroll up and re-read a dropdown.
+      if (r.brief && r.brief.sourceType) {
+        box.appendChild(el('p', { class: 'note', text: `Source type: ${r.brief.sourceType}` }));
+      }
       if (r.sourceResearch) {
         const sr = r.sourceResearch;
         box.appendChild(el('p', { class: 'note',
