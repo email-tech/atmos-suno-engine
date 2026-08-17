@@ -30,7 +30,7 @@
  * electronic families.
  * ========================================================================*/
 
-import { classifyElectronic } from './linking-electronic.js';
+import { classifyElectronic, ELECTRONIC_FAMILIES } from './linking-electronic.js';
 
 /* ---- §1 Instrument families and core roles -------------------------------- */
 export const FAMILY_ROLES = {
@@ -55,11 +55,20 @@ export const FAMILY_ROLES = {
 const FAMILY_PATTERNS = [
   ['strings',    /\b(string|strings|violin|viola|cello|double bass|pizzicato)\b/i],
   ['woodwinds',  /\b(woodwind|woodwinds|flute|oboe|clarinet|bassoon|cor anglais|recorder|duduk|shakuhachi|reed|reeds|saxophone)\b/i],
-  ['brass',      /\b(brass|horn|horns|trumpet|trombone|tuba|flugelhorn|cornet)\b/i],
+  ['brass',      /\b(brass|horn|horns|trumpet|trumpets|trombone|trombones|tuba|tubas|flugelhorn|cornet)\b/i],
   ['harp',       /\b(harp)\b/i],
   ['piano',      /\b(piano|rhodes|clavinet|harpsichord|celesta)\b/i],
-  ['percussion', /\b(percussion|timpani|marimba|vibraphone|glockenspiel|xylophone|dulcimer|cimbalom|bells|drum|drums|shaker|conga|cajón|cajon|tabla)\b/i],
+  ['percussion', /\b(percussion|timpani|marimba|vibraphone|glockenspiel|xylophone|dulcimer|cimbalom|bells|drum|drums|kit|tom|toms|shaker|conga|congas|cajón|cajon|tabla|bodhran|djembe)\b/i],
 ];
+/* PLURALS AND COMPOUNDS were missing (2026-08-17). A composer layer names
+ * "trombones", "large low toms" and "soft house kit", none of which matched:
+ * the patterns were written singular-only and against a bare instrument name
+ * rather than the qualified names the modifier libraries actually contain, so
+ * classifyInstrument returned null and every family-aware rule silently skipped
+ * that voice. Found on a live Balearic + Zimmer build carrying two basses and a
+ * kit alongside its own toms. This widens WHAT MATCHES; it does not add or alter
+ * a single linking PHRASE, so validate-linking's guide provenance check is
+ * untouched by it. */
 export function classifyInstrument(name) {
   const t = String(name || '');
   // Check electronic patterns first to avoid collisions with orchestral families
@@ -178,6 +187,88 @@ export const PAIR_LINKS = {
     'plucked harp and struck piano patterns enrich the string pad',
   ],
 };
+
+/* ---- DECORATION PLANE (2026-08-17) ----------------------------------------
+ * Which plane a MODIFIER voice occupies. Not a new vocabulary — it selects
+ * which §13 plane phrase above applies to a given family, so the wording still
+ * comes from the guide verbatim.
+ *
+ * WHY THIS EXISTS. compose() classified modifier voices into three hand-written
+ * buckets and gave everything that fell through the same sentence: a live
+ * Balearic + Zimmer build read "French horns tracing the melody a step behind
+ * the lead, trombones tracing the melody a step behind the lead, deep synth bass
+ * tracing the melody a step behind the lead, analog synth pulse tracing the
+ * melody a step behind the lead, large low toms tracing the melody a step behind
+ * the lead". Five voices, one stamp, and false for most of them — a low tom does
+ * not trace a melody. Those three phrases were also invented while this guide
+ * already held tested placement wording, which is the exact failure the guide
+ * and its validator exist to prevent.
+ *
+ * NO MODIFIER VOICE GETS THE FOREGROUND PLANE, whatever its family says. The
+ * settled modifier model is that the composer decorates the character's song
+ * without displacing its genre identity, so a modifier voice in the foreground
+ * is contending with the character's own lead by definition. synthlead is the
+ * only family whose guide plane is foreground and it is clamped to middle here.
+ *
+ * BRASS SITS BACK rather than in the foreground the guide's §4 gives it. That is
+ * not a reinterpretation: PAIR_LINKS 'brass|strings' above already records the
+ * decision that on a groove-led engine only the soft-and-low brass variants are
+ * imported, and John's round-4 result was an overlay trumpet coming through too
+ * strong. Same reasoning, applied to placement instead of pairing. */
+export const DECORATION_PLANE = Object.freeze({
+  strings:       'background',   // sustained harmonic support
+  brass:         'background',   // soft-and-low only, per §4 import decision
+  woodwinds:     'middle',       // colour and countermelody
+  harp:          'middle',
+  piano:         'middle',
+  percussion:    'background',   // rhythmic reinforcement, not a melodic voice
+  synthpad:      'background',
+  organ:         'background',
+  electricbass:  'background',
+  drummachine:   'background',
+  arpeggio:      'middle',
+  electricpiano: 'middle',
+  sampledloop:   'middle',
+  vocalsynthesis:'middle',
+  synthlead:     'middle',       // clamped down from foreground — see above
+});
+
+export function decorationPlane(name) {
+  const fam = classifyInstrument(name);
+  return (fam && DECORATION_PLANE[fam]) || 'middle';
+}
+
+/* Sustained / plucked / percussive, from the guide's own family data
+ * (FAMILY_ROLES above, ELECTRONIC_FAMILIES in the electronic guide). Needed
+ * because a §13 plane phrase is not neutral about what it is describing: the
+ * background 'blend' variant says "quiet, sustained timbres", which is false of
+ * a xylophone, and the middle 'inner' variant says "voices", which is false of a
+ * frame drum. Applying guide-verbatim wording to the wrong instrument type is
+ * the same fault as inventing wording — it just passes the provenance check. */
+export function familyType(name) {
+  const fam = classifyInstrument(name);
+  if (!fam) return 'unknown';
+  if (FAMILY_ROLES[fam]) return FAMILY_ROLES[fam].type;
+  if (ELECTRONIC_FAMILIES[fam]) {
+    const t = ELECTRONIC_FAMILIES[fam].type;
+    if (/percussive/.test(t) && !/sustained/.test(t)) return 'percussive';
+    if (/sustained/.test(t)) return 'sustained';
+    if (/plucked/.test(t)) return 'plucked';
+    return 'melodic';
+  }
+  return 'unknown';
+}
+
+/* Which §13 variants are TRUE of which instrument type. A variant absent from a
+ * type's list is not merely a stylistic preference — the sentence would assert
+ * something the instrument does not do. */
+export const PLANE_VARIANTS_BY_TYPE = Object.freeze({
+  sustained:  { background: ['blend', 'enrich'], middle: ['support', 'inner'] },
+  plucked:    { background: ['enrich'],          middle: ['support', 'inner'] },
+  melodic:    { background: ['enrich'],          middle: ['support', 'inner'] },
+  percussive: { background: ['enrich'],          middle: ['support'] },
+  unknown:    { background: ['enrich'],          middle: ['support'] },
+});
 
 export function pairKey(a, b) { return [a, b].sort().join('|'); }
 

@@ -166,6 +166,10 @@ export function generate(S) {
       metatags = runMetatagEngine({
         dna, renderMode: 'lean', composerLayerId, answers: vocalAnswers,
         sections: structure && structure.sections,
+        /* RECONCILED survivors, not the layer's declared list. A composer
+         * instrument dropped by the cast (second bass, kit component, no legal
+         * placement left) must not be directed by a metatag — Path B. */
+        composerInstruments: (out.cast || []).filter(v => v.source === 'composer').map(v => v.instrument),
       }).block;
     } catch (e) { metatags = ''; }
 
@@ -187,6 +191,11 @@ export function generate(S) {
       metatags: instrumental ? '' : metatags,
       length: style.length, over: style.length > CHAR_LIMIT,
       arrangement: out.arrangement, overlayNote: out.overlayNote,
+      /* The reconciled cast, exposed so consumers and validators can see WHICH
+       * voices survived rather than inferring it from the prose. Needed by
+       * validate-composer-layers' Path B check: a metatag must not direct a
+       * composer instrument that reconciliation dropped. */
+      cast: out.cast, castDropped: out.castDropped,
       structure,
     };
   }

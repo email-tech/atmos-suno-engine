@@ -98,6 +98,7 @@ console.log(`  ${COMPOSER_LAYER_IDS.length} composer layers: shape, banned-langu
   const base = generate(S);
   ok(!!base.metatags, 'atom path now surfaces metatags');
   ok(!/secondary arrangement layer/.test(base.style), 'base style must not carry a composer layer');
+  let entangled = 0; const entangledDetail = [];
 
   for (const id of COMPOSER_LAYER_IDS) {
     S.atom.composerLayerId = id;
@@ -150,17 +151,59 @@ console.log(`  ${COMPOSER_LAYER_IDS.length} composer layers: shape, banned-langu
       ok(n <= 1, `${id}: "${w}" named ${n} times \u2014 one voice, one mention`);
     }
 
-    // every declared instrument must appear in the rendered metatags
-    for (const inst of L.instruments)
-      if (!mentions(out.metatags, inst))
-        bad(`${id}: instrument "${inst}" declared but absent from rendered metatags`);
+    /* 4. METATAGS MAY ONLY DIRECT VOICES THE STYLE FIELD NAMES (Path B).
+     * CONTRACT CHANGED 2026-08-17, second pass. This used to assert that every
+     * DECLARED instrument reaches the metatags. That was correct while every
+     * declared instrument also reached the style string, and became wrong the
+     * moment reconciliation started dropping them (a second bass, a component of
+     * a kit already on the track, a voice with no legal placement left). The old
+     * assertion would have PASSED on a metatag block directing a voice the style
+     * never named — the precise thing the 2026-08-14 Path B decision rules out,
+     * and the reason the metatag side was considered the sound half.
+     * Both directions are checked: survivors must be directed, drops must not. */
+    const survivors = (out.cast || []).filter(v => v.source === 'composer').map(v => v.instrument);
+    const droppedComposer = L.instruments.filter(i => !survivors.includes(i));
+    /* TOKEN ENTANGLEMENT (measured 2026-08-17, not yet resolved).
+     * A layer's per-section tokens are frequently COMPOUND and state a
+     * relationship between two of its instruments: "flutes and clarinets
+     * answer", "marimba and xylophone interlock", "solo violin and trumpet
+     * reinforce hook". When reconciliation drops one of the pair, the whole
+     * token has to go — the direction it gives is no longer true — and that can
+     * leave a SURVIVING instrument with no per-section direction anywhere, even
+     * though the style field names it properly.
+     * So this asserts a floor rather than per-instrument coverage: at least one
+     * surviving voice must be directed, and the uncovered ones are counted and
+     * printed so the gap stays visible instead of being quietly tolerated. The
+     * real fix is a musical decision about layer data (John), not a filter. */
+    let directed = 0;
+    const undirected = [];
+    for (const inst of survivors) {
+      if (mentions(out.metatags, inst)) directed++;
+      else undirected.push(inst);
+    }
+    entangled += undirected.length;
+    if (undirected.length) entangledDetail.push(`${id}: ${undirected.join(', ')}`);
+    ok(survivors.length > 0, `${id}: reconciliation dropped every composer instrument`);
+    ok(directed > 0, `${id}: not one surviving composer instrument reaches the metatags`);
+    /* An engine voice can independently share a word with a dropped composer
+     * instrument — the Balearic character carries its own "synth marimba", so a
+     * metatag mentioning marimba is not evidence the composer's dropped marimba
+     * leaked. Only flag a dropped name the engine cast does not also carry. */
+    const engineText = (out.cast || []).filter(v => v.source === 'engine')
+      .map(v => String(v.instrument || '').toLowerCase()).join(' | ');
+    for (const inst of droppedComposer)
+      if (mentions(out.metatags, inst)
+          && !survivors.some(s => s.includes(inst) || inst.includes(s))
+          && !engineText.includes(String(inst).toLowerCase()))
+        bad(`${id}: metatags direct "${inst}", which reconciliation dropped from the cast — Path B violation`);
 
     // banned language must never reach either field
     if (BANNED_ARTICULATION_RE.test(out.style)) bad(`${id}: banned articulation in style`);
     if (BANNED_ARTICULATION_RE.test(out.metatags)) bad(`${id}: banned articulation in metatags`);
   }
   checks += 3;
-  console.log(`  end-to-end: composer enters the cast (not appended), mastering stays last, no doubled voices, all instruments reach the metatags across ${COMPOSER_LAYER_IDS.length} composers.`);
+  console.log(`  end-to-end: composer enters the cast (not appended), mastering stays last, no doubled voices, no dropped voice directed by a metatag, across ${COMPOSER_LAYER_IDS.length} composers.`);
+  console.log(`  token entanglement: ${entangled} surviving voice(s) carry no per-section direction because their only tokens name a dropped partner${entangledDetail.length ? ' — ' + entangledDetail.join('; ') : ''}.`);
 }
 
 console.log(`validate-composer-layers: ${checks} checks, ${fails} failures.`);

@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"fc58135","date":"2026-08-17"};
+window.__ATMOS_BUILD__ = {"commit":"84effaa","date":"2026-08-17"};
 
 /* core/constants.js */
 (function(){
@@ -2527,11 +2527,43 @@ function composerStyleLayer(layerId) {
 // separator so the original song section is preserved and the composer decorates
 // it. `sectionType` is the canonical type (intro/verse/prechorus/chorus/bridge/
 // outro); `existingLine` is the engine's already-built line for that section.
-function decorateSection(existingLine, layerId, sectionType) {
+function decorateSection(existingLine, layerId, sectionType, allowedInstruments) {
   const layer = COMPOSER_LAYERS[layerId];
   if (!layer) return existingLine;
-  const tokens = layer.sections[sectionType];
+  let tokens = layer.sections[sectionType];
   if (!tokens || !tokens.length) return existingLine;
+  /* PATH B GUARANTEE (2026-08-17). A metatag may only direct an instrument the
+   * style field actually named. Once ensemble reconciliation started DROPPING
+   * composer instruments — a second bass, a kit component, a voice with no legal
+   * placement left — these per-section tokens still named them, so the metatag
+   * block was directing voices that no longer exist in the cast. That is exactly
+   * what the 2026-08-14 Path B decision rules out, and it is the reason the
+   * metatag side was considered sound in the first place.
+   *
+   * `allowedInstruments` is the reconciled survivor list. Omitting it preserves
+   * the previous behaviour exactly, so any caller that has no cast to hand (the
+   * legacy and resolver paths, which have no composer concept) is unaffected.
+   * A token is kept when it names a surviving instrument — tokens carry
+   * qualifiers ("thicker low strings", "final French horns"), so the match is on
+   * the instrument being contained in the token, not on equality. */
+  if (Array.isArray(allowedInstruments)) {
+    const allow = allowedInstruments.map(s => String(s).toLowerCase());
+    const dropped = (layer.instruments || [])
+      .map(s => String(s).toLowerCase())
+      .filter(i => !allow.some(a => a === i));
+    tokens = tokens.filter(t => {
+      const lt = String(t).toLowerCase();
+      /* A token must name a survivor AND name nothing that was dropped. The
+       * second half is not redundant: tokens are compound ("French horn over
+       * string ensemble"), so a token can carry a surviving voice and a dropped
+       * one in the same breath, and keeping it on the strength of the survivor
+       * smuggles the dropped voice back into the metatags. */
+      if (!allow.some(a => lt.includes(a))) return false;
+      if (dropped.some(d => lt.includes(d))) return false;
+      return true;
+    });
+    if (!tokens.length) return existingLine;
+  }
   // strip the trailing ] , add the composer tokens, re-close.
   const base = existingLine.replace(/\]\s*$/, '');
   return `${base} | ${tokens.join(' | ')}]`;
@@ -2903,7 +2935,7 @@ Object.assign(window.__ATMOS, { classifyElectronic, electronicPlanePhrase, movem
  * electronic families.
  * ========================================================================*/
 
-const {classifyElectronic} = window.__ATMOS;
+const {classifyElectronic, ELECTRONIC_FAMILIES} = window.__ATMOS;
 
 /* ---- §1 Instrument families and core roles -------------------------------- */
 const FAMILY_ROLES = {
@@ -2928,11 +2960,20 @@ const FAMILY_ROLES = {
 const FAMILY_PATTERNS = [
   ['strings',    /\b(string|strings|violin|viola|cello|double bass|pizzicato)\b/i],
   ['woodwinds',  /\b(woodwind|woodwinds|flute|oboe|clarinet|bassoon|cor anglais|recorder|duduk|shakuhachi|reed|reeds|saxophone)\b/i],
-  ['brass',      /\b(brass|horn|horns|trumpet|trombone|tuba|flugelhorn|cornet)\b/i],
+  ['brass',      /\b(brass|horn|horns|trumpet|trumpets|trombone|trombones|tuba|tubas|flugelhorn|cornet)\b/i],
   ['harp',       /\b(harp)\b/i],
   ['piano',      /\b(piano|rhodes|clavinet|harpsichord|celesta)\b/i],
-  ['percussion', /\b(percussion|timpani|marimba|vibraphone|glockenspiel|xylophone|dulcimer|cimbalom|bells|drum|drums|shaker|conga|cajón|cajon|tabla)\b/i],
+  ['percussion', /\b(percussion|timpani|marimba|vibraphone|glockenspiel|xylophone|dulcimer|cimbalom|bells|drum|drums|kit|tom|toms|shaker|conga|congas|cajón|cajon|tabla|bodhran|djembe)\b/i],
 ];
+/* PLURALS AND COMPOUNDS were missing (2026-08-17). A composer layer names
+ * "trombones", "large low toms" and "soft house kit", none of which matched:
+ * the patterns were written singular-only and against a bare instrument name
+ * rather than the qualified names the modifier libraries actually contain, so
+ * classifyInstrument returned null and every family-aware rule silently skipped
+ * that voice. Found on a live Balearic + Zimmer build carrying two basses and a
+ * kit alongside its own toms. This widens WHAT MATCHES; it does not add or alter
+ * a single linking PHRASE, so validate-linking's guide provenance check is
+ * untouched by it. */
 function classifyInstrument(name) {
   const t = String(name || '');
   // Check electronic patterns first to avoid collisions with orchestral families
@@ -3052,6 +3093,88 @@ const PAIR_LINKS = {
   ],
 };
 
+/* ---- DECORATION PLANE (2026-08-17) ----------------------------------------
+ * Which plane a MODIFIER voice occupies. Not a new vocabulary — it selects
+ * which §13 plane phrase above applies to a given family, so the wording still
+ * comes from the guide verbatim.
+ *
+ * WHY THIS EXISTS. compose() classified modifier voices into three hand-written
+ * buckets and gave everything that fell through the same sentence: a live
+ * Balearic + Zimmer build read "French horns tracing the melody a step behind
+ * the lead, trombones tracing the melody a step behind the lead, deep synth bass
+ * tracing the melody a step behind the lead, analog synth pulse tracing the
+ * melody a step behind the lead, large low toms tracing the melody a step behind
+ * the lead". Five voices, one stamp, and false for most of them — a low tom does
+ * not trace a melody. Those three phrases were also invented while this guide
+ * already held tested placement wording, which is the exact failure the guide
+ * and its validator exist to prevent.
+ *
+ * NO MODIFIER VOICE GETS THE FOREGROUND PLANE, whatever its family says. The
+ * settled modifier model is that the composer decorates the character's song
+ * without displacing its genre identity, so a modifier voice in the foreground
+ * is contending with the character's own lead by definition. synthlead is the
+ * only family whose guide plane is foreground and it is clamped to middle here.
+ *
+ * BRASS SITS BACK rather than in the foreground the guide's §4 gives it. That is
+ * not a reinterpretation: PAIR_LINKS 'brass|strings' above already records the
+ * decision that on a groove-led engine only the soft-and-low brass variants are
+ * imported, and John's round-4 result was an overlay trumpet coming through too
+ * strong. Same reasoning, applied to placement instead of pairing. */
+const DECORATION_PLANE = Object.freeze({
+  strings:       'background',   // sustained harmonic support
+  brass:         'background',   // soft-and-low only, per §4 import decision
+  woodwinds:     'middle',       // colour and countermelody
+  harp:          'middle',
+  piano:         'middle',
+  percussion:    'background',   // rhythmic reinforcement, not a melodic voice
+  synthpad:      'background',
+  organ:         'background',
+  electricbass:  'background',
+  drummachine:   'background',
+  arpeggio:      'middle',
+  electricpiano: 'middle',
+  sampledloop:   'middle',
+  vocalsynthesis:'middle',
+  synthlead:     'middle',       // clamped down from foreground — see above
+});
+
+function decorationPlane(name) {
+  const fam = classifyInstrument(name);
+  return (fam && DECORATION_PLANE[fam]) || 'middle';
+}
+
+/* Sustained / plucked / percussive, from the guide's own family data
+ * (FAMILY_ROLES above, ELECTRONIC_FAMILIES in the electronic guide). Needed
+ * because a §13 plane phrase is not neutral about what it is describing: the
+ * background 'blend' variant says "quiet, sustained timbres", which is false of
+ * a xylophone, and the middle 'inner' variant says "voices", which is false of a
+ * frame drum. Applying guide-verbatim wording to the wrong instrument type is
+ * the same fault as inventing wording — it just passes the provenance check. */
+function familyType(name) {
+  const fam = classifyInstrument(name);
+  if (!fam) return 'unknown';
+  if (FAMILY_ROLES[fam]) return FAMILY_ROLES[fam].type;
+  if (ELECTRONIC_FAMILIES[fam]) {
+    const t = ELECTRONIC_FAMILIES[fam].type;
+    if (/percussive/.test(t) && !/sustained/.test(t)) return 'percussive';
+    if (/sustained/.test(t)) return 'sustained';
+    if (/plucked/.test(t)) return 'plucked';
+    return 'melodic';
+  }
+  return 'unknown';
+}
+
+/* Which §13 variants are TRUE of which instrument type. A variant absent from a
+ * type's list is not merely a stylistic preference — the sentence would assert
+ * something the instrument does not do. */
+const PLANE_VARIANTS_BY_TYPE = Object.freeze({
+  sustained:  { background: ['blend', 'enrich'], middle: ['support', 'inner'] },
+  plucked:    { background: ['enrich'],          middle: ['support', 'inner'] },
+  melodic:    { background: ['enrich'],          middle: ['support', 'inner'] },
+  percussive: { background: ['enrich'],          middle: ['support'] },
+  unknown:    { background: ['enrich'],          middle: ['support'] },
+});
+
 function pairKey(a, b) { return [a, b].sort().join('|'); }
 
 // Deterministic pick so a seed reproduces a prompt.
@@ -3079,7 +3202,7 @@ function allPhrases() {
   return out;
 }
 
-Object.assign(window.__ATMOS, { classifyInstrument, planePhrase, pairKey, pairLink, allPhrases, FAMILY_ROLES, PLANES, TEMPLATES, PAIR_LINKS, CROSS_TYPE });
+Object.assign(window.__ATMOS, { classifyInstrument, planePhrase, decorationPlane, familyType, pairKey, pairLink, allPhrases, FAMILY_ROLES, PLANES, TEMPLATES, PAIR_LINKS, DECORATION_PLANE, PLANE_VARIANTS_BY_TYPE, CROSS_TYPE });
 })();
 
 /* core/rules.js */
@@ -4717,6 +4840,17 @@ function violatesGenrePolicy(entry, genreText) {
 /* Re-exported from core/knowledge.js so the cast and core/atoms.js compare
  * against the SAME list rather than two that can drift apart. */
 const {SINGLETON_INSTRUMENT_WORDS: SINGLETON_WORDS} = window.__ATMOS;
+/* The project's guide-backed instrument classifier. Reused rather than adding a
+ * second keyword list, so modifier content is classified by the same rules as
+ * everything else and validate-linking's guide check still covers it. */
+const {classifyInstrument, decorationPlane, familyType, PLANE_VARIANTS_BY_TYPE} = window.__ATMOS;
+
+/* A modifier "voice" that is really a PROCESS applied to a sound — a filter
+ * sweep is not a voice that can sit in a plane, and listing it among the
+ * instruments produced sentences like "a deep filter sweep in slow singing
+ * lines". It renders as movement instead, and is exempt from placement. */
+const EFFECT_RE  = /\b(sweep|filter|riser|swell|reverb|delay|noise|sub drop)\b/i;
+const SUSTAIN_RE = /\b(choir|pad|strings|drone|wash|mellotron)\b/i;
 
 const BED_BUDGET = 1;
 const LEAD_BUDGET = 1;
@@ -4767,13 +4901,23 @@ function buildCast(heldAtoms, opts) {
       atom: a,
     }));
 
-  // Composer instruments arrive as a name list (core/composer-layers.js keeps
-  // `instruments` explicitly so nothing has to parse them back out of prose).
-  // They join the cast as ordinary decorative entries and take their chances
-  // with every rule below, exactly like an engine atom.
+  /* Composer instruments arrive as a name list (core/composer-layers.js keeps
+   * `instruments` explicitly so nothing has to parse them back out of prose).
+   * They join the cast as ordinary decorative entries and take their chances
+   * with every rule below, exactly like an engine atom.
+   *
+   * FAMILY IS CLASSIFIED, NOT LEFT NULL (2026-08-17, second pass). The first
+   * cut left family null, which silently disabled every family-aware rule for
+   * modifier content — measured on a live Balearic + Zimmer build: the engine
+   * drew "sub bass" and the composer added "deep synth bass", two basses in one
+   * prompt, and the engine's "soft house kit" coexisted with "large low toms"
+   * even though COMPOSITE_COMPONENTS already records that a kit IS its toms.
+   * classifyInstrument() is the project's existing guide-backed classifier
+   * (core/linking.js, validated against the guide on disk), so this reuses the
+   * one source of truth rather than adding a second keyword list. */
   for (const name of (o.composerInstruments || [])) {
     cast.push({
-      key: `composer:${name}`, role: 'composer', family: null, instrument: name,
+      key: `composer:${name}`, role: 'composer', family: classifyInstrument(name), instrument: name,
       behaviour: null, mix: null, density: null, timbre: [],
       priority: 'decorative', signature: false, source: 'composer',
       composite: false, atom: null,
@@ -4821,6 +4965,73 @@ function reconcileCast(cast, opts) {
     words.forEach(w => claimedWords.add(w));
     return true;
   });
+
+  /* 0b. FOUNDATION COLLISION AND COMPOSITE DUPLICATION — modifier content only.
+   *
+   * Two narrow rules, both cases where a second voice is not decoration but a
+   * contradiction. Measured on a live Balearic + Hans Zimmer build (2026-08-17):
+   * engine drew "sub bass", composer added "deep synth bass"; engine drew "soft
+   * house kit", composer added "large low toms". Neither was caught, because
+   * SINGLETON_WORDS deliberately excludes bass (synth lead / synth pads / synth
+   * bass must be free to coexist) and because composer entries carried no family.
+   *
+   * (i) ONE BASS. Two basses fight for the same octave and Suno renders whichever
+   * it prefers. Engine atoms and classifyInstrument use DIFFERENT family
+   * vocabularies ('bass' vs 'electricbass'), so they are canonicalised here —
+   * the first cut compared the raw strings and matched nothing, which is why
+   * both basses survived a rule written to stop exactly that.
+   *
+   * (ii) NO COMPONENT OF A COMPOSITE ALREADY ON THE TRACK. A kit IS its toms;
+   * naming them again is the round-4 "one instrument named twice renders two of
+   * it" finding in a new place. COMPOSITE_COMPONENTS is reused rather than
+   * duplicated — it is the same table core/metatag.js reads to decide which
+   * component names are already implied by the style field.
+   *
+   * DELIBERATELY NARROW. Auxiliary percussion alongside a kit is legitimate and
+   * is NOT touched: the engine's own builds pair a house kit with an electro
+   * shaker. Every family other than bass stays a legal place for a composer to
+   * add a voice — that IS the modifier model John settled. Engine content claims
+   * first, so the voice that loses is always the modifier's. */
+  const BASS_FAMILIES = ['bass', 'electricbass', 'subbass'];
+  {
+    const engineHasBass = kept.some(v => v.source === 'engine' && BASS_FAMILIES.includes(v.family));
+    let bassClaimed = engineHasBass;
+    const composites = kept.filter(v => v.source === 'engine' && v.instrument)
+      .flatMap(v => {
+        const t = String(v.instrument).toLowerCase();
+        if (/\bkit\b|\bdrums\b/.test(t)) return COMPOSITE_COMPONENTS.kit;
+        if (/\bstring (section|ensemble)\b/.test(t)) return COMPOSITE_COMPONENTS.strings;
+        if (/\bchoir\b/.test(t)) return COMPOSITE_COMPONENTS.choir;
+        return [];
+      })
+      .map(c => c.toLowerCase());
+
+    kept = kept.filter(v => {
+      /* COMPOSER CONTENT ONLY. Scoped deliberately: an OVERLAY atom arrives with
+       * its own composed clause and its own family collision handling (core/
+       * atoms.js reconcile, and applyOverlay's resolveTrait on the resolver
+       * path), and its core contribution is the modifier's whole point. The
+       * first cut applied this to every non-engine entry and deleted
+       * remixer_liebrand's core groove statement ("crisp handclap layers and tom
+       * fills") because 'tom' is a kit component — caught by validate-modifiers'
+       * core-body check. Composer instruments are the content that arrives as
+       * bare names with no clause and no prior protection. */
+      if (v.source !== 'composer' || v.signature || v.priority === 'core') return true;
+      const t = String(v.instrument || '').toLowerCase();
+      if (BASS_FAMILIES.includes(v.family)) {
+        if (bassClaimed) { drop(v, 'foundation-collision'); return false; }
+        bassClaimed = true; return true;
+      }
+      /* Component match is on the bare component word so "large low toms"
+       * matches the kit's "toms". Singularised both ways because libraries are
+       * inconsistent about it. */
+      if (composites.some(c => {
+        const stem = c.replace(/s$/, '');
+        return new RegExp(`\\b${stem}s?\\b`).test(t);
+      })) { drop(v, 'composite-component'); return false; }
+      return true;
+    });
+  }
 
   // 1. Genre policy. Runs first: a genre-breaking voice should never survive
   //    long enough to win a budget contest against a legitimate one.
@@ -4929,6 +5140,59 @@ function reconcileCast(cast, opts) {
     });
   }
 
+  /* 6. PLACEMENT — the last rule, and the one that decides how many modifier
+   * voices a build can actually carry.
+   *
+   * Every voice in the style string must say how it sits (FACT 6, mandatory).
+   * The placement vocabulary is the guide's §13 planes, and only variants TRUE
+   * of a given instrument type are legal for it — the background 'blend' phrase
+   * asserts "quiet, sustained timbres" and must not be used to describe a
+   * xylophone. Two voices in one build must not carry identical wording either:
+   * threading the position while stamping the same sentence is the banned
+   * blanket-clause shape distributed rather than removed, which is what a live
+   * Balearic + Zimmer build was doing with five voices all reading "tracing the
+   * melody a step behind the lead".
+   *
+   * A modifier voice with no distinct legal placement left is DROPPED here
+   * rather than rendered bare, and it is worth being explicit about what sets
+   * that cap: NOT a guess at Suno's ceiling — VOICE_BUDGET above is still null
+   * and still John's to set from the research pack — but the number of distinct
+   * musically-true things the guide can say about where a voice sits. Composer
+   * layers declare 5 to 9 instruments; the guide affords 3 to 4 placements. A
+   * voice we cannot place is one we cannot describe, and naming an instrument
+   * with nothing said about it spends a slot to add a word.
+   *
+   * RESOLVED HERE, ON THE CAST, NOT IN compose(). If compose() dropped it
+   * instead, the metatag engine would still see a voice the style field never
+   * named — breaking the Path B guarantee that metatags can only direct
+   * instruments that actually exist. Cast is data before prose; this is part of
+   * the data. */
+  const usedPlacements = new Set();
+  kept = kept.filter(v => {
+    /* Composer content only, for the same reason as rule 0b: overlay atoms
+     * already carry their own composed clause with interaction language in it. */
+    if (v.source !== 'composer' || !v.instrument) return true;
+    const n = String(v.instrument);
+    if (EFFECT_RE.test(n) && !SUSTAIN_RE.test(n)) { v.placement = { movement: true }; return true; }
+    const plane = decorationPlane(n);
+    const other = plane === 'background' ? 'middle' : 'background';
+    const legal = PLANE_VARIANTS_BY_TYPE[familyType(n)] || PLANE_VARIANTS_BY_TYPE.unknown;
+    const order = [
+      ...(legal[plane] || []).map(x => [plane, x]),
+      ...(legal[other] || []).map(x => [other, x]),
+    ];
+    for (const [p, x] of order) {
+      const key = `${p}:${x}`;
+      if (!usedPlacements.has(key)) {
+        usedPlacements.add(key);
+        v.placement = { plane: p, variant: x };
+        return true;
+      }
+    }
+    drop(v, 'no-placement-language');
+    return false;
+  });
+
   return { kept, dropped, namedSources: kept.length, components: componentsFor(kept) };
 }
 
@@ -4963,7 +5227,7 @@ const {CHAR_LIMIT, ALWAYS_BAN, BEATLESS_BAN} = window.__ATMOS;
 const {evaluateCongruence} = window.__ATMOS;
 const {bedAtom, bedAllowed} = window.__ATMOS;
 const {selectNegatives, vocalRestraintCandidates, ORCHESTRAL_NEGATIVES, SINGLETON_INSTRUMENT_WORDS} = window.__ATMOS;
-const {classifyInstrument, planePhrase, pairLink} = window.__ATMOS;
+const {classifyInstrument, planePhrase, pairLink, decorationPlane, familyType, PLANE_VARIANTS_BY_TYPE} = window.__ATMOS;
 const {buildCast, reconcileCast} = window.__ATMOS;
 const {modifierList} = window.__ATMOS;
 const {ATOM_COMPOSERS} = window.__ATMOS;
@@ -5332,24 +5596,26 @@ function compose(held, mastering, o){
    * form the standing interaction rule bans, and which produced sentences that
    * are musically false: a filter sweep does not play slow singing lines.
    *
-   * Relationships are assigned by what the voice actually IS, so a sustained
-   * source is described as sustaining and a movement/effect source is described
-   * as a movement rather than being listed among the instruments at all. */
+   * SECOND PASS, same day. The first fix threaded the voices but wrote its own
+   * three-bucket vocabulary, and everything that fell through the buckets got
+   * one identical sentence — five voices reading "tracing the melody a step
+   * behind the lead", including a low tom and a bass. Threading the position
+   * while stamping the same content is the banned shape distributed rather than
+   * removed, and inventing the wording broke the standing rule that interaction
+   * language comes from the guide.
+   *
+   * THIS FUNCTION NO LONGER DECIDES ANYTHING. Which voices survive and where
+   * each sits is resolved on the CAST (core/cast.js rule 6) before any prose is
+   * written, and arrives here as data. compose() only renders the guide phrase
+   * that decision names. That is the point of the cast: nothing about the
+   * ensemble is decided at render time. */
   const mods = (o.modifierVoices || []).filter(Boolean);
-  if (mods.length) {
-    const EFFECT = /\b(sweep|filter|riser|swell|reverb|delay|noise|sub drop)\b/i;
-    const SUSTAIN = /\b(choir|pad|strings|drone|wash|mellotron)\b/i;
-    const PLUCK = /\b(arpeggio|bell|bells|marimba|pluck|guitar|harp)\b/i;
-    const voices = [], moves = [];
-    for (const m of mods) {
-      const n = String(m).trim();
-      if (EFFECT.test(n) && !SUSTAIN.test(n)) { moves.push(n); continue; }
-      if (SUSTAIN.test(n))    voices.push(`${n} holding underneath the melody`);
-      else if (PLUCK.test(n)) voices.push(`${n} answering in the gaps`);
-      else                    voices.push(`${n} tracing the melody a step behind the lead`);
-    }
-    voices.forEach(v => cl.push(v));
-    moves.forEach(m => cl.push(`${m} shaping the transitions`));
+  for (const m of mods) {
+    const n = String(m.instrument || m).trim();
+    const p = m.placement || null;
+    if (!p) { cl.push(n); continue; }
+    if (p.movement) { cl.push(`${n} shaping the transitions`); continue; }
+    cl.push(planePhrase(p.plane, p.variant, n) || n);
   }
 
   cl.push(mastering);
@@ -5387,7 +5653,7 @@ function buildAtoms(char, opts){
 
   // compose needs to know whether the character is genuinely beatless (Bug A);
   // o is the caller's options object, so copy rather than mutate it.
-  const modifierVoices = recon.kept.filter(v => v.source === 'composer').map(v => v.instrument);
+  const modifierVoices = recon.kept.filter(v => v.source === "composer").map(v => ({ instrument: v.instrument, placement: v.placement || null }));
   let style = compose(castKept, char.mastering, Object.assign({}, o, { beatless: !!char.beatless, modifierVoices }));
   const over = style.length > CHAR_LIMIT;
   if (o.maxMode) { /* atom path is already budget-safe; Max is a legacy-only directive */ }
@@ -8955,7 +9221,7 @@ function buildMetatagPlan(dna, opts) {
     leanLines: sections.map((label, i) => {
       const t = sectionType(label, i, total);
       const base = leanTag(t, v, dna, label, vocalMode, deliveryClass, moodClass);
-      return composerLayerId ? decorateSection(base, composerLayerId, t) : base;
+      return composerLayerId ? decorateSection(base, composerLayerId, t, o.composerInstruments) : base;
     }),
     minimalLines: sections.map((label, i) => {
       const t = sectionType(label, i, total);
@@ -9009,8 +9275,11 @@ function metatagList(built) {
 /* ---- runtime driver (no model call — deterministic assembly) ---------------
  * renderMode default: vocal -> 'lean' (share the lyrics budget), instrumental
  * -> 'full' (whole lyrics box free). Pass renderMode to override. */
-function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode, composerLayerId, sections }) {
-  const built = buildMetatagPlan(dna, { cil, answers, lyricResult, composerLayerId, sections });
+function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode, composerLayerId, sections, composerInstruments }) {
+  /* composerInstruments = the RECONCILED survivor list from core/cast.js, not
+   * the composer layer's declared list. See decorateSection: a metatag must not
+   * direct a voice the style field dropped. */
+  const built = buildMetatagPlan(dna, { cil, answers, lyricResult, composerLayerId, sections, composerInstruments });
   // Evidence-based default: metatags DO work when aligned with genre and lyrics,
   // so always emit them — in the piped short-element format. 'minimal' (bare
   // section markers) and 'full' remain available for A/B.
@@ -13328,6 +13597,10 @@ function generate(S) {
       metatags = runMetatagEngine({
         dna, renderMode: 'lean', composerLayerId, answers: vocalAnswers,
         sections: structure && structure.sections,
+        /* RECONCILED survivors, not the layer's declared list. A composer
+         * instrument dropped by the cast (second bass, kit component, no legal
+         * placement left) must not be directed by a metatag — Path B. */
+        composerInstruments: (out.cast || []).filter(v => v.source === 'composer').map(v => v.instrument),
       }).block;
     } catch (e) { metatags = ''; }
 
@@ -13349,6 +13622,11 @@ function generate(S) {
       metatags: instrumental ? '' : metatags,
       length: style.length, over: style.length > CHAR_LIMIT,
       arrangement: out.arrangement, overlayNote: out.overlayNote,
+      /* The reconciled cast, exposed so consumers and validators can see WHICH
+       * voices survived rather than inferring it from the prose. Needed by
+       * validate-composer-layers' Path B check: a metatag must not direct a
+       * composer instrument that reconciliation dropped. */
+      cast: out.cast, castDropped: out.castDropped,
       structure,
     };
   }

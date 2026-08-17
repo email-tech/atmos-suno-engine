@@ -335,11 +335,43 @@ export function composerStyleLayer(layerId) {
 // separator so the original song section is preserved and the composer decorates
 // it. `sectionType` is the canonical type (intro/verse/prechorus/chorus/bridge/
 // outro); `existingLine` is the engine's already-built line for that section.
-export function decorateSection(existingLine, layerId, sectionType) {
+export function decorateSection(existingLine, layerId, sectionType, allowedInstruments) {
   const layer = COMPOSER_LAYERS[layerId];
   if (!layer) return existingLine;
-  const tokens = layer.sections[sectionType];
+  let tokens = layer.sections[sectionType];
   if (!tokens || !tokens.length) return existingLine;
+  /* PATH B GUARANTEE (2026-08-17). A metatag may only direct an instrument the
+   * style field actually named. Once ensemble reconciliation started DROPPING
+   * composer instruments — a second bass, a kit component, a voice with no legal
+   * placement left — these per-section tokens still named them, so the metatag
+   * block was directing voices that no longer exist in the cast. That is exactly
+   * what the 2026-08-14 Path B decision rules out, and it is the reason the
+   * metatag side was considered sound in the first place.
+   *
+   * `allowedInstruments` is the reconciled survivor list. Omitting it preserves
+   * the previous behaviour exactly, so any caller that has no cast to hand (the
+   * legacy and resolver paths, which have no composer concept) is unaffected.
+   * A token is kept when it names a surviving instrument — tokens carry
+   * qualifiers ("thicker low strings", "final French horns"), so the match is on
+   * the instrument being contained in the token, not on equality. */
+  if (Array.isArray(allowedInstruments)) {
+    const allow = allowedInstruments.map(s => String(s).toLowerCase());
+    const dropped = (layer.instruments || [])
+      .map(s => String(s).toLowerCase())
+      .filter(i => !allow.some(a => a === i));
+    tokens = tokens.filter(t => {
+      const lt = String(t).toLowerCase();
+      /* A token must name a survivor AND name nothing that was dropped. The
+       * second half is not redundant: tokens are compound ("French horn over
+       * string ensemble"), so a token can carry a surviving voice and a dropped
+       * one in the same breath, and keeping it on the strength of the survivor
+       * smuggles the dropped voice back into the metatags. */
+      if (!allow.some(a => lt.includes(a))) return false;
+      if (dropped.some(d => lt.includes(d))) return false;
+      return true;
+    });
+    if (!tokens.length) return existingLine;
+  }
   // strip the trailing ] , add the composer tokens, re-close.
   const base = existingLine.replace(/\]\s*$/, '');
   return `${base} | ${tokens.join(' | ')}]`;

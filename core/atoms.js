@@ -24,7 +24,7 @@ import { CHAR_LIMIT, ALWAYS_BAN, BEATLESS_BAN } from './constants.js';
 import { evaluateCongruence } from './rules.js';
 import { bedAtom, bedAllowed } from './beds.js';
 import { selectNegatives, vocalRestraintCandidates, ORCHESTRAL_NEGATIVES, SINGLETON_INSTRUMENT_WORDS } from './knowledge.js';
-import { classifyInstrument, planePhrase, pairLink } from './linking.js';
+import { classifyInstrument, planePhrase, pairLink, decorationPlane, familyType, PLANE_VARIANTS_BY_TYPE } from './linking.js';
 import { buildCast, reconcileCast } from './cast.js';
 import { modifierList } from './atom-modifiers.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
@@ -393,24 +393,26 @@ function compose(held, mastering, o){
    * form the standing interaction rule bans, and which produced sentences that
    * are musically false: a filter sweep does not play slow singing lines.
    *
-   * Relationships are assigned by what the voice actually IS, so a sustained
-   * source is described as sustaining and a movement/effect source is described
-   * as a movement rather than being listed among the instruments at all. */
+   * SECOND PASS, same day. The first fix threaded the voices but wrote its own
+   * three-bucket vocabulary, and everything that fell through the buckets got
+   * one identical sentence — five voices reading "tracing the melody a step
+   * behind the lead", including a low tom and a bass. Threading the position
+   * while stamping the same content is the banned shape distributed rather than
+   * removed, and inventing the wording broke the standing rule that interaction
+   * language comes from the guide.
+   *
+   * THIS FUNCTION NO LONGER DECIDES ANYTHING. Which voices survive and where
+   * each sits is resolved on the CAST (core/cast.js rule 6) before any prose is
+   * written, and arrives here as data. compose() only renders the guide phrase
+   * that decision names. That is the point of the cast: nothing about the
+   * ensemble is decided at render time. */
   const mods = (o.modifierVoices || []).filter(Boolean);
-  if (mods.length) {
-    const EFFECT = /\b(sweep|filter|riser|swell|reverb|delay|noise|sub drop)\b/i;
-    const SUSTAIN = /\b(choir|pad|strings|drone|wash|mellotron)\b/i;
-    const PLUCK = /\b(arpeggio|bell|bells|marimba|pluck|guitar|harp)\b/i;
-    const voices = [], moves = [];
-    for (const m of mods) {
-      const n = String(m).trim();
-      if (EFFECT.test(n) && !SUSTAIN.test(n)) { moves.push(n); continue; }
-      if (SUSTAIN.test(n))    voices.push(`${n} holding underneath the melody`);
-      else if (PLUCK.test(n)) voices.push(`${n} answering in the gaps`);
-      else                    voices.push(`${n} tracing the melody a step behind the lead`);
-    }
-    voices.forEach(v => cl.push(v));
-    moves.forEach(m => cl.push(`${m} shaping the transitions`));
+  for (const m of mods) {
+    const n = String(m.instrument || m).trim();
+    const p = m.placement || null;
+    if (!p) { cl.push(n); continue; }
+    if (p.movement) { cl.push(`${n} shaping the transitions`); continue; }
+    cl.push(planePhrase(p.plane, p.variant, n) || n);
   }
 
   cl.push(mastering);
@@ -448,7 +450,7 @@ export function buildAtoms(char, opts){
 
   // compose needs to know whether the character is genuinely beatless (Bug A);
   // o is the caller's options object, so copy rather than mutate it.
-  const modifierVoices = recon.kept.filter(v => v.source === 'composer').map(v => v.instrument);
+  const modifierVoices = recon.kept.filter(v => v.source === "composer").map(v => ({ instrument: v.instrument, placement: v.placement || null }));
   let style = compose(castKept, char.mastering, Object.assign({}, o, { beatless: !!char.beatless, modifierVoices }));
   const over = style.length > CHAR_LIMIT;
   if (o.maxMode) { /* atom path is already budget-safe; Max is a legacy-only directive */ }

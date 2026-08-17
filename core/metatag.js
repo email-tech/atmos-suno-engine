@@ -447,7 +447,7 @@ export function buildMetatagPlan(dna, opts) {
     leanLines: sections.map((label, i) => {
       const t = sectionType(label, i, total);
       const base = leanTag(t, v, dna, label, vocalMode, deliveryClass, moodClass);
-      return composerLayerId ? decorateSection(base, composerLayerId, t) : base;
+      return composerLayerId ? decorateSection(base, composerLayerId, t, o.composerInstruments) : base;
     }),
     minimalLines: sections.map((label, i) => {
       const t = sectionType(label, i, total);
@@ -501,8 +501,11 @@ export function metatagList(built) {
 /* ---- runtime driver (no model call — deterministic assembly) ---------------
  * renderMode default: vocal -> 'lean' (share the lyrics budget), instrumental
  * -> 'full' (whole lyrics box free). Pass renderMode to override. */
-export function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode, composerLayerId, sections }) {
-  const built = buildMetatagPlan(dna, { cil, answers, lyricResult, composerLayerId, sections });
+export function runMetatagEngine({ dna, cil, answers, lyricResult, renderMode, composerLayerId, sections, composerInstruments }) {
+  /* composerInstruments = the RECONCILED survivor list from core/cast.js, not
+   * the composer layer's declared list. See decorateSection: a metatag must not
+   * direct a voice the style field dropped. */
+  const built = buildMetatagPlan(dna, { cil, answers, lyricResult, composerLayerId, sections, composerInstruments });
   // Evidence-based default: metatags DO work when aligned with genre and lyrics,
   // so always emit them — in the piped short-element format. 'minimal' (bare
   // section markers) and 'full' remain available for A/B.

@@ -241,6 +241,17 @@ export function violatesGenrePolicy(entry, genreText) {
 /* Re-exported from core/knowledge.js so the cast and core/atoms.js compare
  * against the SAME list rather than two that can drift apart. */
 import { SINGLETON_INSTRUMENT_WORDS as SINGLETON_WORDS } from './knowledge.js';
+/* The project's guide-backed instrument classifier. Reused rather than adding a
+ * second keyword list, so modifier content is classified by the same rules as
+ * everything else and validate-linking's guide check still covers it. */
+import { classifyInstrument, decorationPlane, familyType, PLANE_VARIANTS_BY_TYPE } from './linking.js';
+
+/* A modifier "voice" that is really a PROCESS applied to a sound — a filter
+ * sweep is not a voice that can sit in a plane, and listing it among the
+ * instruments produced sentences like "a deep filter sweep in slow singing
+ * lines". It renders as movement instead, and is exempt from placement. */
+const EFFECT_RE  = /\b(sweep|filter|riser|swell|reverb|delay|noise|sub drop)\b/i;
+const SUSTAIN_RE = /\b(choir|pad|strings|drone|wash|mellotron)\b/i;
 
 export const BED_BUDGET = 1;
 export const LEAD_BUDGET = 1;
@@ -291,13 +302,23 @@ export function buildCast(heldAtoms, opts) {
       atom: a,
     }));
 
-  // Composer instruments arrive as a name list (core/composer-layers.js keeps
-  // `instruments` explicitly so nothing has to parse them back out of prose).
-  // They join the cast as ordinary decorative entries and take their chances
-  // with every rule below, exactly like an engine atom.
+  /* Composer instruments arrive as a name list (core/composer-layers.js keeps
+   * `instruments` explicitly so nothing has to parse them back out of prose).
+   * They join the cast as ordinary decorative entries and take their chances
+   * with every rule below, exactly like an engine atom.
+   *
+   * FAMILY IS CLASSIFIED, NOT LEFT NULL (2026-08-17, second pass). The first
+   * cut left family null, which silently disabled every family-aware rule for
+   * modifier content — measured on a live Balearic + Zimmer build: the engine
+   * drew "sub bass" and the composer added "deep synth bass", two basses in one
+   * prompt, and the engine's "soft house kit" coexisted with "large low toms"
+   * even though COMPOSITE_COMPONENTS already records that a kit IS its toms.
+   * classifyInstrument() is the project's existing guide-backed classifier
+   * (core/linking.js, validated against the guide on disk), so this reuses the
+   * one source of truth rather than adding a second keyword list. */
   for (const name of (o.composerInstruments || [])) {
     cast.push({
-      key: `composer:${name}`, role: 'composer', family: null, instrument: name,
+      key: `composer:${name}`, role: 'composer', family: classifyInstrument(name), instrument: name,
       behaviour: null, mix: null, density: null, timbre: [],
       priority: 'decorative', signature: false, source: 'composer',
       composite: false, atom: null,
@@ -345,6 +366,73 @@ export function reconcileCast(cast, opts) {
     words.forEach(w => claimedWords.add(w));
     return true;
   });
+
+  /* 0b. FOUNDATION COLLISION AND COMPOSITE DUPLICATION — modifier content only.
+   *
+   * Two narrow rules, both cases where a second voice is not decoration but a
+   * contradiction. Measured on a live Balearic + Hans Zimmer build (2026-08-17):
+   * engine drew "sub bass", composer added "deep synth bass"; engine drew "soft
+   * house kit", composer added "large low toms". Neither was caught, because
+   * SINGLETON_WORDS deliberately excludes bass (synth lead / synth pads / synth
+   * bass must be free to coexist) and because composer entries carried no family.
+   *
+   * (i) ONE BASS. Two basses fight for the same octave and Suno renders whichever
+   * it prefers. Engine atoms and classifyInstrument use DIFFERENT family
+   * vocabularies ('bass' vs 'electricbass'), so they are canonicalised here —
+   * the first cut compared the raw strings and matched nothing, which is why
+   * both basses survived a rule written to stop exactly that.
+   *
+   * (ii) NO COMPONENT OF A COMPOSITE ALREADY ON THE TRACK. A kit IS its toms;
+   * naming them again is the round-4 "one instrument named twice renders two of
+   * it" finding in a new place. COMPOSITE_COMPONENTS is reused rather than
+   * duplicated — it is the same table core/metatag.js reads to decide which
+   * component names are already implied by the style field.
+   *
+   * DELIBERATELY NARROW. Auxiliary percussion alongside a kit is legitimate and
+   * is NOT touched: the engine's own builds pair a house kit with an electro
+   * shaker. Every family other than bass stays a legal place for a composer to
+   * add a voice — that IS the modifier model John settled. Engine content claims
+   * first, so the voice that loses is always the modifier's. */
+  const BASS_FAMILIES = ['bass', 'electricbass', 'subbass'];
+  {
+    const engineHasBass = kept.some(v => v.source === 'engine' && BASS_FAMILIES.includes(v.family));
+    let bassClaimed = engineHasBass;
+    const composites = kept.filter(v => v.source === 'engine' && v.instrument)
+      .flatMap(v => {
+        const t = String(v.instrument).toLowerCase();
+        if (/\bkit\b|\bdrums\b/.test(t)) return COMPOSITE_COMPONENTS.kit;
+        if (/\bstring (section|ensemble)\b/.test(t)) return COMPOSITE_COMPONENTS.strings;
+        if (/\bchoir\b/.test(t)) return COMPOSITE_COMPONENTS.choir;
+        return [];
+      })
+      .map(c => c.toLowerCase());
+
+    kept = kept.filter(v => {
+      /* COMPOSER CONTENT ONLY. Scoped deliberately: an OVERLAY atom arrives with
+       * its own composed clause and its own family collision handling (core/
+       * atoms.js reconcile, and applyOverlay's resolveTrait on the resolver
+       * path), and its core contribution is the modifier's whole point. The
+       * first cut applied this to every non-engine entry and deleted
+       * remixer_liebrand's core groove statement ("crisp handclap layers and tom
+       * fills") because 'tom' is a kit component — caught by validate-modifiers'
+       * core-body check. Composer instruments are the content that arrives as
+       * bare names with no clause and no prior protection. */
+      if (v.source !== 'composer' || v.signature || v.priority === 'core') return true;
+      const t = String(v.instrument || '').toLowerCase();
+      if (BASS_FAMILIES.includes(v.family)) {
+        if (bassClaimed) { drop(v, 'foundation-collision'); return false; }
+        bassClaimed = true; return true;
+      }
+      /* Component match is on the bare component word so "large low toms"
+       * matches the kit's "toms". Singularised both ways because libraries are
+       * inconsistent about it. */
+      if (composites.some(c => {
+        const stem = c.replace(/s$/, '');
+        return new RegExp(`\\b${stem}s?\\b`).test(t);
+      })) { drop(v, 'composite-component'); return false; }
+      return true;
+    });
+  }
 
   // 1. Genre policy. Runs first: a genre-breaking voice should never survive
   //    long enough to win a budget contest against a legitimate one.
@@ -452,6 +540,59 @@ export function reconcileCast(cast, opts) {
       drop(v, 'voice-budget'); return false;
     });
   }
+
+  /* 6. PLACEMENT — the last rule, and the one that decides how many modifier
+   * voices a build can actually carry.
+   *
+   * Every voice in the style string must say how it sits (FACT 6, mandatory).
+   * The placement vocabulary is the guide's §13 planes, and only variants TRUE
+   * of a given instrument type are legal for it — the background 'blend' phrase
+   * asserts "quiet, sustained timbres" and must not be used to describe a
+   * xylophone. Two voices in one build must not carry identical wording either:
+   * threading the position while stamping the same sentence is the banned
+   * blanket-clause shape distributed rather than removed, which is what a live
+   * Balearic + Zimmer build was doing with five voices all reading "tracing the
+   * melody a step behind the lead".
+   *
+   * A modifier voice with no distinct legal placement left is DROPPED here
+   * rather than rendered bare, and it is worth being explicit about what sets
+   * that cap: NOT a guess at Suno's ceiling — VOICE_BUDGET above is still null
+   * and still John's to set from the research pack — but the number of distinct
+   * musically-true things the guide can say about where a voice sits. Composer
+   * layers declare 5 to 9 instruments; the guide affords 3 to 4 placements. A
+   * voice we cannot place is one we cannot describe, and naming an instrument
+   * with nothing said about it spends a slot to add a word.
+   *
+   * RESOLVED HERE, ON THE CAST, NOT IN compose(). If compose() dropped it
+   * instead, the metatag engine would still see a voice the style field never
+   * named — breaking the Path B guarantee that metatags can only direct
+   * instruments that actually exist. Cast is data before prose; this is part of
+   * the data. */
+  const usedPlacements = new Set();
+  kept = kept.filter(v => {
+    /* Composer content only, for the same reason as rule 0b: overlay atoms
+     * already carry their own composed clause with interaction language in it. */
+    if (v.source !== 'composer' || !v.instrument) return true;
+    const n = String(v.instrument);
+    if (EFFECT_RE.test(n) && !SUSTAIN_RE.test(n)) { v.placement = { movement: true }; return true; }
+    const plane = decorationPlane(n);
+    const other = plane === 'background' ? 'middle' : 'background';
+    const legal = PLANE_VARIANTS_BY_TYPE[familyType(n)] || PLANE_VARIANTS_BY_TYPE.unknown;
+    const order = [
+      ...(legal[plane] || []).map(x => [plane, x]),
+      ...(legal[other] || []).map(x => [other, x]),
+    ];
+    for (const [p, x] of order) {
+      const key = `${p}:${x}`;
+      if (!usedPlacements.has(key)) {
+        usedPlacements.add(key);
+        v.placement = { plane: p, variant: x };
+        return true;
+      }
+    }
+    drop(v, 'no-placement-language');
+    return false;
+  });
 
   return { kept, dropped, namedSources: kept.length, components: componentsFor(kept) };
 }
