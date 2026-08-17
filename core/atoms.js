@@ -25,6 +25,7 @@ import { evaluateCongruence } from './rules.js';
 import { bedAtom, bedAllowed } from './beds.js';
 import { selectNegatives, vocalRestraintCandidates, ORCHESTRAL_NEGATIVES, SINGLETON_INSTRUMENT_WORDS } from './knowledge.js';
 import { classifyInstrument, planePhrase, pairLink } from './linking.js';
+import { buildCast, reconcileCast } from './cast.js';
 import { modifierList } from './atom-modifiers.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
 import { ATOM_PRODUCERS } from './atom-producers.js';
@@ -382,6 +383,36 @@ function compose(held, mastering, o){
          if(REL.arc.needs.every(has)) cl.push(REL.arc.render); }
   if(ovArc && REL.harmonyResolve.needs.every(has)) cl.push(REL.harmonyResolve.render);
 
+  /* SURVIVING MODIFIER VOICES (John, 2026-08-17). Rendered HERE — before the
+   * mastering tail, inside the prompt body — not appended after it.
+   *
+   * THREADED, NOT DUMPED. Each surviving voice carries its OWN relationship
+   * phrase. The old shape was one blanket phrase covering five to nine
+   * comma-listed instruments ("...bell arpeggio, synth choir and a deep filter
+   * sweep in slow singing lines around the existing lead"), which is the exact
+   * form the standing interaction rule bans, and which produced sentences that
+   * are musically false: a filter sweep does not play slow singing lines.
+   *
+   * Relationships are assigned by what the voice actually IS, so a sustained
+   * source is described as sustaining and a movement/effect source is described
+   * as a movement rather than being listed among the instruments at all. */
+  const mods = (o.modifierVoices || []).filter(Boolean);
+  if (mods.length) {
+    const EFFECT = /\b(sweep|filter|riser|swell|reverb|delay|noise|sub drop)\b/i;
+    const SUSTAIN = /\b(choir|pad|strings|drone|wash|mellotron)\b/i;
+    const PLUCK = /\b(arpeggio|bell|bells|marimba|pluck|guitar|harp)\b/i;
+    const voices = [], moves = [];
+    for (const m of mods) {
+      const n = String(m).trim();
+      if (EFFECT.test(n) && !SUSTAIN.test(n)) { moves.push(n); continue; }
+      if (SUSTAIN.test(n))    voices.push(`${n} holding underneath the melody`);
+      else if (PLUCK.test(n)) voices.push(`${n} answering in the gaps`);
+      else                    voices.push(`${n} tracing the melody a step behind the lead`);
+    }
+    voices.forEach(v => cl.push(v));
+    moves.forEach(m => cl.push(`${m} shaping the transitions`));
+  }
+
   cl.push(mastering);
   return cl.filter(Boolean).join(', ').replace(/\s+/g,' ').replace(/\s*,\s*/g,', ').trim();
 }
@@ -393,9 +424,32 @@ export function buildAtoms(char, opts){
   const o = opts || {};
   const { held, overlayNote } = collect(char, o.seed >>> 0, o.overlayId || null, o.overlayDef || null);
   const kept = reconcile(held);
+
+  /* ENSEMBLE RECONCILIATION (John, 2026-08-17). reconcile() above resolves
+   * per-FAMILY collisions; it never looked at the finished cast as a band.
+   * core/cast.js does — bed budget, lead budget, genre policy, slot waste,
+   * and a voice budget whose number is deferred until the research pack.
+   * Composer instruments enter HERE rather than being appended as prose after
+   * compose(), which is how they used to bypass every one of these rules.
+   *
+   * Survivors are converted back to the atom objects compose() already
+   * understands, so this is a FILTER on the existing pipeline rather than a
+   * parallel one — no clause in compose() has to learn a new shape, and any
+   * build where nothing violates a rule is byte-identical to before. */
+  const cast = buildCast(kept, { composerInstruments: o.composerInstruments || [] });
+  const recon = reconcileCast(cast, {
+    genre: (char.atoms && char.atoms.genre && char.atoms.genre.text) || char.label || '',
+    voiceBudget: o.voiceBudget,
+  });
+  const survivingAtoms = new Set(recon.kept.map(v => v.atom).filter(Boolean));
+  // An atom carrying no instrument (genre, tempo, relationship clauses) is not
+  // a cast member and was never a candidate for removal — keep it untouched.
+  const castKept = kept.filter(a => !a.instrument || survivingAtoms.has(a));
+
   // compose needs to know whether the character is genuinely beatless (Bug A);
   // o is the caller's options object, so copy rather than mutate it.
-  let style = compose(kept, char.mastering, Object.assign({}, o, { beatless: !!char.beatless }));
+  const modifierVoices = recon.kept.filter(v => v.source === 'composer').map(v => v.instrument);
+  let style = compose(castKept, char.mastering, Object.assign({}, o, { beatless: !!char.beatless, modifierVoices }));
   const over = style.length > CHAR_LIMIT;
   if (o.maxMode) { /* atom path is already budget-safe; Max is a legacy-only directive */ }
   // overlay-specific negatives merge in only when the overlay actually APPLIED
@@ -443,8 +497,16 @@ export function buildAtoms(char, opts){
   // alone before the stable sort ever reaches them — the exact bug just found
   // and fixed on the resolver path, same root cause here. 3+1+1 = the cap.
   const negative = selectNegatives([...orchestralNeg, ...ovNeg.slice(0, 3), ...beatlessNeg, ...vocalNeg, ...ALWAYS_BAN]).join(', ') + '.';
+  /* `arrangement` is now the RECONCILED cast (castKept), not the raw family-
+   * reconciled list. Every downstream DNA/metatag consumer must see the same
+   * voices the style string names — a metatag grounded in a voice the style
+   * field no longer mentions is the Case-B risk this whole change exists to
+   * avoid. `cast` carries the typed entries plus the audit trail of what was
+   * dropped and why; `components` is the legal Case-A component vocabulary
+   * (kick, snare, hats...) a metatag may direct without naming a new source. */
   return { style, negative, lyrics:'', length:style.length, over,
-           arrangement:kept, overlayNote };
+           arrangement:castKept, cast:recon.kept, castDropped:recon.dropped,
+           components:recon.components, overlayNote };
 }
 
 /* GEN-1 RETIRED — John signed off the gen-2 two-tier modifier set on 2026-07-22.

@@ -17,7 +17,8 @@
  */
 import { ATOM_MODIFIERS, resolveModifier, modifierVariants, modifierList } from './core/atom-modifiers.js';
 import { buildMusicalDNA } from './core/dna.js';
-import { ATOM_POOL_CHARACTERS } from './engines/atom-characters.js';
+import { ATOM_POOL_CHARACTERS, atomCharacterForPalette } from './engines/atom-characters.js';
+import { buildAtoms } from './core/atoms.js';
 
 let n = 0, fail = 0;
 const bad = (m) => { if (fail < 40) console.log('  FAIL:', m); fail++; };
@@ -160,7 +161,18 @@ for (const entry of modifierList()) {
 // character-owned harmony slot, overlay arc lines were dropped by a stale key
 // lookup, and secondary melodic atoms lost the lead slot on a priority tie.)
 {
-  let deadN = 0;
+  let deadN = 0, displacedN = 0;
+  /* Did this atom get DRAWN and then dropped by a named budget rule anywhere?
+   * Reads the castDropped audit rather than re-deriving the rules, so the two
+   * can never disagree about why a voice disappeared. */
+  const displacedSomewhere = (text, variant) => {
+    for (const cid of CHARS) for (const pal of PALETTES) {
+      const char = atomCharacterForPalette(ATOM_POOL_CHARACTERS[cid], pal);
+      const out = buildAtoms(char, { seed: 404, overlayDef: variant });
+      if ((out.castDropped || []).some(d => text.includes(d.instrument) || d.instrument.includes(text))) return true;
+    }
+    return false;
+  };
   for (const modId of Object.keys(ATOM_MODIFIERS)) for (const v of modifierVariants(modId))
     for (const a of Object.values(v.atoms)) {
       const t = textOf(a); if (!t) continue;
@@ -171,7 +183,21 @@ for (const entry of modifierList()) {
         if (!dna.meta.overlayApplied) continue;
         tried++; if (dna.render.style.includes(t)) landed++;
       }
-      if (tried && landed === 0) { deadN++; bad(`${modId}: DEAD atom never renders — "${t.slice(0, 45)}"`); }
+      /* DISPLACED IS NOT DEAD (2026-08-17, ensemble reconciliation).
+       * This check exists to catch atoms that are unreachable — authored but
+       * wired so nothing can ever draw them. core/cast.js introduced a second,
+       * legitimate reason an atom may not render: it was DRAWN and then lost a
+       * budget contest, which is a designed outcome (a remixer's pad losing the
+       * single bed slot to the character's own pad is the rule "genre stays the
+       * genre" doing its job). Those drops are recorded with a reason in the
+       * build's castDropped audit, so they are distinguishable from real dead
+       * code. The check is NOT weakened for anything else: an atom that never
+       * appears AND was never drawn still fails. */
+      if (tried && landed === 0) {
+        const wasDisplaced = displacedSomewhere(t, v);
+        if (!wasDisplaced) { deadN++; bad(`${modId}: DEAD atom never renders — "${t.slice(0, 45)}"`); }
+        else displacedN++;
+      }
     }
   if (!deadN) console.log('No dead atoms: every declared atom renders on at least one character.');
 }

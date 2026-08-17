@@ -117,9 +117,23 @@ export function generate(S) {
     // untouched; the composer only decorates it.
     const composerLayerId = (a.composerLayerId && COMPOSER_LAYERS[a.composerLayerId]) ? a.composerLayerId : null;
 
-    const out = buildAtoms(char, { seed: S.seed, overlayDef: a.overlayId ? resolveModifier(a.overlayId, null, null, palette) : null, maxMode: S.maxMode, vocalActive: S.songType !== 'instrumental' });
+    /* COMPOSER INTO THE CAST (John, 2026-08-17). This used to be:
+     *     if (composerLayerId) style = `${style}, ${composerStyleLayer(id)}`;
+     * appended AFTER buildAtoms() had already reconciled and deduped, and
+     * after the mastering tail — which is terminal by design. Measured at
+     * 08212c9: 342/342 composer builds placed the clause after mastering, and
+     * 25/342 named a synth lead in both the base body and the composer clause,
+     * because the dedupe never saw it. The clause also carried one blanket
+     * interaction phrase for five to nine instruments, which is the shape the
+     * standing interaction rule explicitly bans.
+     * Composer instruments now enter buildAtoms() as cast candidates and face
+     * the same bed budget, lead budget, genre policy and slot-waste rules as
+     * every engine atom. Survivors are rendered by compose() in the normal
+     * clause order, before mastering. */
+    const composerInstruments = composerLayerId ? (COMPOSER_LAYERS[composerLayerId].instruments || []) : [];
+
+    const out = buildAtoms(char, { seed: S.seed, overlayDef: a.overlayId ? resolveModifier(a.overlayId, null, null, palette) : null, maxMode: S.maxMode, vocalActive: S.songType !== 'instrumental', composerInstruments });
     let style = out.style;
-    if (composerLayerId) style = `${style}, ${composerStyleLayer(composerLayerId)}`;
     style = applyMax(style, S.maxMode);
 
     // Metatags: the character's own section plan, decorated at structural points

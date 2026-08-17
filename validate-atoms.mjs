@@ -87,14 +87,26 @@ for (let i = 0; i < DRAWS; i++) {
 // ---- SEED-PARITY GOLDEN: validated reference must be byte-identical ----------
 const REF = ATOM_CHARACTERS['balearic-lush-cinematic'];
 const GOLDEN = {
-  // RE-BASELINED 2026-07-23 (Phase A, the bed layer). The previous golden broke
-  // when the round-3 pad reclassification (53a45e9) rewrote 73 texts and was not
-  // caught — the suite was recorded as green while these two seeds were drifting.
-  // Phase A rewrote the same layer again, so the reference is re-taken here rather
-  // than patched. Engine-only output (no modifier) is unchanged by Phase A except
-  // where the pad layer itself is involved.
-  '7|null': 'Balearic downtempo, mid chill, 90-105 BPM, medium energy, deep sub bass and a soft downtempo kit, locked tight together, a light frame-drum pulse over the groove, a warm Rhodes electric-piano motif on the melody out front, lush layered synth pads, moving through suspended add9 voicings opening into a major-seventh resolution, supporting a soft sweeping string bed in the middle plane with gentle motion, a low pipe-organ sustain sustained underneath, a clarinet counter-line, faint and buried well under the mix, answering the lead only occasionally, wide stereo panning and slow filter modulation across the pads, chords resolve behind the melody, builds to a peak then thins out, Polished Dolby Atmos-Master Atmos -2dB',
-  '42|null': 'Balearic downtempo, mid chill, 90-105 BPM, medium energy, deep FM sub-bass and a soft downtempo kit, locked tight together, a light frame-drum pulse over the groove, a warm arpeggiated synth lead on the melody out front, lush layered synth pads, moving through a slow minor-to-relative-major progression over eight-bar cycles, supporting soft layered strings in the middle plane with gentle motion, a low pipe-organ sustain sustained underneath, a clarinet counter-line, faint and buried well under the mix, answering the lead only occasionally, an occasional glockenspiel accent in the gaps, LFO, chorus and phaser movement evolving across the synth layers, chords resolve behind the melody, builds to a peak then thins out, Polished Dolby Atmos-Master Atmos -2dB',
+  // RE-BASELINED 2026-08-17 (ensemble reconciliation, core/cast.js). NOT a
+  // silent rewrite of a proven reference — the OLD golden was itself an
+  // example of the defect John reported. Seed 7 previously carried THREE
+  // sustained beds (lush layered synth pads + a sweeping string bed + a low
+  // pipe-organ sustain) and a slot-wasting clarinet counter-line described as
+  // "faint and buried well under the mix, answering the lead only
+  // occasionally" — a voice given one of the ~5 slots Suno honours and then
+  // told to be inaudible. Seed 42 carried two beds and the same clarinet.
+  // What changed, per seed, is recorded in the build's own castDropped audit:
+  //   seed 7:  clarinet counter-line <- slot-waste
+  //            a sweeping string bed <- bed-budget
+  //            a low pipe-organ sustain <- bed-budget
+  //   seed 42: clarinet counter-line <- slot-waste
+  //            a low pipe-organ sustain <- bed-budget
+  // Nothing else moved: same genre, tempo, bass, kit, lead, pad, harmony,
+  // movement and mastering, in the same order. If a future change drifts
+  // these again, check castDropped first — a drop with a REASON is intended,
+  // a silent difference is not.
+  '7|null': 'Balearic downtempo, mid chill, 90-105 BPM, medium energy, deep sub bass and a soft downtempo kit, locked tight together, a light frame-drum pulse over the groove, a warm Rhodes electric-piano motif on the melody out front, lush layered synth pads, moving through suspended add9 voicings opening into a major-seventh resolution, wide stereo panning and slow filter modulation across the pads, chords resolve behind the melody, builds to a peak then thins out, Polished Dolby Atmos-Master Atmos -2dB',
+  '42|null': 'Balearic downtempo, mid chill, 90-105 BPM, medium energy, deep FM sub-bass and a soft downtempo kit, locked tight together, a light frame-drum pulse over the groove, a warm arpeggiated synth lead on the melody out front, lush layered synth pads, moving through a slow minor-to-relative-major progression over eight-bar cycles, supporting soft layered strings in the middle plane with gentle motion, an occasional glockenspiel accent in the gaps, LFO, chorus and phaser movement evolving across the synth layers, chords resolve behind the melody, builds to a peak then thins out, Polished Dolby Atmos-Master Atmos -2dB',
 };
 let parityFail = 0;
 for (const [k, want] of Object.entries(GOLDEN)) {

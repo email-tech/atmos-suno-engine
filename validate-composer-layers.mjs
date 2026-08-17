@@ -13,7 +13,7 @@
  *   voice in both places or neither.
  */
 import { COMPOSER_LAYERS, COMPOSER_LAYER_IDS, decorateSection, composerStyleLayer } from './core/composer-layers.js';
-import { BANNED_ARTICULATION_RE } from './core/knowledge.js';
+import { BANNED_ARTICULATION_RE, SINGLETON_INSTRUMENT_WORDS } from './core/knowledge.js';
 import { generate } from './js/generate.js';
 import { initState, syncEngineDefaults } from './js/state.js';
 
@@ -104,11 +104,51 @@ console.log(`  ${COMPOSER_LAYER_IDS.length} composer layers: shape, banned-langu
     const out = generate(S);
     const L = COMPOSER_LAYERS[id];
 
-    // the character's own body must be byte-identical up to the appended clause
-    const cut = out.style.indexOf(', secondary arrangement layer');
-    ok(cut > 0, `${id}: style layer clause not appended`);
-    ok(out.style.slice(0, cut) === base.style.replace(/, Polished.*$/, out.style.match(/, Polished.*?(?=, secondary)/) ? '' : '') || out.style.slice(0, cut).length > 0,
-      `${id}: character body changed`);
+    /* CONTRACT CHANGED 2026-08-17 (John's direction). The composer layer is no
+     * longer a prose clause appended to the finished style string. That shape
+     * failed on three counts he identified in a live prompt and I then measured:
+     * it landed AFTER the mastering tail in 342/342 builds (mastering is
+     * terminal by design, so the content sat outside the prompt body); it
+     * carried one blanket interaction phrase for five to nine comma-listed
+     * instruments, which is the exact form the standing interaction rule bans
+     * and which produced musically false sentences ("a deep filter sweep in
+     * slow singing lines"); and because it was appended after reconcile, its
+     * instruments bypassed family collision, one-voice-one-mention and every
+     * budget — 25/342 builds named a synth lead in both the base body and the
+     * composer clause.
+     * Composer instruments now enter the cast (core/cast.js) as candidates and
+     * are rendered individually, threaded, before mastering. So the assertions
+     * change from "was the clause appended verbatim" to the three properties
+     * that actually matter. */
+    ok(!/secondary arrangement layer/.test(out.style),
+      `${id}: the old appended prose clause is back \u2014 composer content must enter the cast, not be concatenated`);
+
+    // 1. MASTERING STAYS LAST. The single clearest symptom of the old shape.
+    const mastIdx = out.style.indexOf('Polished Dolby Atmos');
+    ok(mastIdx > 0, `${id}: mastering tail missing`);
+    ok(out.style.slice(mastIdx).replace(/[^a-z]/gi, '').toLowerCase()
+       .startsWith('polisheddolbyatmosmasteratmos'),
+      `${id}: content rendered AFTER the mastering tail \u2014 that is outside the prompt body`);
+
+    // 2. THE COMPOSER STILL CONTRIBUTES. A "fix" that silently deleted the
+    //    whole modifier would satisfy every other rule here and be useless.
+    ok(out.style !== base.style, `${id}: composer changed nothing in the style string`);
+
+    // 3. NO DOUBLED VOICE. The base body's own instruments must not be
+    //    re-named by composer content — the failure that put two leads in one
+    //    prompt.
+    //    Checked against core/knowledge.js's SINGLETON_INSTRUMENT_WORDS rather
+    //    than a headword taken from the instrument name. First cut used the
+    //    last word, which flagged "lead" and "synth" — exactly the family words
+    //    that list deliberately EXCLUDES, because synth lead / synth pads /
+    //    synth bass are legitimately three different voices, and "lead" also
+    //    appears in interaction language ("answering the lead"). One source of
+    //    truth for what counts as one instrument, not a second rule here.
+    const lower = out.style.toLowerCase();
+    for (const w of SINGLETON_INSTRUMENT_WORDS) {
+      const n = (lower.match(new RegExp(`\\b${w.replace(/[-\\s]/g, '[-\\\\s]')}\\b`, 'g')) || []).length;
+      ok(n <= 1, `${id}: "${w}" named ${n} times \u2014 one voice, one mention`);
+    }
 
     // every declared instrument must appear in the rendered metatags
     for (const inst of L.instruments)
@@ -120,7 +160,7 @@ console.log(`  ${COMPOSER_LAYER_IDS.length} composer layers: shape, banned-langu
     if (BANNED_ARTICULATION_RE.test(out.metatags)) bad(`${id}: banned articulation in metatags`);
   }
   checks += 3;
-  console.log(`  end-to-end: character body preserved, layer appended, all instruments reach the metatags across ${COMPOSER_LAYER_IDS.length} composers.`);
+  console.log(`  end-to-end: composer enters the cast (not appended), mastering stays last, no doubled voices, all instruments reach the metatags across ${COMPOSER_LAYER_IDS.length} composers.`);
 }
 
 console.log(`validate-composer-layers: ${checks} checks, ${fails} failures.`);

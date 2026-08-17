@@ -112,6 +112,101 @@ export const BEDS = {
     behaviour: 'holding long unbroken chords far back in the mix',
   },
 
+  /* ---- NON-ORCHESTRAL ACOUSTIC BEDS (John, 2026-08-17) --------------------
+   * WHY THESE EXIST. John: "Are there any pad sounds or instruments that can
+   * also be used in the acoustic selection? This is light on options." He is
+   * right, and the shape of the gap mattered more than the count: of the eight
+   * acoustic beds above, SIX are orchestral sections (strings x3, strings +
+   * horns, brass x2), plus a woodwind ensemble and a chamber organ. Only the
+   * wordless choir was non-orchestral.
+   *
+   * That put the bed layer directly at odds with the engine's own defence.
+   * Every Balearic build ships rank-1 orchestral negatives unconditionally
+   * (core/knowledge.js ORCHESTRAL_NEGATIVES, shipped 2026-08-15), and
+   * CONVENTION_BLEED records that naming an orchestral instrument imports the
+   * entire orchestral production convention rather than just that instrument.
+   * Three steps of the Balearic reliability pass stripped orchestral content
+   * out of the positive field; the acoustic bed library is where it walked
+   * back in — negating orchestral convention in one field while naming a lush
+   * sustained string section in the other.
+   *
+   * EVIDENCE STATE: RESEARCH_CANDIDATE, every one of them. The repo's own
+   * knowledge base has nothing on acoustic pads — docs/knowledge/instrument-
+   * family-linking-guide.md is explicitly an ORCHESTRAL guide and treats
+   * sustained strings as *the* harmonic pad, so it is the source of the
+   * assumption rather than a check on it. These are music-domain reasoning,
+   * not tested facts, and none has been through Suno. They are added so John
+   * can run identical-seed before/after pairs swapping ONLY the bed.
+   *
+   * EXCLUDED BY STANDING RULE: harmonium, pump organ, shruti box, bandoneon
+   * and accordion are all free-reed and banned as a family. Bowed crotales,
+   * glass harmonica and bowed psaltery are the piercing profile John named
+   * ("I'm not keen on so-called pads that have a piercing nature to their
+   * sound and profile like accordions"). Hurdy-gurdy is buzzy in the same way.
+   * ---------------------------------------------------------------------- */
+  steel_swells: {
+    label: 'Pedal-steel swells',
+    // The strongest candidate. A volume pedal removes the attack entirely, so
+    // this is genuinely sustained with slow attack and release, and it is
+    // chordal — John's own functional definition of a pad, met without naming
+    // an orchestral section. Lap steel is already proven in the acoustic
+    // texture pool, so the instrument is established in this palette; only the
+    // BEHAVIOUR was never modelled as a bed. Balearic-native rather than
+    // cinematic.
+    instrument: 'pedal-steel guitar chords',
+    palette: 'acoustic',
+    behaviour: 'swelling in on the volume pedal with no attack, holding wide chords behind the melody',
+  },
+  close_choir: {
+    label: 'Close wordless voices',
+    // The wordless choir above was doing all the non-orchestral work alone.
+    // Close-miked low-dynamic voices have no attack transient, sustain
+    // naturally and are properly chordal. This is what the Balearic canon
+    // actually uses as a bed.
+    instrument: 'close wordless female voices',
+    palette: 'acoustic',
+    behaviour: 'holding soft open vowels in slow chords well behind the melody',
+  },
+  low_voice_bed: {
+    label: 'Low wordless voices',
+    instrument: 'a low wordless male vocal layer',
+    palette: 'acoustic',
+    behaviour: 'held long and dark, opening slowly wide underneath everything else',
+  },
+  /* BOWED VIBRAPHONE CONSIDERED AND REJECTED, 2026-08-17. It was in the first
+   * draft of this set: bowing a vibraphone genuinely does sustain, unlike
+   * striking it. validate-modifiers' DECAYING check blocked it, and that check
+   * is correct to. Its whole reason for existing is the earlier error of
+   * prefixing struck instruments with the word 'sustained' and calling them
+   * pads — 5 pad slots held decaying instruments before Phase A. Carving a
+   * bowed-technique exception into a rule John already paid for, to admit a
+   * candidate I proposed myself, is not a trade worth making. If it is ever
+   * wanted, it needs his sign-off on the exception, not a quiet regex edit. */
+  low_flute_bed: {
+    label: 'Alto and bass flutes',
+    // Distinct from woodwind_bed above, which reads as an orchestral section.
+    // Breathy and warm, and specifically the register that avoids piercing.
+    instrument: 'alto and bass flutes',
+    palette: 'acoustic',
+    behaviour: 'holding long soft chords, fading in slowly low behind the arrangement',
+  },
+  low_clarinet_bed: {
+    label: 'Low clarinet bed',
+    /* JOHN'S CALL, 2026-08-17: "You can add the low clarinet for testing
+     * purposes and I'll make a call on it once I've heard it in some context."
+     * FLAGGED, not quietly reinstated. Clarinet was removed from this engine
+     * as too dominant, and the standing rule is that a confirmed removal is
+     * respected on reintroduction. The bass clarinet is a different instrument
+     * in practice — low, warm, sustaining, no piercing register — which is why
+     * it is worth testing, but it shares a headword with a banned instrument
+     * and MUST NOT be treated as settled by a future session. It is here on
+     * John's explicit authorisation, pending his listening test, and comes out
+     * again if it behaves like the clarinet did. */
+    instrument: 'low bass clarinets',
+    palette: 'acoustic',
+    behaviour: 'holding warm dark chords quietly underneath',
+  },
+
   // ---- vocal pads ----------------------------------------------------------
   wordless_choir: {
     label: 'Wordless choir',
