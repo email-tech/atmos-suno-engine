@@ -69,12 +69,24 @@ export const DEFAULT_INTENSITY = Object.freeze({
   vocoder: 'support', talkbox: 'accent', vocalChops: 'support', stutter: 'accent', glitch: 'accent',
 });
 
-/* ---- §8.7 TALKBOX CARRIERS -------------------------------------------
- * A talkbox is not a vocoder: an instrument signal is physically shaped by a
- * performer's mouth. It therefore REQUIRES a plausible carrier already in the
- * cast. "Do NOT invent a new guitar or synth solely to make Talkbox work" —
- * inventing one would be a modifier bypassing the cast, which §1.2 forbids and
- * which is the same failure mode the composer layer had. */
+/* ---- TALKBOX CARRIERS — SPEC §8.7 OVERRIDDEN BY MEASUREMENT ----------
+ * §8.7 makes a carrier a HARD REQUIREMENT, reasoning from production practice:
+ * a talkbox physically shapes an instrument signal through a performer's mouth,
+ * so there must be an instrument. Correct about talkboxes, wrong about Suno.
+ *
+ * John, 2026-08-17, from extensive testing: Suno produces both talkbox and
+ * vocoder from the term alone, with no carrier named. It is matching a sound it
+ * has heard, not modelling a signal chain. The spec's own evidence hierarchy
+ * (§2.3) ranks existing ATMOS Suno testing FIRST and production terminology
+ * FOURTH, so the measurement wins on the spec's own terms. Recorded as
+ * EFFECT_NAMES_NEED_NO_MECHANICS in core/knowledge.js.
+ *
+ * WHAT SURVIVES THE OVERRIDE: ATMOS still never NAMES an instrument absent from
+ * the resolved cast. That is cast integrity (§1.2), not a Suno claim — "through
+ * the existing synth lead" on a build with no synth lead is a dangling
+ * reference, the defect fixed across the interplay layer at 84effaa. So a
+ * carrier is NAMED WHEN ONE EXISTS and OMITTED WHEN ONE DOES NOT. Never
+ * required, never invented. */
 const CARRIER_RE = /\b(synth lead|lead synth|synth|analog\w* lead|arp|arpeggi\w+|chord pulse|pulse|clean electric guitar|electric guitar|guitar)\b/i;
 const CARRIER_EXCLUDE_RE = /\b(nylon|acoustic guitar|classical guitar)\b/i;
 
@@ -105,15 +117,28 @@ export const VOCAL_PROSE = Object.freeze({
            'Wordless vocal tones are lightly vocoded into a soft harmonic texture behind the arrangement.'],
     compact: 'soft low-mixed vocoded wordless texture.',
   },
+  /* CARRIER-FREE VARIANTS are the SPEC LINES WITH THE CARRIER CLAUSE DELETED,
+   * not new sentences. Deletion keeps the wording traceable to §8.12 — the
+   * library assumed a carrier was mandatory, and with that assumption falsified
+   * the honest move is to remove the clause that depended on it rather than
+   * author replacement prose. Flagged to John: if he wants purpose-written
+   * carrier-free lines, those are his to supply, per the standing rule that
+   * missing phrases are asked for and not invented. */
   talkboxPhrase: {
     full: ['Selected hook phrases take on a brief talkbox-style talking-instrument contour through the existing {carrier}, then return to the natural vocal.',
            'The existing {carrier} forms a short talkbox-treated response around selected vocal phrases, never replacing the lead.'],
+    fullNoCarrier: ['Selected hook phrases take on a brief talkbox-style talking-instrument contour, then return to the natural vocal.',
+                    'A short talkbox-treated response answers selected vocal phrases, never replacing the lead.'],
     compact: 'brief talkbox-style responses through the existing {carrier}.',
+    compactNoCarrier: 'brief talkbox-style responses around selected vocal phrases.',
   },
   talkboxHookResponse: {
     full: ['The existing {carrier} forms a short talkbox-treated response around selected vocal phrases, never replacing the lead.',
            'Selected hook phrases take on a brief talkbox-style talking-instrument contour through the existing {carrier}, then return to the natural vocal.'],
+    fullNoCarrier: ['A short talkbox-treated response answers selected vocal phrases, never replacing the lead.',
+                    'Selected hook phrases take on a brief talkbox-style talking-instrument contour, then return to the natural vocal.'],
     compact: 'brief talkbox-style responses through the existing {carrier}.',
+    compactNoCarrier: 'brief talkbox-style responses around selected vocal phrases.',
   },
   vocalChopAccent: {
     full: ['Short fragments of the existing vocal are chopped into sparse rhythmic accents between phrases.',
@@ -225,13 +250,13 @@ export function resolveVocalTreatmentFull(ctx, policy) {
   const targets = eligibleVocalTargets(ctx.vocalSources, treatment);
   if (!targets.length) return noOp('no-eligible-vocal-target');
 
-  /* §8.7 — hard semantic rule, checked BEFORE picking, so a build without a
-   * carrier never renders a talkbox line naming an instrument it does not have. */
+  /* Carrier is now OPTIONAL. Present -> name it, because grounding the effect in
+   * a voice the track already has is better prompting. Absent -> use the
+   * carrier-free variant. Never a no-op and never invented. */
   let carrier = null;
   if (treatment === 'talkbox') {
     const carriers = eligibleTalkboxCarriers(ctx.cast);
-    if (!carriers.length) return noOp('talkbox-requires-existing-carrier');
-    carrier = carrierName(carriers[0]);
+    if (carriers.length) carrier = carrierName(carriers[0]);
   }
 
   const rand = rngFor(ctx.baseBuildSeed, SEED_LABELS.VOCAL_TREATMENT);
@@ -246,13 +271,21 @@ export function resolveVocalTreatmentFull(ctx, policy) {
   /* §8.5 — a Persona/Voice lead keeps its identity. An explicit user choice is
    * still honoured, but rendered as a layer around the lead rather than as the
    * lead itself, which the accent/backing prose already says. */
-  const variant = entry.full[Math.floor(rand() * entry.full.length)] || entry.full[0];
-  const rendered = variant.replace(/\{carrier\}/g, carrier || 'synth lead');
+  /* Choose the variant set BEFORE drawing, so both sets consume exactly one
+   * draw and a build with a carrier stays seed-aligned with one without. */
+  const pool = (!carrier && entry.fullNoCarrier) ? entry.fullNoCarrier : entry.full;
+  const variant = pool[Math.floor(rand() * pool.length)] || pool[0];
+  /* No fallback carrier name. The old `carrier || 'synth lead'` would have
+   * named an instrument the build does not contain the moment the requirement
+   * was relaxed — a dangling reference smuggled in by a default. */
+  const rendered = carrier ? variant.replace(/\{carrier\}/g, carrier) : variant;
 
   return {
     treatment, subtype, intensity: (policy && policy.intensity) || DEFAULT_INTENSITY[treatment] || 'accent',
     target: { role: chosen.role, source: chosen.source }, carrier,
-    rendered, compact: (entry.compact || '').replace(/\{carrier\}/g, carrier || 'synth lead'),
+    rendered,
+    compact: carrier ? String(entry.compact || '').replace(/\{carrier\}/g, carrier)
+                     : String(entry.compactNoCarrier || entry.compact || '').replace(/\{carrier\}/g, ''),
     /* §9.1 semantic tags — what dimension this consumed, so Space & Movement
      * and Ear Candy can avoid doubling it (§8.14, §8.15). */
     semanticTags: TEMPORAL.has(treatment) ? ['vocal', 'temporal-edit'] : ['vocal', 'timbral-transform'],

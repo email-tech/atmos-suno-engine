@@ -59,18 +59,31 @@ const ctxWith = (over) => buildDetailContext(Object.assign({
     'a nylon acoustic is not a talkbox carrier — the technique needs an amplified signal');
   ok(eligibleTalkboxCarriers([{ instrument: 'a cathedral pipe organ' }]).length === 0, 'an organ is not a talkbox carrier');
 
+  /* CONTRACT INVERTED 2026-08-17. This asserted that talkbox with no carrier
+   * must NO-OP, per spec §8.7. John's extensive Suno testing says Suno produces
+   * talkbox and vocoder from the term alone — it matches a sound it has heard
+   * rather than modelling a signal chain. The spec's own evidence hierarchy
+   * (§2.3) ranks ATMOS Suno testing above production terminology, so the
+   * measurement wins. Recorded as EFFECT_NAMES_NEED_NO_MECHANICS. */
   const noCarrier = resolveVocalTreatmentFull(ctxWith({
     cast: [{ instrument: 'a bowed cello drone' }], uiIntent: { vocalTreatment: 'talkbox' },
   }));
-  ok(noCarrier && noCarrier.noOp && noCarrier.reason === 'talkbox-requires-existing-carrier',
-    'talkbox with no plausible carrier must no-op, NOT invent a guitar or synth to make itself work');
+  ok(noCarrier && !noCarrier.noOp, 'talkbox with no carrier must still resolve — Suno needs the effect name, not the signal chain');
+  ok(!/\{carrier\}/.test(noCarrier.rendered), 'the carrier placeholder must never survive into output');
+  /* What the override does NOT relax: cast integrity. Naming an instrument the
+   * build does not contain is a dangling reference whatever Suno can do with
+   * the effect name. */
+  ok(!/\b(synth lead|electric guitar|guitar|arp)\b/i.test(noCarrier.rendered),
+    'a carrier-free talkbox line must not name an instrument absent from the cast');
+  ok(!/\b(through|via) the existing\b/i.test(noCarrier.rendered),
+    'a carrier-free line must not point at a carrier that does not exist');
 
   const withCarrier = resolveVocalTreatmentFull(ctxWith({ uiIntent: { vocalTreatment: 'talkbox' } }));
   ok(withCarrier && !withCarrier.noOp, 'talkbox with a carrier present must resolve');
   ok(withCarrier.rendered.includes('synth lead'), 'the rendered talkbox line must name the EXISTING carrier');
   ok(!withCarrier.rendered.includes('{carrier}'), 'the carrier placeholder must be substituted');
   checks++;
-  console.log('  §8.7 talkbox: requires an existing plausible carrier, never invents one.');
+  console.log('  talkbox: resolves with or without a carrier (§8.7 overridden by John\'s Suno testing); names one only when the cast has one.');
 }
 
 /* ---- 3: §13 beatless characters --------------------------------------- */
@@ -96,6 +109,13 @@ const ctxWith = (over) => buildDetailContext(Object.assign({
       ok(VOCAL_PROSE[st], `${treatment}: subtype ${st} has no prose entry`);
       if (!VOCAL_PROSE[st]) continue;
       ok(VOCAL_PROSE[st].full.length >= 2, `${st}: needs at least two full variants`);
+      /* Any subtype whose prose names a carrier needs a carrier-free set, or a
+       * build without one has nothing legal to render. */
+      if (VOCAL_PROSE[st].full.some(l => l.includes('{carrier}'))) {
+        ok((VOCAL_PROSE[st].fullNoCarrier || []).length >= 2, `${st}: carrier-bearing prose needs carrier-free variants too`);
+        ok((VOCAL_PROSE[st].fullNoCarrier || []).every(l => !l.includes('{carrier}')), `${st}: carrier-free variants must not reference a carrier`);
+        ok(VOCAL_PROSE[st].compactNoCarrier, `${st}: needs a carrier-free compact form for budget compaction`);
+      }
       ok(typeof VOCAL_PROSE[st].compact === 'string' && VOCAL_PROSE[st].compact.length > 0, `${st}: needs a compact form for budget compaction`);
     }
     ok(DEFAULT_INTENSITY[treatment], `${treatment}: no default intensity (§8.13)`);
@@ -112,7 +132,7 @@ const ctxWith = (over) => buildDetailContext(Object.assign({
 
 /* ---- 5: rendered output is always from the library --------------------- */
 {
-  const allLines = Object.values(VOCAL_PROSE).flatMap(e => e.full);
+  const allLines = Object.values(VOCAL_PROSE).flatMap(e => [...e.full, ...(e.fullNoCarrier || [])]);
   let n = 0;
   for (const t of ['vocoder', 'talkbox', 'vocalChops', 'stutter', 'glitch', 'auto']) {
     for (const seed of [1, 5, 42, 999]) {

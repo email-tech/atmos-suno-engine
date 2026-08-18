@@ -263,3 +263,37 @@ export const SINGLETON_INSTRUMENT_WORDS =
  * music regardless of length. John's empirical test wins for this project.
  * ------------------------------------------------------------------------*/
 export const INTERACTION_LANGUAGE_MANDATORY = true;
+
+/* --------------------------------------------------------------------------
+ * SUNO UNDERSTANDS EFFECT NAMES WITHOUT THE PRODUCTION MECHANICS
+ * SOURCE: John, 2026-08-17 — "I have tested extensively in Suno the use of the
+ * term talk box and vocoder, and Suno is able to produce the effects of talk box
+ * and vocoder without the technical requirements of a carrier. It understands
+ * the sound it's trying to achieve without the technicalities of proper music
+ * production."
+ *
+ * Naming the EFFECT is sufficient. Suno is matching a sound it has heard, not
+ * modelling a signal chain, so a talkbox does not need a carrier instrument
+ * named alongside it and a vocoder does not need a modulator/carrier pair.
+ *
+ * THIS OVERRIDES THE SPEC. ATMOS_Detail_Movement_Vocal_Processing_Spec_v2_0 §8.7
+ * makes a carrier a HARD REQUIREMENT for talkbox, reasoning correctly from
+ * production practice (Sound On Sound: a talkbox is physically shaped by a
+ * performer's mouth). Correct about talkboxes, wrong about Suno. The spec's own
+ * evidence hierarchy §2.3 puts existing ATMOS Suno testing FIRST and established
+ * production terminology FOURTH, so John's measurement wins on the spec's own
+ * terms.
+ *
+ * WHAT DOES NOT CHANGE: ATMOS still never NAMES an instrument that is not in the
+ * resolved cast. That is the cast-integrity rule (spec §1.2), not a Suno claim —
+ * prose reading "through the existing synth lead" on a build with no synth lead
+ * is a dangling reference, the same defect fixed across the interplay layer at
+ * 84effaa. So a carrier is named when one exists and simply omitted when one
+ * does not; it is never required and never invented.
+ *
+ * GENERAL LESSON worth carrying to the rest of this spec: correct audio
+ * engineering is not automatically correct Suno prompting. Every other place the
+ * spec reasons from production mechanics to a hard requirement is now suspect
+ * and should be treated as a hypothesis until measured.
+ * ------------------------------------------------------------------------*/
+export const EFFECT_NAMES_NEED_NO_MECHANICS = true;

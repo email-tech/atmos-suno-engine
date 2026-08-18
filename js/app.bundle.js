@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"dd40edf","date":"2026-08-18"};
+window.__ATMOS_BUILD__ = {"commit":"d574d8d","date":"2026-08-18"};
 
 /* core/constants.js */
 (function(){
@@ -911,12 +911,24 @@ const DEFAULT_INTENSITY = Object.freeze({
   vocoder: 'support', talkbox: 'accent', vocalChops: 'support', stutter: 'accent', glitch: 'accent',
 });
 
-/* ---- §8.7 TALKBOX CARRIERS -------------------------------------------
- * A talkbox is not a vocoder: an instrument signal is physically shaped by a
- * performer's mouth. It therefore REQUIRES a plausible carrier already in the
- * cast. "Do NOT invent a new guitar or synth solely to make Talkbox work" —
- * inventing one would be a modifier bypassing the cast, which §1.2 forbids and
- * which is the same failure mode the composer layer had. */
+/* ---- TALKBOX CARRIERS — SPEC §8.7 OVERRIDDEN BY MEASUREMENT ----------
+ * §8.7 makes a carrier a HARD REQUIREMENT, reasoning from production practice:
+ * a talkbox physically shapes an instrument signal through a performer's mouth,
+ * so there must be an instrument. Correct about talkboxes, wrong about Suno.
+ *
+ * John, 2026-08-17, from extensive testing: Suno produces both talkbox and
+ * vocoder from the term alone, with no carrier named. It is matching a sound it
+ * has heard, not modelling a signal chain. The spec's own evidence hierarchy
+ * (§2.3) ranks existing ATMOS Suno testing FIRST and production terminology
+ * FOURTH, so the measurement wins on the spec's own terms. Recorded as
+ * EFFECT_NAMES_NEED_NO_MECHANICS in core/knowledge.js.
+ *
+ * WHAT SURVIVES THE OVERRIDE: ATMOS still never NAMES an instrument absent from
+ * the resolved cast. That is cast integrity (§1.2), not a Suno claim — "through
+ * the existing synth lead" on a build with no synth lead is a dangling
+ * reference, the defect fixed across the interplay layer at 84effaa. So a
+ * carrier is NAMED WHEN ONE EXISTS and OMITTED WHEN ONE DOES NOT. Never
+ * required, never invented. */
 const CARRIER_RE = /\b(synth lead|lead synth|synth|analog\w* lead|arp|arpeggi\w+|chord pulse|pulse|clean electric guitar|electric guitar|guitar)\b/i;
 const CARRIER_EXCLUDE_RE = /\b(nylon|acoustic guitar|classical guitar)\b/i;
 
@@ -947,15 +959,28 @@ const VOCAL_PROSE = Object.freeze({
            'Wordless vocal tones are lightly vocoded into a soft harmonic texture behind the arrangement.'],
     compact: 'soft low-mixed vocoded wordless texture.',
   },
+  /* CARRIER-FREE VARIANTS are the SPEC LINES WITH THE CARRIER CLAUSE DELETED,
+   * not new sentences. Deletion keeps the wording traceable to §8.12 — the
+   * library assumed a carrier was mandatory, and with that assumption falsified
+   * the honest move is to remove the clause that depended on it rather than
+   * author replacement prose. Flagged to John: if he wants purpose-written
+   * carrier-free lines, those are his to supply, per the standing rule that
+   * missing phrases are asked for and not invented. */
   talkboxPhrase: {
     full: ['Selected hook phrases take on a brief talkbox-style talking-instrument contour through the existing {carrier}, then return to the natural vocal.',
            'The existing {carrier} forms a short talkbox-treated response around selected vocal phrases, never replacing the lead.'],
+    fullNoCarrier: ['Selected hook phrases take on a brief talkbox-style talking-instrument contour, then return to the natural vocal.',
+                    'A short talkbox-treated response answers selected vocal phrases, never replacing the lead.'],
     compact: 'brief talkbox-style responses through the existing {carrier}.',
+    compactNoCarrier: 'brief talkbox-style responses around selected vocal phrases.',
   },
   talkboxHookResponse: {
     full: ['The existing {carrier} forms a short talkbox-treated response around selected vocal phrases, never replacing the lead.',
            'Selected hook phrases take on a brief talkbox-style talking-instrument contour through the existing {carrier}, then return to the natural vocal.'],
+    fullNoCarrier: ['A short talkbox-treated response answers selected vocal phrases, never replacing the lead.',
+                    'Selected hook phrases take on a brief talkbox-style talking-instrument contour, then return to the natural vocal.'],
     compact: 'brief talkbox-style responses through the existing {carrier}.',
+    compactNoCarrier: 'brief talkbox-style responses around selected vocal phrases.',
   },
   vocalChopAccent: {
     full: ['Short fragments of the existing vocal are chopped into sparse rhythmic accents between phrases.',
@@ -1067,13 +1092,13 @@ function resolveVocalTreatmentFull(ctx, policy) {
   const targets = eligibleVocalTargets(ctx.vocalSources, treatment);
   if (!targets.length) return noOp('no-eligible-vocal-target');
 
-  /* §8.7 — hard semantic rule, checked BEFORE picking, so a build without a
-   * carrier never renders a talkbox line naming an instrument it does not have. */
+  /* Carrier is now OPTIONAL. Present -> name it, because grounding the effect in
+   * a voice the track already has is better prompting. Absent -> use the
+   * carrier-free variant. Never a no-op and never invented. */
   let carrier = null;
   if (treatment === 'talkbox') {
     const carriers = eligibleTalkboxCarriers(ctx.cast);
-    if (!carriers.length) return noOp('talkbox-requires-existing-carrier');
-    carrier = carrierName(carriers[0]);
+    if (carriers.length) carrier = carrierName(carriers[0]);
   }
 
   const rand = rngFor(ctx.baseBuildSeed, SEED_LABELS.VOCAL_TREATMENT);
@@ -1088,13 +1113,21 @@ function resolveVocalTreatmentFull(ctx, policy) {
   /* §8.5 — a Persona/Voice lead keeps its identity. An explicit user choice is
    * still honoured, but rendered as a layer around the lead rather than as the
    * lead itself, which the accent/backing prose already says. */
-  const variant = entry.full[Math.floor(rand() * entry.full.length)] || entry.full[0];
-  const rendered = variant.replace(/\{carrier\}/g, carrier || 'synth lead');
+  /* Choose the variant set BEFORE drawing, so both sets consume exactly one
+   * draw and a build with a carrier stays seed-aligned with one without. */
+  const pool = (!carrier && entry.fullNoCarrier) ? entry.fullNoCarrier : entry.full;
+  const variant = pool[Math.floor(rand() * pool.length)] || pool[0];
+  /* No fallback carrier name. The old `carrier || 'synth lead'` would have
+   * named an instrument the build does not contain the moment the requirement
+   * was relaxed — a dangling reference smuggled in by a default. */
+  const rendered = carrier ? variant.replace(/\{carrier\}/g, carrier) : variant;
 
   return {
     treatment, subtype, intensity: (policy && policy.intensity) || DEFAULT_INTENSITY[treatment] || 'accent',
     target: { role: chosen.role, source: chosen.source }, carrier,
-    rendered, compact: (entry.compact || '').replace(/\{carrier\}/g, carrier || 'synth lead'),
+    rendered,
+    compact: carrier ? String(entry.compact || '').replace(/\{carrier\}/g, carrier)
+                     : String(entry.compactNoCarrier || entry.compact || '').replace(/\{carrier\}/g, ''),
     /* §9.1 semantic tags — what dimension this consumed, so Space & Movement
      * and Ear Candy can avoid doubling it (§8.14, §8.15). */
     semanticTags: TEMPORAL.has(treatment) ? ['vocal', 'temporal-edit'] : ['vocal', 'timbral-transform'],
@@ -2471,7 +2504,41 @@ const SINGLETON_INSTRUMENT_WORDS =
  * ------------------------------------------------------------------------*/
 const INTERACTION_LANGUAGE_MANDATORY = true;
 
-Object.assign(window.__ATMOS, { vocalRestraintCandidates, capNegativesOrdered, selectNegatives, NEGATIVE_CAP, NEGATIVE_RANKS, VOCAL_RESTRAINT_TERMS, SOFT_CHARACTER_RE, ORCHESTRAL_NEGATIVES, BANNED_ARTICULATION, BANNED_ARTICULATION_RE, POSITION_IS_PROMINENCE, CONVENTION_BLEED, ONE_VOICE_ONE_MENTION, SINGLETON_INSTRUMENT_WORDS, INTERACTION_LANGUAGE_MANDATORY });
+/* --------------------------------------------------------------------------
+ * SUNO UNDERSTANDS EFFECT NAMES WITHOUT THE PRODUCTION MECHANICS
+ * SOURCE: John, 2026-08-17 — "I have tested extensively in Suno the use of the
+ * term talk box and vocoder, and Suno is able to produce the effects of talk box
+ * and vocoder without the technical requirements of a carrier. It understands
+ * the sound it's trying to achieve without the technicalities of proper music
+ * production."
+ *
+ * Naming the EFFECT is sufficient. Suno is matching a sound it has heard, not
+ * modelling a signal chain, so a talkbox does not need a carrier instrument
+ * named alongside it and a vocoder does not need a modulator/carrier pair.
+ *
+ * THIS OVERRIDES THE SPEC. ATMOS_Detail_Movement_Vocal_Processing_Spec_v2_0 §8.7
+ * makes a carrier a HARD REQUIREMENT for talkbox, reasoning correctly from
+ * production practice (Sound On Sound: a talkbox is physically shaped by a
+ * performer's mouth). Correct about talkboxes, wrong about Suno. The spec's own
+ * evidence hierarchy §2.3 puts existing ATMOS Suno testing FIRST and established
+ * production terminology FOURTH, so John's measurement wins on the spec's own
+ * terms.
+ *
+ * WHAT DOES NOT CHANGE: ATMOS still never NAMES an instrument that is not in the
+ * resolved cast. That is the cast-integrity rule (spec §1.2), not a Suno claim —
+ * prose reading "through the existing synth lead" on a build with no synth lead
+ * is a dangling reference, the same defect fixed across the interplay layer at
+ * 84effaa. So a carrier is named when one exists and simply omitted when one
+ * does not; it is never required and never invented.
+ *
+ * GENERAL LESSON worth carrying to the rest of this spec: correct audio
+ * engineering is not automatically correct Suno prompting. Every other place the
+ * spec reasons from production mechanics to a hard requirement is now suspect
+ * and should be treated as a hypothesis until measured.
+ * ------------------------------------------------------------------------*/
+const EFFECT_NAMES_NEED_NO_MECHANICS = true;
+
+Object.assign(window.__ATMOS, { vocalRestraintCandidates, capNegativesOrdered, selectNegatives, NEGATIVE_CAP, NEGATIVE_RANKS, VOCAL_RESTRAINT_TERMS, SOFT_CHARACTER_RE, ORCHESTRAL_NEGATIVES, BANNED_ARTICULATION, BANNED_ARTICULATION_RE, POSITION_IS_PROMINENCE, CONVENTION_BLEED, ONE_VOICE_ONE_MENTION, SINGLETON_INSTRUMENT_WORDS, INTERACTION_LANGUAGE_MANDATORY, EFFECT_NAMES_NEED_NO_MECHANICS });
 })();
 
 /* core/resolver-cast.js */
