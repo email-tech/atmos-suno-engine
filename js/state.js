@@ -21,6 +21,17 @@ export function initState() {
   // pipeline reorder that consumes it.
   const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false,
               ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null, atom: null,
+              // TEXTURE MODIFIER (John, 2026-08-18): two independent selectors,
+              // each None or one entry from core/texture.js's nine-voice pool.
+              // GLOBAL like maxMode and ov — a texture is a hand applied on top
+              // of whichever engine is selected, not a property of one engine.
+              // LEGACY ENGINES ARE OUT (John's call, 2026-08-18): Balearic
+              // Legacy and Enigma run the proven byte-identical builder, so
+              // generate() ignores this on that path and js/ui.js does not
+              // render the control there. Empty strings mean the feature is a
+              // no-op by default, so an untouched app is byte-identical to the
+              // build before it existed.
+              texture: { a: '', b: '' },
               songType: 'vocal', structurePresetId: presetsForType('vocal')[0].id,
               // P7 (2026-08-12) + provider choice (2026-08-13, John: "Gemini
               // pro is the model I'd like to use for Lyrics, but I think

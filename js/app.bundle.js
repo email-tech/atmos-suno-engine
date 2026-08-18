@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"d574d8d","date":"2026-08-18"};
+window.__ATMOS_BUILD__ = {"commit":"681ea3e","date":"2026-08-18"};
 
 /* core/constants.js */
 (function(){
@@ -2541,538 +2541,6 @@ const EFFECT_NAMES_NEED_NO_MECHANICS = true;
 Object.assign(window.__ATMOS, { vocalRestraintCandidates, capNegativesOrdered, selectNegatives, NEGATIVE_CAP, NEGATIVE_RANKS, VOCAL_RESTRAINT_TERMS, SOFT_CHARACTER_RE, ORCHESTRAL_NEGATIVES, BANNED_ARTICULATION, BANNED_ARTICULATION_RE, POSITION_IS_PROMINENCE, CONVENTION_BLEED, ONE_VOICE_ONE_MENTION, SINGLETON_INSTRUMENT_WORDS, INTERACTION_LANGUAGE_MANDATORY, EFFECT_NAMES_NEED_NO_MECHANICS });
 })();
 
-/* core/resolver-cast.js */
-(function(){
-/* core/resolver-cast.js — ENSEMBLE RECONCILIATION FOR THE RESOLVER ENGINES
- * (Era, Delerium, Deep Forest, Sacred Spirit). 2026-08-17.
- *
- * WHY THIS IS NOT JUST core/cast.js CALLED AGAIN
- * cast.js reconciles ATOMS: typed objects carrying role, family, behaviour, mix
- * and density as separate fields. The resolver has none of that. It fills eight
- * named slots with finished prose strings, and the slot IS the role. So the
- * rules have to be re-derived against what the resolver actually holds, not
- * ported across, and two of cast.js's predicates give the WRONG ANSWER here:
- *
- *   - isSustainedBed() counts the MOVEMENT slot as a bed, because movement text
- *     says things like "tremolo bowed-string swells" and the behaviour regex
- *     matches "swells". On the atom path movement is not a slot at all. Here it
- *     is production process, not a harmonic layer, and counting it inflated the
- *     measured defect from a real 11-23% to a reported 53-65%.
- *   - It also counts the VOICE slot, which is worse: a wordless choir does
- *     sustain, but it is the vocal identity performing the voice function. A bed
- *     budget that can drop the vocal is a genre failure, not a fix. John's own
- *     rule already accepts two sustained layers where a signature bed exists.
- *
- * So the bed contest here is deliberately NARROWER than the atom path's:
- * candidates are pads, harmony and colour only.
- *
- * WHEN THIS RUNS. After applyOverlay(), before the style is rendered. Overlays
- * rewrite arr.bass / arr.lead / arr.color / arr.pads, so reconciling at resolve
- * time would judge an arrangement that is not the one Suno receives. Running it
- * here also composes correctly with the render-time interplay guard: a tail that
- * referenced a voice this module just dropped is caught by core/interplay.js on
- * the way out, which is exactly what that guard was built for.
- *
- * DROPPING A SLOT IS SAFE. renderStyle() builds every clause conditionally and
- * degrades cleanly on a null — "pads with lead" becomes just the lead, the
- * foundation clause survives losing either half. No dangling connectives.
- *
- * EVIDENCE STATE: REASONED for the bed contest (it applies John's settled
- * definition of a pad to a path that never had it). EMPIRICAL for the
- * duplicate-voice rule — round 4 established that naming one instrument twice
- * renders two of it, and that is recorded in core/knowledge.js.
- * ------------------------------------------------------------------------- */
-const {SINGLETON_INSTRUMENT_WORDS} = window.__ATMOS;
-
-/* Same definition as core/cast.js. Duplicated deliberately rather than
- * exported across: these describe what a bed IS, and if a future session
- * changes the atom path's notion of a bed it must be a conscious decision to
- * change the resolver's too, not a side effect. */
-const BED_INSTRUMENT_RE = /\b(pad|pads|synthpad|drone|wash|string machine|string ensemble|mellotron|choir|bed)\b/i;
-const BED_BEHAVIOUR_RE  = /\b(sustain|sustained|sustains|held|holding|swell|swells|slow attack|wide chords|long chords)\b/i;
-
-/* WHICH SLOT WINS A CONTEST, most protected first.
- *
- * bass and drums are the groove and are never dropped by anything here.
- * lead is the character's melodic identity.
- * VOICE SITS ABOVE PADS deliberately. If a choir pad and a chant voice collide
- * on the word "choir", the vocal is the thing to keep and the bed is the thing
- * to lose — dropping the voice to protect a pad would trade the song's identity
- * for its wallpaper.
- * colour and movement are decorative and optional; colour does not even fire on
- * every build. They lose every contest, which is why the common case costs the
- * arrangement nothing. */
-const SLOT_PRIORITY = Object.freeze(['bass', 'drums', 'lead', 'voice', 'pads', 'harmony', 'color', 'movement']);
-
-/* Never dropped, whatever collides. Losing either of these would break the
- * groove, and a duplicate involving them is better solved by fixing the pool. */
-const PROTECTED = Object.freeze(['bass', 'drums', 'lead']);
-
-const BED_CANDIDATES = Object.freeze(['pads', 'harmony', 'color']);
-
-const rank = (slot) => {
-  const i = SLOT_PRIORITY.indexOf(slot);
-  return i === -1 ? SLOT_PRIORITY.length : i;
-};
-
-function isBedSlot(slot, text) {
-  if (!text) return false;
-  /* ONLY the three harmonic-bed slots can ever be a bed. Without this the
-   * behaviour regex fires on the movement slot ("tremolo bowed-string swells")
-   * and on a sustained voice ("a wordless sustained choir") — the two false
-   * positives that made the atom path's predicate wrong here, and that this
-   * module exists to avoid. Caught by validate-resolver-cast group 1. */
-  if (!BED_CANDIDATES.includes(slot)) return false;
-  /* pads is a bed by function, whatever fills it — the same structural
-   * reasoning as cast.js's BED_ROLES. A text-only test misses a pad slot whose
-   * prose happens not to use a bed word. */
-  if (slot === 'pads') return true;
-  return BED_INSTRUMENT_RE.test(text) || BED_BEHAVIOUR_RE.test(text);
-}
-
-/* Reconcile a resolved (and overlaid) arrangement in place.
- * Returns the list of drops so callers and validators can see what happened
- * rather than inferring it from the prose. */
-function reconcileArrangement(arr) {
-  const dropped = [];
-  const drop = (slot, reason, detail) => {
-    dropped.push({ slot, reason, instrument: arr[slot], detail });
-    arr[slot] = null;
-  };
-
-  /* RULE 1 — ONE VOICE, ONE MENTION.
-   * Real Sacred Spirit output, ceremonialPrelude/acoustic seed 1: pads drew "a
-   * sustained bowed-cello drone" and colour drew "a swelling cello accent".
-   * Two cellos in one prompt. Era/electronic seed 11 gets three. This is the
-   * round-4 French-horn failure in a different engine, and it needs no musical
-   * judgement to fix — SINGLETON_INSTRUMENT_WORDS is already the source of
-   * truth for which instruments Suno renders one of per mention.
-   *
-   * Slots are compared pairwise by priority: the better-protected slot keeps the
-   * word, the other is dropped. A collision between two PROTECTED slots is left
-   * alone and reported — dropping the bass to save the lead would be a worse
-   * prompt than the duplicate, and a protected-slot collision means the pool
-   * itself needs fixing. */
-  for (const word of SINGLETON_INSTRUMENT_WORDS) {
-    const re = new RegExp(`\\b${word.replace(/[-\s]/g, '[-\\s]')}s?\\b`, 'i');
-    const holders = SLOT_PRIORITY.filter(s => arr[s] && re.test(String(arr[s])));
-    if (holders.length < 2) continue;
-    const keeper = holders[0];
-    for (const loser of holders.slice(1)) {
-      if (PROTECTED.includes(loser)) {
-        dropped.push({ slot: loser, reason: 'duplicate-voice-unresolved', instrument: arr[loser], detail: word });
-        continue;
-      }
-      /* NEVER DROP THE LAST BED. Sacred Spirit draws a bowed-cello drone in
-       * pads and a cello line in the lead; the lead is protected, so the pad
-       * loses — and 44 builds ended with no harmonic bed at all. A build with
-       * no bed is a worse prompt than one with a repeated word, so the
-       * collision is reported unresolved instead. Caught by
-       * validate-resolver-cast group 4, not by review. */
-      if (isBedSlot(loser, arr[loser])
-          && !BED_CANDIDATES.some(b => b !== loser && isBedSlot(b, arr[b]))) {
-        dropped.push({ slot: loser, reason: 'duplicate-voice-unresolved', instrument: arr[loser], detail: `${word} (last bed, kept)` });
-        continue;
-      }
-      drop(loser, 'duplicate-voice', `${word} already in ${keeper}`);
-    }
-  }
-
-  /* RULE 2 — ONE HARMONIC BED.
-   * Measured over 6,300 seeded builds: Sacred Spirit 22.9%, Era 17.6%, Deep
-   * Forest 15.0%, Delerium 10.8% of builds stack a second sustained bed among
-   * pads / harmony / colour. Two beds mud the harmony and spend two named
-   * sources on one function.
-   *
-   * pads wins by default because it is the character's own bed and the slot the
-   * engine designed around. When pads is empty the highest-priority remaining
-   * bed keeps the function. */
-  const beds = BED_CANDIDATES.filter(s => isBedSlot(s, arr[s]));
-  if (beds.length > 1) {
-    const keeper = beds.sort((a, b) => rank(a) - rank(b))[0];
-    for (const loser of beds.slice(1)) drop(loser, 'bed-budget', `bed already held by ${keeper}`);
-  }
-
-  arr.castDropped = dropped;
-  return dropped;
-}
-
-Object.assign(window.__ATMOS, { isBedSlot, reconcileArrangement });
-})();
-
-/* core/resolver.js */
-(function(){
-const {ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette} = window.__ATMOS;
-const {NEGATIVE_CAP, capNegativesOrdered, vocalRestraintCandidates} = window.__ATMOS;
-const {compactPart} = window.__ATMOS;
-const {slotFamily} = window.__ATMOS;
-const {pickTail, guardTail} = window.__ATMOS;
-const {reconcileArrangement} = window.__ATMOS;
-
-/* ---- HARMONY BRIGHTNESS WEIGHTING (John, 2026-08-13) ----------------------
- * "Music played in a Major Key sounds too happy and sugary sweet... this key
- * use must be controlled somehow, but not eliminated entirely... don't make
- * it the only lever." Two levers, both scoped to the harmony role only —
- * pads/bass/lead/etc. are instrument choices, not a tonality concern.
- *
- * Every harmony pool entry across the 4 resolver engines was read and hand-
- * classified by its own text (not guessed from the key name) into one of 5
- * brightness tags: minor, modal, neutral, resolves (the "minor-to-relative-
- * major" entries — John's own suggested mechanism, which turned out to
- * already exist as pool vocabulary), and major.
- *
- * LEVER 2 (general bias): DEFAULT_HARMONY_WEIGHT favours minor/modal over
- * resolves/major, but every tag stays reachable — nothing is eliminated.
- *
- * LEVER 3 (structure-aware): when the caller passes structureHint indicating
- * the selected structure preset has a genuine earned peak (energy 5 somewhere
- * in its shape — a real chorus/drop/climax to resolve INTO), 'resolves' and
- * 'major' get boosted, since there's an actual payoff moment for that arc to
- * land on. When the structure has NO such peak (e.g. Downtempo/Ambient, which
- * tops out at energy 4 — nothing to resolve onto), they're suppressed further
- * instead, keeping flat/ambient structures honestly flat rather than faking a
- * resolution that has nowhere to go. Omitting structureHint entirely (no
- * structure selected) falls back to the Lever-2-only default — this keeps
- * every existing call site working exactly as before, additive not breaking.
- * ========================================================================*/
-const DEFAULT_HARMONY_WEIGHT   = { minor: 3,   modal: 3,   neutral: 2, resolves: 1.5, major: 1 };
-const PEAK_HARMONY_WEIGHT      = { minor: 3,   modal: 3,   neutral: 2, resolves: 3,   major: 1.5 };
-const NO_PEAK_HARMONY_WEIGHT   = { minor: 3.5, modal: 3.5, neutral: 2, resolves: 0.5, major: 0.5 };
-
-function harmonyWeightsFor(structureHint) {
-  if (!structureHint) return DEFAULT_HARMONY_WEIGHT;
-  return structureHint.hasResolutionPoint ? PEAK_HARMONY_WEIGHT : NO_PEAK_HARMONY_WEIGHT;
-}
-
-// Weighted pick over a pool using each item's `.bright` tag (unset/unknown
-// tags fall back to the 'neutral' weight). Same rand() stream as everything
-// else here, so a given seed still deterministically produces one answer —
-// weighting changes the DISTRIBUTION across seeds, not the determinism of
-// any single seed.
-function weightedPick(pool, weights, rand) {
-  const withWeights = pool.map(item => ({ item, w: weights[item.bright] ?? weights.neutral ?? 1 }));
-  const total = withWeights.reduce((sum, x) => sum + x.w, 0);
-  if (total <= 0) return pool[Math.floor(rand() * pool.length)]; // safety net, should not happen
-  let r = rand() * total;
-  for (const x of withWeights) {
-    if (r < x.w) return x.item;
-    r -= x.w;
-  }
-  return withWeights[withWeights.length - 1].item; // floating-point rounding safety
-}
-
-// opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed,
-//         structureHint:{hasResolutionPoint:boolean}|null }
-// locks drive all three control levels:
-//   randomize all  = locks {}
-//   lock some      = locks {pads:'...'}
-//   full manual    = every role locked
-function resolveArrangement(engine, opts) {
-  const { characterId, palette = 'electronic', locks = {}, seed = Date.now(), structureHint = null } = opts;
-  const c = engine.characters[characterId];
-  if (!c) throw new Error(`unknown character ${characterId}`);
-  const rand = rng(seed);
-  const pick = (role) => {
-    if (locks[role] != null) return locks[role];
-    const pool = filterPalette(c.pools[role] || [], palette);
-    if (!pool.length) return null;
-    if (role === 'harmony') {
-      return weightedPick(pool, harmonyWeightsFor(structureHint), rand).t;
-    }
-    return pool[Math.floor(rand() * pool.length)].t;
-  };
-
-  const arr = {
-    engine: engine.id,
-    /* characterId (not just the display label) so renderStyle can reach this
-     * character's interplay pool for the render-time guard below. */
-    characterId,
-    character: c.label,
-    genre: c.genre,
-    beatless: !!c.beatless,
-    bpm: c.bpm || null,
-    energy: c.energy,
-    pads: pick('pads'),
-    harmony: pick('harmony'),
-    bass: pick('bass'),
-    voice: pick('voice'),
-    lead: pick('lead'),
-    movement: pick('movement'),
-    color: null,
-    drums: null,
-    negative: c.negative || null,   // optional per-character bans (e.g. Era Driving Epic: no rock/metal)
-    tempoLock: c.tempoLock || null, // optional tempo-stability directive (stops Suno double-timing)
-  };
-
-  // drums (skip when beatless)
-  if (!c.beatless && c.drums.primary) {
-    const fam = engine.drums[c.drums.primary];
-    arr.drums = fam[Math.floor(rand() * fam.length)];
-  }
-  // colour fires occasionally
-  if (rand() < c.colorChance) arr.color = pick('color');
-
-  // interplay / arrangement layer — WOVEN into the style string (per John's Suno test).
-  // role-generic tails that hang off already-named instruments (never re-name one).
-  //
-  // CONDITIONAL since 2026-08-17: the pool is filtered to tails whose references
-  // are satisfied by THIS arrangement before the draw, so a tail can no longer
-  // name a voice the build does not contain. See core/interplay.js. Still exactly
-  // one rng call per dimension, so seed behaviour is unchanged in shape (the
-  // phrase chosen for a given seed does change — that is the fix).
-  const ipPool = (engine.interplay && engine.interplay[characterId]) || {};
-  const one = (dim) => (ipPool[dim] && ipPool[dim].length)
-    ? pickTail(ipPool[dim], arr, dim, rand) : null;
-  arr.ip = {
-    foundation:   one('foundation'),
-    conversation: one('conversation'),
-    arc:          one('arc'),
-    voiceRel:     one('voiceRel'),
-    colorRel:     one('colorRel'),
-  };
-
-  return arr;
-}
-
-// STYLE STRING = full woven cast (the approved gold-standard format). Instruments are
-// threaded with their interplay inline, in musical layers, not a flat tag list:
-//   genre -> tempo -> [drums+bass+foundation] -> [pads+lead+conversation] -> harmony
-//         -> [voice+voiceRel] -> [colour+colourRel if it fires] -> [movement+arc] -> mastering
-function renderStyle(engine, arr) {
-  /* RENDER-TIME INTERPLAY GUARD (2026-08-17). Pick-time filtering is not enough
-   * on its own: applyOverlay() rewrites arr.bass / arr.lead / arr.color / arr.pads
-   * AFTER the tails were chosen, and injects its own arc straight into arr.ip
-   * without passing any gate at all. Re-checking here means a tail is legal
-   * against the arrangement AS RENDERED, which is the only state that reaches
-   * Suno. Deterministic re-pick, no fresh randomness — see core/interplay.js. */
-  const ipPool = (engine && engine.interplay && engine.interplay[arr.characterId]) || {};
-  const ip = {};
-  for (const [dim, sel] of Object.entries(arr.ip || {})) {
-    ip[dim] = guardTail(ipPool[dim] || [], arr, dim, sel);
-  }
-  const clauses = [arr.genre];
-
-  // tempo + energy
-  clauses.push(arr.beatless
-    ? `beatless, ${arr.energy} energy`
-    : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`);
-  if (arr.tempoLock) clauses.push(arr.tempoLock);
-
-  // LEVER 1 — OVERLAY FRONT-LOADING. Suno front-weights descriptors and renders
-  // only a bounded number of them, so an overlay's defining traits must sit right
-  // after the genre+tempo anchor (not buried at the back where they get dropped).
-  // The signature carriers (thematic motif, counter-melody, harmonic language) are
-  // hoisted here; they are then skipped in their old mid-list positions so nothing
-  // renders twice. When no overlay is active none of these exist and the order is
-  // unchanged (no-overlay output stays byte-identical — asserted in validation).
-  if (arr.ovMotif) clauses.push(arr.ovMotif);
-  if (arr.ovCounter) clauses.push(arr.ovCounter);
-  if (arr.ovHarmony && arr.harmony) clauses.push(arr.harmony);
-
-  // foundation: drums(+)bass + how they lock/float (+ remixer groove treatment)
-  const drumText = arr.drums ? (arr.groove ? `${arr.drums} ${arr.groove}` : arr.drums) : null;
-  if (arr.bass) {
-    const low = drumText ? `${drumText} and ${arr.bass}` : arr.bass;
-    clauses.push(ip.foundation ? `${low} ${ip.foundation}` : low);
-  } else if (drumText) {
-    clauses.push(ip.foundation ? `${drumText} ${ip.foundation}` : drumText);
-  }
-
-  // conversation: pads + lead + how they relate
-  if (arr.pads && arr.lead) {
-    clauses.push(ip.conversation ? `${arr.pads} with ${arr.lead} ${ip.conversation}`
-                                 : `${arr.pads} with ${arr.lead}`);
-  } else if (arr.pads) {
-    clauses.push(arr.pads);
-  } else if (arr.lead) {
-    clauses.push(arr.lead);
-  }
-
-  // harmony (musicality slot — its own clause). An OVERLAY harmony was already
-  // front-loaded above; only an ENGINE harmony renders here.
-  if (arr.harmony && !arr.ovHarmony) clauses.push(arr.harmony);
-
-  // overlay: secondary sustained layer
-  if (arr.ovTexture) clauses.push(arr.ovTexture);
-
-  // voice + how it sits
-  if (arr.voice) clauses.push(ip.voiceRel ? `${arr.voice} ${ip.voiceRel}` : arr.voice);
-
-  // colour (only when it fired) + how it sits
-  if (arr.color) clauses.push(ip.colorRel ? `${arr.color} ${ip.colorRel}` : arr.color);
-
-  // overlay: remixer edit treatment + producer mix treatment
-  if (arr.ovEdit) clauses.push(arr.ovEdit);
-  if (arr.ovTreat) clauses.push(arr.ovTreat);
-
-  // production movement + the arc of the whole arrangement
-  if (arr.movement) clauses.push(ip.arc ? `${arr.movement} and ${ip.arc}` : arr.movement);
-  else if (ip.arc) clauses.push(ip.arc);
-
-  return clauses.join(', ') + '. ' + MASTERING;
-}
-
-function renderNegative(engine, arr, opts) {
-  const o = opts || {};
-  // Priority order, capped at NEGATIVE_CAP: the engine's OWN declared
-  // negatives are the primary, deliberately-authored genre defense and get
-  // first claim on the cap. Beatless-ban and vocal-restraint are situational
-  // additions layered on top — each reserved exactly ONE representative slot
-  // (not their full term lists) so a triggered mechanism can't silently
-  // crowd out the engine's real defense entirely. 2026-08-13 first attempt
-  // reserved all of BEATLESS_BAN + all 4 vocal-restraint terms ahead of
-  // everything else and a real Delerium build came back as 5 vocal/beatless
-  // terms and ZERO of the engine's own negatives — worse than the uncapped
-  // bug this was fixing. This is the corrected allocation.
-  const beatlessNeg = arr.beatless ? BEATLESS_BAN.slice(0, 1) : []; // "drums" — the single most critical term
-  const descriptiveText = [arr.character, arr.genre].filter(Boolean).join(' ');
-  const vocalNeg = vocalRestraintCandidates(descriptiveText, !!o.vocalActive).slice(0, 1);
-  const bans = [...beatlessNeg, ...vocalNeg, ...engine.sourceNegative, ...(arr.negative || []), ...ALWAYS_BAN];
-  return capNegativesOrdered(bans, NEGATIVE_CAP).join(', ');
-}
-
-/* ---- MODIFIER OVERLAYS ---------------------------------------------------
- * ov = { roles:{harmony,motif,counter,texture,color,movement,arc,groove,edit,treat},
- *        negative:[...] } — already resolved by core/overlays.js.
- * Overlays WRITE INTO existing slots (they do not append a second prompt), a
- * USER-LOCKED slot always wins, and the engine's genre / tempo / drum family /
- * bass family are never touched.
- * engine.signatureLead (Deep Forest, Sacred Spirit): the lead pool carries the
- * engine's ethnic signature instrument, so a composer's melodic trait is demoted
- * to a second melodic voice instead of replacing it — the standing rule that the
- * signature instrument must persist beats the overlay.
- * ------------------------------------------------------------------------*/
-function applyOverlay(engine, arr, ov, locks = {}) {
-  if (!ov || !ov.roles) return arr;
-  const r = ov.roles;
-  const fam = ov.roleFamily || {};
-  const free = role => locks[role] == null || locks[role] === '';
-
-  // Which instrument families has the ENGINE already put on the track? A slot the
-  // user locked counts too (never silently displace a locked instrument).
-  const present = new Set();
-  for (const k of ['bass', 'lead', 'pads', 'color']) {
-    const f = slotFamily(arr[k]); if (f) present.add(f);
-  }
-
-  // Decide what to do when an overlay trait names an instrument family the engine
-  // already carries:
-  //   foundational (e.g. Moroder's arp-bass) -> DISPLACE the engine's slot in that
-  //     family, so there is exactly one instrument in that role.
-  //   otherwise -> the overlay YIELDS: its instrument mention is dropped so it does
-  //     not duplicate what is already there.
-  const resolveTrait = (role, text) => {
-    const meta = fam[role];
-    if (!meta || !meta.family) return { text, displace: null };
-    const clash = present.has(meta.family);
-    if (!clash) { present.add(meta.family); return { text, displace: null }; }
-    if (meta.foundational) return { text, displace: meta.family };   // overlay wins the role
-    return { text: null, displace: null };                           // overlay drops the mention
-  };
-
-  if (r.harmony && free('harmony')) { arr.harmony = r.harmony; arr.ovHarmony = true; }
-  if (r.movement && free('movement')) arr.movement = r.movement;
-  if (r.arc) arr.ip = Object.assign({}, arr.ip, { arc: r.arc });
-
-  // LEVER 1 — DEMOTE OVERLAY COLOUR. Colour is the lowest-priority, occasional
-  // decoration slot. When the overlay already carries a foreground melodic voice
-  // (motif or counter), its colour trait is SUPPRESSED — it competes for attention
-  // and over-renders (John's test: an overlay trumpet came through too strong). An
-  // overlay whose only melodic contribution IS colour (e.g. a producer's sampled
-  // choir hits) keeps it.
-  const overlayHasForeground = !!(r.motif || r.counter);
-  if (r.color && free('color') && !overlayHasForeground) {
-    const t = resolveTrait('color', r.color);
-    if (t.text) { arr.color = t.text; arr.colorFromOverlay = true; }
-  }
-
-  // motif = the composer's melodic/thematic hand
-  if (r.motif) {
-    const t = resolveTrait('motif', r.motif);
-    if (t.displace === 'bass' && free('bass')) {
-      // foundational bass motif (Moroder) OWNS the low end: it replaces the drawn
-      // bass in the foundation clause; no second bass elsewhere.
-      arr.bass = t.text; arr.ovMotifIsBass = true;
-    } else if (t.text) {
-      if (engine.signatureLead || !free('lead')) arr.ovMotif = t.text; // keep engine lead
-      else arr.lead = t.text;
-    }
-  }
-
-  if (r.counter) { const t = resolveTrait('counter', r.counter); if (t.text) arr.ovCounter = t.text; }
-  if (r.texture) { const t = resolveTrait('texture', r.texture); if (t.text) arr.ovTexture = t.text; }
-  if (r.groove && arr.drums) arr.groove = r.groove;
-  if (r.edit) arr.ovEdit = r.edit;
-  if (r.treat) arr.ovTreat = r.treat;
-
-  if (ov.negative && ov.negative.length)
-    arr.negative = [...(arr.negative || []), ...ov.negative];
-
-  return arr;
-}
-
-/* Compression: shrink PHRASING before shedding CONTENT (see core/compress.js).
- * Bands are compacted in priority order — decorative layers first, core last —
- * and only as far as the budget actually requires. */
-const CORE_KEYS = ['genre', 'tempoClause'];
-function compressStyle(engine, arr, limit, locks = {}) {
-  const roleOf = { pads: 'pads', harmony: 'harmony', bass: 'bass', voice: 'voice', lead: 'lead', movement: 'movement', color: 'color' };
-  const lockedKey = k => { const r = roleOf[k]; return r && locks[r] != null && locks[r] !== ''; };
-  let style = renderStyle(engine, arr);
-  if (style.length <= limit) return style;
-  const bands = [
-    ['color', 'ovTexture', 'ovCounter', 'ovEdit', 'ovTreat'],   // decorative / overlay extras
-    ['movement', 'ovMotif'],                                     // production + secondary melodic
-    ['pads', 'harmony', 'voice', 'lead', 'bass', 'drums', 'groove'], // core, last resort
-  ];
-  const work = Object.assign({}, arr, { ip: Object.assign({}, arr.ip) });
-  for (const level of [1, 2]) {
-    for (const band of bands) {
-      for (const k of band) if (work[k] && !lockedKey(k)) work[k] = compactPart(work[k], level);   // a locked slot is never reworded
-      if (level === 2) for (const k of Object.keys(work.ip || {}))
-        if (work.ip[k]) work.ip[k] = compactPart(work.ip[k], level);
-      style = renderStyle(engine, work);
-      if (style.length <= limit) return style;
-    }
-  }
-
-  // last resort (only reachable when several overlays are stacked on an already
-  // dense character): shed decoration, never an instrument, never the genre/tempo.
-  // Order: interplay tails -> the engine's own gap-filler colour -> overlay extras.
-  const shed = [
-    () => { if (work.ip) work.ip.colorRel = null; },
-    () => { if (!work.colorFromOverlay && !lockedKey('color')) work.color = null; },
-    () => { if (work.ip) work.ip.voiceRel = null; },
-    () => { work.ovEdit = null; },
-    () => { work.ovTexture = null; },
-    () => { work.ovTreat = null; },
-    () => { if (!lockedKey('color')) work.color = null; },
-  ];
-  for (const cut of shed) {
-    cut();
-    style = renderStyle(engine, work);
-    if (style.length <= limit) return style;
-  }
-  return style;
-}
-
-function build(engine, opts) {
-  const arr = resolveArrangement(engine, opts);
-  applyOverlay(engine, arr, opts.overlay, opts.locks || {});
-  /* ENSEMBLE RECONCILIATION (2026-08-17). AFTER the overlay, because the overlay
-   * rewrites bass / lead / colour / pads and reconciling before it would judge
-   * an arrangement Suno never receives. BEFORE the style is rendered, so the
-   * render-time interplay guard in renderStyle() catches any tail that referred
-   * to a voice dropped here — the two were built to compose in this order. */
-  reconcileArrangement(arr);
-  const style = compressStyle(engine, arr, CHAR_LIMIT, opts.locks || {});
-  return { arrangement: arr, style, negative: renderNegative(engine, arr, { vocalActive: opts.vocalActive }), length: style.length,
-           overLimit: style.length > CHAR_LIMIT };
-}
-
-Object.assign(window.__ATMOS, { resolveArrangement, renderStyle, renderNegative, build, DEFAULT_HARMONY_WEIGHT, PEAK_HARMONY_WEIGHT, NO_PEAK_HARMONY_WEIGHT });
-})();
-
 /* core/composer-layers.js */
 (function(){
 /* ==========================================================================
@@ -4088,6 +3556,191 @@ function allPhrases() {
 }
 
 Object.assign(window.__ATMOS, { classifyInstrument, planePhrase, decorationPlane, familyType, pairKey, pairLink, allPhrases, FAMILY_ROLES, PLANES, TEMPLATES, PAIR_LINKS, DECORATION_PLANE, PLANE_VARIANTS_BY_TYPE, CROSS_TYPE });
+})();
+
+/* core/resolver-cast.js */
+(function(){
+/* core/resolver-cast.js — ENSEMBLE RECONCILIATION FOR THE RESOLVER ENGINES
+ * (Era, Delerium, Deep Forest, Sacred Spirit). 2026-08-17.
+ *
+ * WHY THIS IS NOT JUST core/cast.js CALLED AGAIN
+ * cast.js reconciles ATOMS: typed objects carrying role, family, behaviour, mix
+ * and density as separate fields. The resolver has none of that. It fills eight
+ * named slots with finished prose strings, and the slot IS the role. So the
+ * rules have to be re-derived against what the resolver actually holds, not
+ * ported across, and two of cast.js's predicates give the WRONG ANSWER here:
+ *
+ *   - isSustainedBed() counts the MOVEMENT slot as a bed, because movement text
+ *     says things like "tremolo bowed-string swells" and the behaviour regex
+ *     matches "swells". On the atom path movement is not a slot at all. Here it
+ *     is production process, not a harmonic layer, and counting it inflated the
+ *     measured defect from a real 11-23% to a reported 53-65%.
+ *   - It also counts the VOICE slot, which is worse: a wordless choir does
+ *     sustain, but it is the vocal identity performing the voice function. A bed
+ *     budget that can drop the vocal is a genre failure, not a fix. John's own
+ *     rule already accepts two sustained layers where a signature bed exists.
+ *
+ * So the bed contest here is deliberately NARROWER than the atom path's:
+ * candidates are pads, harmony and colour only.
+ *
+ * WHEN THIS RUNS. After applyOverlay(), before the style is rendered. Overlays
+ * rewrite arr.bass / arr.lead / arr.color / arr.pads, so reconciling at resolve
+ * time would judge an arrangement that is not the one Suno receives. Running it
+ * here also composes correctly with the render-time interplay guard: a tail that
+ * referenced a voice this module just dropped is caught by core/interplay.js on
+ * the way out, which is exactly what that guard was built for.
+ *
+ * DROPPING A SLOT IS SAFE. renderStyle() builds every clause conditionally and
+ * degrades cleanly on a null — "pads with lead" becomes just the lead, the
+ * foundation clause survives losing either half. No dangling connectives.
+ *
+ * EVIDENCE STATE: REASONED for the bed contest (it applies John's settled
+ * definition of a pad to a path that never had it). EMPIRICAL for the
+ * duplicate-voice rule — round 4 established that naming one instrument twice
+ * renders two of it, and that is recorded in core/knowledge.js.
+ * ------------------------------------------------------------------------- */
+const {SINGLETON_INSTRUMENT_WORDS} = window.__ATMOS;
+const {classifyInstrument} = window.__ATMOS;
+
+/* Same definition as core/cast.js. Duplicated deliberately rather than
+ * exported across: these describe what a bed IS, and if a future session
+ * changes the atom path's notion of a bed it must be a conscious decision to
+ * change the resolver's too, not a side effect. */
+const BED_INSTRUMENT_RE = /\b(pad|pads|synthpad|drone|wash|string machine|string ensemble|mellotron|choir|bed)\b/i;
+const BED_BEHAVIOUR_RE  = /\b(sustain|sustained|sustains|held|holding|swell|swells|slow attack|wide chords|long chords)\b/i;
+
+/* WHICH SLOT WINS A CONTEST, most protected first.
+ *
+ * bass and drums are the groove and are never dropped by anything here.
+ * lead is the character's melodic identity.
+ * VOICE SITS ABOVE PADS deliberately. If a choir pad and a chant voice collide
+ * on the word "choir", the vocal is the thing to keep and the bed is the thing
+ * to lose — dropping the voice to protect a pad would trade the song's identity
+ * for its wallpaper.
+ * colour and movement are decorative and optional; colour does not even fire on
+ * every build. They lose every contest, which is why the common case costs the
+ * arrangement nothing. */
+/* 'tex' is the TEXTURE MODIFIER slot (John, 2026-08-18) and sits LAST on
+ * purpose. Engine content is the character's own song and claims every word
+ * first; a texture pick that duplicates a voice the character already drew —
+ * Era and Sacred Spirit both draw cello, so a string pick there is a genuine
+ * duplicate — loses and is reported through castDropped rather than doubling
+ * the instrument. */
+const SLOT_PRIORITY = Object.freeze(['bass', 'drums', 'lead', 'voice', 'pads', 'harmony', 'color', 'movement', 'tex']);
+
+/* Never dropped, whatever collides. Losing either of these would break the
+ * groove, and a duplicate involving them is better solved by fixing the pool. */
+const PROTECTED = Object.freeze(['bass', 'drums', 'lead']);
+
+/* 'tex' is deliberately ABSENT. A texture bed layers against the existing bed
+ * rather than contesting it — the same decision core/cast.js documents on the
+ * atom path, for the same reason: John's prose relates the second bed to the
+ * first, and a related second bed is orchestration rather than the mud the
+ * budget exists to prevent. */
+const BED_CANDIDATES = Object.freeze(['pads', 'harmony', 'color']);
+
+const rank = (slot) => {
+  const i = SLOT_PRIORITY.indexOf(slot);
+  return i === -1 ? SLOT_PRIORITY.length : i;
+};
+
+function isBedSlot(slot, text) {
+  if (!text) return false;
+  /* ONLY the three harmonic-bed slots can ever be a bed. Without this the
+   * behaviour regex fires on the movement slot ("tremolo bowed-string swells")
+   * and on a sustained voice ("a wordless sustained choir") — the two false
+   * positives that made the atom path's predicate wrong here, and that this
+   * module exists to avoid. Caught by validate-resolver-cast group 1. */
+  if (!BED_CANDIDATES.includes(slot)) return false;
+  /* pads is a bed by function, whatever fills it — the same structural
+   * reasoning as cast.js's BED_ROLES. A text-only test misses a pad slot whose
+   * prose happens not to use a bed word. */
+  if (slot === 'pads') return true;
+  return BED_INSTRUMENT_RE.test(text) || BED_BEHAVIOUR_RE.test(text);
+}
+
+/* Reconcile a resolved (and overlaid) arrangement in place.
+ * Returns the list of drops so callers and validators can see what happened
+ * rather than inferring it from the prose. */
+function reconcileArrangement(arr) {
+  const dropped = [];
+  const drop = (slot, reason, detail) => {
+    dropped.push({ slot, reason, instrument: arr[slot], detail });
+    arr[slot] = null;
+  };
+
+  /* RULE 1 — ONE VOICE, ONE MENTION.
+   * Real Sacred Spirit output, ceremonialPrelude/acoustic seed 1: pads drew "a
+   * sustained bowed-cello drone" and colour drew "a swelling cello accent".
+   * Two cellos in one prompt. Era/electronic seed 11 gets three. This is the
+   * round-4 French-horn failure in a different engine, and it needs no musical
+   * judgement to fix — SINGLETON_INSTRUMENT_WORDS is already the source of
+   * truth for which instruments Suno renders one of per mention.
+   *
+   * Slots are compared pairwise by priority: the better-protected slot keeps the
+   * word, the other is dropped. A collision between two PROTECTED slots is left
+   * alone and reported — dropping the bass to save the lead would be a worse
+   * prompt than the duplicate, and a protected-slot collision means the pool
+   * itself needs fixing. */
+  for (const word of SINGLETON_INSTRUMENT_WORDS) {
+    const re = new RegExp(`\\b${word.replace(/[-\s]/g, '[-\\s]')}s?\\b`, 'i');
+    const holders = SLOT_PRIORITY.filter(s => arr[s] && re.test(String(arr[s])));
+    if (holders.length < 2) continue;
+    const keeper = holders[0];
+    for (const loser of holders.slice(1)) {
+      if (PROTECTED.includes(loser)) {
+        dropped.push({ slot: loser, reason: 'duplicate-voice-unresolved', instrument: arr[loser], detail: word });
+        continue;
+      }
+      /* NEVER DROP THE LAST BED. Sacred Spirit draws a bowed-cello drone in
+       * pads and a cello line in the lead; the lead is protected, so the pad
+       * loses — and 44 builds ended with no harmonic bed at all. A build with
+       * no bed is a worse prompt than one with a repeated word, so the
+       * collision is reported unresolved instead. Caught by
+       * validate-resolver-cast group 4, not by review. */
+      if (isBedSlot(loser, arr[loser])
+          && !BED_CANDIDATES.some(b => b !== loser && isBedSlot(b, arr[b]))) {
+        dropped.push({ slot: loser, reason: 'duplicate-voice-unresolved', instrument: arr[loser], detail: `${word} (last bed, kept)` });
+        continue;
+      }
+      drop(loser, 'duplicate-voice', `${word} already in ${keeper}`);
+    }
+  }
+
+  /* RULE 1b — TEXTURE FAMILY COLLISION (John, 2026-08-18), texture slot only.
+   * Same rule and same reasoning as core/cast.js rule 0c: SINGLETON_INSTRUMENT_
+   * WORDS holds nine bare headwords and cannot see that "a low string ensemble"
+   * beside an engine's own string writing is one instrument named twice. Matched
+   * on the guide family instead, and only against the character's own slots —
+   * engine content claims first. Fires often on Era and Sacred Spirit, which
+   * already carry strings and brass; that is the correct answer, not a fault. */
+  if (arr.tex) {
+    const texFam = classifyInstrument(String(arr.tex));
+    const clash = texFam && SLOT_PRIORITY.some(s2 =>
+      s2 !== 'tex' && arr[s2] && classifyInstrument(String(arr[s2])) === texFam);
+    if (clash) drop('tex', 'family-already-present', texFam);
+  }
+
+  /* RULE 2 — ONE HARMONIC BED.
+   * Measured over 6,300 seeded builds: Sacred Spirit 22.9%, Era 17.6%, Deep
+   * Forest 15.0%, Delerium 10.8% of builds stack a second sustained bed among
+   * pads / harmony / colour. Two beds mud the harmony and spend two named
+   * sources on one function.
+   *
+   * pads wins by default because it is the character's own bed and the slot the
+   * engine designed around. When pads is empty the highest-priority remaining
+   * bed keeps the function. */
+  const beds = BED_CANDIDATES.filter(s => isBedSlot(s, arr[s]));
+  if (beds.length > 1) {
+    const keeper = beds.sort((a, b) => rank(a) - rank(b))[0];
+    for (const loser of beds.slice(1)) drop(loser, 'bed-budget', `bed already held by ${keeper}`);
+  }
+
+  arr.castDropped = dropped;
+  return dropped;
+}
+
+Object.assign(window.__ATMOS, { isBedSlot, reconcileArrangement });
 })();
 
 /* core/rules.js */
@@ -5480,6 +5133,806 @@ function modifierVariants(modId) {
 Object.assign(window.__ATMOS, { modifierCores, modifierSignatures, modifierList, resolveModifier, modifierVariants, ATOM_MODIFIERS });
 })();
 
+/* core/texture.js */
+(function(){
+/* ==========================================================================
+ * texture.js — THE TEXTURE MODIFIER (John, 2026-08-18).
+ *
+ * Replaces the abandoned Composer / Producer / Remixer libraries with the far
+ * smaller thing John actually wanted. His spec, verbatim:
+ *
+ *   "A texture modifier that allowed me to add slow soft legato string
+ *    ensembles as a pad/bed to existing tracks. In different frequency ranges
+ *    Low, Mid and High. In addition to these I wanted a slow attack legato
+ *    French horns, Oboes, Soprano and Alto Saxophones and trombones. Finally
+ *    Harps, that pluck and swell... two modifier selectors (Duplicated) based
+ *    on these individual instruments should suffice."
+ *
+ * And on what the strings are FOR:
+ *
+ *   "My request to include the string ensemble is intended to either support
+ *    the existing bed or replace. I hope, depending on the prose used to
+ *    introduce the strings. If the strings are just there to create the wide
+ *    warm foundation that's okay."
+ *
+ * SUPPORT-OR-REPLACE IS NOT A MODE SWITCH. It cannot be, because prose does not
+ * remove a voice from a prompt: if the character's pad and the texture strings
+ * are both named, both are named. What the prose decides is which one reads as
+ * the foundation. So the CONTEXT decides and the user does not have to:
+ *   - a bed already survives  -> the strings render as SUPPORT, and the clause
+ *     must say so ("blended underneath the pads for depth")
+ *   - no bed survives         -> the strings render as the FOUNDATION
+ *
+ * WHY THAT MATTERS TO THE BED BUDGET. core/cast.js caps sustained beds at one
+ * because two beds mud the harmony. John's own examples defeat that objection
+ * by RELATING the second bed to the first, which is the standing interaction-
+ * language rule doing real work rather than a carve-out being made for this
+ * feature. So the rule core/cast.js enforces is: a texture bed may coexist with
+ * an existing bed only while its clause states the relationship. If we cannot
+ * say how it sits against what is already there, it is mud and it goes.
+ *
+ * WHAT THIS MODULE IS NOT. It is not part of the Detail & Movement system.
+ * Spec v2.0 §1.2 is explicit that those three resolvers modify behaviour AROUND
+ * the cast and never add instruments; every one of them processes a voice that
+ * is already there. Texture ADDS NAMED SOURCES, which is a cast question, so it
+ * emits cast candidates and takes its chances with every reconciliation rule —
+ * one-voice-one-mention, genre policy, slot waste, the budgets. That is the
+ * whole point: the 2026-08-17 session close flagged, before this feature had a
+ * spec, that content injected "outside the predetermined cast" would walk past
+ * all of it.
+ *
+ * EVIDENCE STATE: REASONED, not Suno-tested. Nothing here may be promoted into
+ * core/knowledge.js. The merge rule, the relationship requirement and the
+ * clause position are all decidable without a Suno result because they are
+ * about the prompt asking for something musically coherent; whether Suno
+ * honours the resulting voice count is NOT, and is the measurement this
+ * feature finally makes possible under John's complete-build testing rule.
+ * ========================================================================*/
+
+/* --------------------------------------------------------------------------
+ * THE POOL — nine entries, exactly John's list.
+ *
+ * NAMING IS LOAD-BEARING IN TWO PLACES, so it is not free-text:
+ *
+ * (1) "ENSEMBLE" / "SECTION" ARE THERE ON PURPOSE. John's rule 2 (a pad must be
+ *     an ensemble or a chord of three or more notes) is tested by POLYPHONY, and
+ *     core/articulation.js's padWidthFault() reads the name. "low strings" fails
+ *     it — one sustaining source, however many players are implied. "a low
+ *     string ensemble" passes, and is also John's own word.
+ *
+ * (2) REGISTERS ARE NAMED AS REGISTERS, NOT AS INSTRUMENTS. The obvious way to
+ *     write the low entry is "cellos and double basses", which is more specific
+ *     and would be wrong here: 'cello' is in SINGLETON_INSTRUMENT_WORDS, Era and
+ *     Sacred Spirit both draw cello in their own pools, and the duplicate rule
+ *     would then drop John's pick on exactly the engines where an orchestral bed
+ *     is most likely to be wanted. Register adjectives collide with nothing and
+ *     say the same thing about where the sound sits.
+ * ------------------------------------------------------------------------*/
+const TEXTURE_VOICES = Object.freeze({
+  stringsLow:  { label: 'String ensemble — low',  family: 'strings',   kind: 'bed',
+                 name: 'a low string ensemble',          register: 'low' },
+  stringsMid:  { label: 'String ensemble — mid',  family: 'strings',   kind: 'bed',
+                 name: 'a mid-register string ensemble', register: 'mid' },
+  stringsHigh: { label: 'String ensemble — high', family: 'strings',   kind: 'bed',
+                 name: 'a high string ensemble',         register: 'high' },
+
+  frenchHorns: { label: 'French horns',           family: 'brass',     kind: 'colour',
+                 name: 'a soft French horn section' },
+  trombones:   { label: 'Trombones',              family: 'brass',     kind: 'colour',
+                 name: 'a soft trombone section' },
+
+  oboes:       { label: 'Oboes',                  family: 'woodwinds', kind: 'colour',
+                 name: 'oboes' },
+  sopranoSax:  { label: 'Soprano saxophone',      family: 'woodwinds', kind: 'colour',
+                 name: 'a soprano saxophone' },
+  altoSax:     { label: 'Alto saxophone',         family: 'woodwinds', kind: 'colour',
+                 name: 'an alto saxophone' },
+
+  harp:        { label: 'Harp',                   family: 'harp',      kind: 'plucked',
+                 name: 'a harp' },
+});
+
+const TEXTURE_IDS = Object.freeze(Object.keys(TEXTURE_VOICES));
+
+function textureList() {
+  return TEXTURE_IDS.map(id => ({ id, label: TEXTURE_VOICES[id].label }));
+}
+
+/* --------------------------------------------------------------------------
+ * SAME-FAMILY PICKS MERGE INTO ONE NAMED SOURCE.
+ *
+ * Two selectors, both set to strings, is the case John is most likely to reach
+ * for — low plus high is a standard orchestral voicing. Rendered as two cast
+ * entries it names strings twice, and core/knowledge.js records the round-4
+ * finding that naming one instrument twice tells Suno to render two of it. It
+ * is also not what he means: one section voiced across registers, not two
+ * sections. Soprano plus alto is the same fault with the word "saxophone".
+ *
+ * So two picks in the same guide family become ONE entry naming both members.
+ * This also halves the voice-count cost in precisely the case that would
+ * otherwise cost the most, which matters because John has explicitly accepted
+ * pushing the count and the base build already averages 6.4 named sources.
+ * ------------------------------------------------------------------------*/
+const REGISTER_ORDER = ['low', 'mid', 'high'];
+
+/* Merged names are written out rather than generated by string-joining the
+ * singular names, because the join produces the exact duplication the merge
+ * exists to prevent ("a soprano saxophone and an alto saxophone" names the
+ * saxophone twice inside one clause). */
+function mergedName(family, entries) {
+  if (family === 'strings') {
+    const regs = entries.map(e => e.register)
+      .sort((a, b) => REGISTER_ORDER.indexOf(a) - REGISTER_ORDER.indexOf(b));
+    return `a soft string ensemble spanning ${regs[0]} and ${regs[1]} registers`;
+  }
+  if (family === 'brass')  return 'a soft French horn and trombone section';
+  if (family === 'woodwinds') {
+    const ids = entries.map(e => e.id).sort();
+    const key = ids.join('+');
+    if (key === 'altoSax+sopranoSax') return 'soprano and alto saxophones';
+    if (key === 'altoSax+oboes')      return 'oboes and an alto saxophone';
+    if (key === 'oboes+sopranoSax')   return 'oboes and a soprano saxophone';
+  }
+  return entries.map(e => e.name).join(' and ');
+}
+
+/* resolveTexturePicks — the two selector values in, one or two resolved voices
+ * out. A resolved voice is what the cast receives and what the prose is written
+ * about; the selector ids survive on it so the UI can report what happened. */
+function resolveTexturePicks(picks) {
+  const ids = (picks || []).filter(id => id && TEXTURE_VOICES[id]);
+  if (!ids.length) return [];
+
+  /* The SAME entry chosen twice is one voice, not a merge — "a low string
+   * ensemble and a low string ensemble" is the duplicate fault in its purest
+   * form, and there is no second register to name. */
+  const unique = Array.from(new Set(ids));
+  const entries = unique.map(id => Object.assign({ id }, TEXTURE_VOICES[id]));
+
+  const byFamily = new Map();
+  for (const e of entries) {
+    if (!byFamily.has(e.family)) byFamily.set(e.family, []);
+    byFamily.get(e.family).push(e);
+  }
+
+  const out = [];
+  for (const [family, group] of byFamily) {
+    if (group.length === 1) {
+      out.push({ ids: [group[0].id], family, kind: group[0].kind, name: group[0].name,
+                 flavour: group[0].id });
+    } else {
+      /* Kind of a merged group: a bed wins, because a string ensemble that has
+       * absorbed a second register is more of a bed, not less. */
+      const kind = group.some(g => g.kind === 'bed') ? 'bed' : group[0].kind;
+      out.push({ ids: group.map(g => g.id), family, kind, name: mergedName(family, group),
+                 flavour: null });
+    }
+  }
+  return out;
+}
+
+/* --------------------------------------------------------------------------
+ * THE PROSE LIBRARY
+ *
+ * John: "There needs to be sufficient musically appropriate creative prose for
+ * the Textured instruments though."
+ *
+ * PROVENANCE, because SESSION-START.md forbids inventing interaction language
+ * and this library is large. Every phrase below comes from one of three places
+ * and nowhere else:
+ *   john   — John's own wording, 2026-08-18. He supplied four examples ("lush
+ *            soft string pads swelling", "subtle string textures supporting the
+ *            harmonic space", "soft layered strings blended underneath the pads
+ *            for depth", "wide warm foundation"). His wording is a source of
+ *            truth on the same terms as the guide; he is the one testing it.
+ *   guide  — docs/knowledge/instrument-family-linking-guide.md, the cited
+ *            section given per entry.
+ *   tmpl   — the guide's own §2 role/texture/register templates or §13 plane
+ *            phrases with the instrument named in the slot. Composing a
+ *            template is not inventing wording; that is what the slot is for.
+ *
+ * WHY THE SHAPE DIFFERS FROM THE GUIDE'S PAIR PHRASES. The guide relates one
+ * FAMILY to another ("solo woodwind floats above a warm string bed"), which
+ * assumes both families are present and that the prompt is orchestral. A
+ * texture voice has to relate to whatever the character happened to draw, which
+ * varies per build and is usually not orchestral at all — on a Balearic house
+ * build "strings lay out the harmony" is simply false, the synth does. John's
+ * four examples establish the shape that works here: relate the voice to the
+ * ARRANGEMENT'S FUNCTIONS (the bed, the harmonic space, the melody) rather than
+ * to a named second family. That is why they are the template class and not
+ * merely seed entries.
+ *
+ * TWO CONTEXTS PER FAMILY, and the split is the support-or-replace decision:
+ *   withBed — a sustained bed survived reconciliation. The clause MUST name the
+ *             relationship to it; this is what earns a second bed its place.
+ *   alone   — no bed survived. The voice is free to read as the foundation.
+ * Non-bed families keep both lists too, because a horn line behaves differently
+ * when there is a pad under it than when it is the only sustained thing there.
+ * ------------------------------------------------------------------------*/
+const TEXTURE_PROSE = Object.freeze({
+  strings: {
+    withBed: [
+      '{n} soft and layered in long sustained chords, blended underneath the pads for depth', // john
+      '{n} swelling slowly beneath the existing bed, long legato notes only',            // john
+      '{n} supporting the harmonic space under the pad in long sustained chords',        // john
+      '{n} sustained under the arrangement, slow to swell and slower to fall away',      // tmpl §2 texture
+      '{n} blended into the background plane with quiet, sustained timbres',             // guide §13
+      '{n} resonating behind the arrangement, sustained chords thickening the harmony',  // guide §13 enrich
+    ],
+    alone: [
+      '{n} laying a wide warm harmonic foundation, sustained and slow to swell',         // john
+      '{n} in sustained chords forming a soft background pad',                           // guide §3
+      '{n} as the sustained harmonic bed, long legato notes carrying the changes',       // guide §6
+      '{n} swelling lushly under the whole arrangement in slow legato chords',           // john
+      '{n} holding wide open chords low behind the melody',                              // tmpl §2 register
+    ],
+  },
+
+  /* BRASS SITS BACK, ALWAYS. core/linking.js already records the decision that
+   * only the soft-and-low §4 brass variants are imported onto a groove-led
+   * engine, and John's round-4 result was an overlay trumpet coming through too
+   * strong. Every phrase here keeps brass low, quiet and legato — which is also
+   * exactly what "slow attack legato French horns" asks for. */
+  brass: {
+    withBed: [
+      '{n} holding long legato harmonies low beneath the pad',                           // guide §4
+      '{n} adding quiet harmonic reinforcement beneath the bed in slow sustained swells',// guide §4
+      '{n} entering on slow legato lines and settling back under the bed',               // tmpl §2 role
+      '{n} restrained in the background with quiet, sustained tone',                     // guide §13
+      '{n} kept low behind the pad, long held notes warming the harmony',                // guide §2 register
+    ],
+    alone: [
+      '{n} grounding the harmony in long legato tones',                                  // guide §4
+      '{n} in slow sustained swells behind the melody, never accented',                  // guide §4
+      '{n} holding broad legato chords low in the arrangement',                          // tmpl §2 register
+      '{n} resonating in the background, sustained and soft, enriching the texture',     // guide §13
+      '{n} rising and falling slowly under the melody, long notes only',                 // tmpl §2 texture
+    ],
+  },
+
+  /* WOODWINDS ARE COLOUR AND COUNTERMELODY (guide §1, §3) and sit in the middle
+   * plane (core/linking.js DECORATION_PLANE). Saxophone is not in the guide by
+   * name — John accepted it running through the woodwind family on 2026-08-18,
+   * which is what classifyInstrument() already resolves it to, so the wording
+   * is family-level guide language with the instrument in the slot. */
+  woodwinds: {
+    withBed: [
+      '{n} floating above the bed in long legato phrases',                               // guide §3
+      '{n} answering the melody with slow sustained countermelodies',                    // guide §3
+      '{n} weaving unhurried legato lines through the texture',                          // guide §2 texture
+      '{n} supported in the middle plane with gentle motion, long legato phrases',       // guide §13
+      '{n} drifting over the pad in slow, breathy held notes',                           // tmpl §2 texture
+    ],
+    alone: [
+      '{n} carrying long legato lines over the arrangement',                             // guide §3
+      '{n} and the melody trading slow phrases in call-and-response',                    // guide §2 texture
+      '{n} adding sustained colour between the phrases, never hurried',                  // guide §3
+      '{n} filling the middle register with held notes as an inner voice',               // guide §13
+      '{n} in long breathy tones sitting just behind the lead',                          // tmpl §2 register
+    ],
+  },
+
+  /* HARP KEEPS ITS ATTACK. John's refinement to rule 1 (2026-08-17): only
+   * instruments that can hold a note are made legato; harps, mallets and
+   * vibraphone stay percussive. His own wording for this entry — "harps, that
+   * pluck and swell" — says the same thing, so every phrase here is plucked
+   * with a ring or a bloom after it, never sustained. */
+  harp: {
+    withBed: [
+      '{n} outlining the chord changes above the bed in plucked figures left to ring',   // guide §6
+      '{n} shimmering beneath the pad in soft arpeggios that bloom and decay',           // guide §6
+      '{n} plucked in figures sparkling around the long held tones of the bed',          // guide §12
+      '{n} resonating behind the pad, plucked notes enriching the texture',              // guide §13
+      '{n} picking out the harmony above the bed, each note allowed to swell',           // john
+    ],
+    alone: [
+      '{n} outlining the harmony in slow arpeggios that bloom and decay',                // guide §6
+      '{n} plucked and left to ring, carrying the chord changes on its own',             // john
+      '{n} plucked in figures sparkling in the open space around the melody',            // guide §12
+      '{n} arpeggios rising softly under the lead, each figure left to swell',           // guide §6
+      '{n} marking the harmony with sparse plucked chords and long decays',              // tmpl §2 role
+    ],
+  },
+});
+
+/* Per-voice flavour lines. These exist because John asked for SUFFICIENT prose,
+ * and a family-level library alone makes a soprano saxophone and an oboe read
+ * identically when the whole reason he listed both is that they do not sound
+ * alike. Only reachable for an UNMERGED pick — a merged entry is a section, and
+ * a line written about one instrument's character would be false of the pair —
+ * and only in the alone context, because they describe the voice rather than
+ * its relationship to a bed. */
+const TEXTURE_FLAVOUR = Object.freeze({
+  stringsLow:  ['{n} sitting deep under the arrangement, wide and slow-moving'],
+  stringsMid:  ['{n} filling the middle register with warm sustained chords'],
+  stringsHigh: ['{n} floating high above the arrangement in soft sustained lines'],
+  frenchHorns: ['{n} in slow rounded legato swells, warm and far back'],
+  trombones:   ['{n} holding low legato harmonies, soft-edged and unhurried'],
+  oboes:       ['{n} in long reedy legato lines threading through the texture'],
+  sopranoSax:  ['{n} in slow breathy legato phrases drifting over the arrangement'],
+  altoSax:     ['{n} in warm sustained lines, breath audible, never rushed'],
+  harp:        ['{n} plucked in slow arpeggios, each note left to swell and ring out'],
+});
+
+/* --------------------------------------------------------------------------
+ * CLAUSE SELECTION
+ *
+ * Deterministic on the build seed: the same seed must reproduce the same
+ * prompt, which is the precondition for John's identical-seed before/after
+ * gate. Each selector slot draws from a different offset so two picks never
+ * land on the same phrase, and a collision after merging is stepped past
+ * rather than tolerated.
+ * ------------------------------------------------------------------------*/
+function hash(seed, i) {
+  let h = ((seed >>> 0) ^ ((i + 1) * 2654435761)) >>> 0;
+  h ^= h >>> 15; h = Math.imul(h, 2246822507) >>> 0; h ^= h >>> 13;
+  return h >>> 0;
+}
+
+/* THE PHRASE MUST NAME THE RELATIONSHIP. This is the predicate core/cast.js
+ * consults before letting a texture bed stand alongside an existing one, so it
+ * is exported and tested rather than left implicit in the library's wording.
+ * A phrase qualifies when it says where this voice sits relative to something
+ * else in the arrangement — under the pad, beneath the bed, behind the melody,
+ * in the background plane. A phrase that only describes the voice itself does
+ * not, and a second bed carrying one of those is the mud the budget exists to
+ * prevent. */
+const RELATIONAL_RE = /\b(underneath|beneath|under|below|behind|above|over|around|through|between|background|middle plane|answering|supporting|with the|against)\b/i;
+const statesRelationship = (t) => RELATIONAL_RE.test(String(t || ''));
+
+/* renderTextureClause — one resolved voice + context in, one woven clause out.
+ *
+ * THE CONTEXT ARGUMENT IS THE SUPPORT-OR-REPLACE DECISION and it is read from
+ * the RECONCILED cast, never from the raw arrangement: a pad that lost the bed
+ * contest is not there, and writing "blended underneath the pads" about a pad
+ * Suno was never told to render is the dangling-reference fault core/
+ * interplay.js exists to stop. */
+function renderTextureClause(voice, ctx) {
+  const o = ctx || {};
+  const bank = TEXTURE_PROSE[voice.family] || TEXTURE_PROSE.strings;
+  const pool = (o.bedPresent ? bank.withBed : bank.alone).slice();
+
+  /* Flavour lines are context-neutral by construction (they describe the voice,
+   * not a relationship), so they are only offered where a relationship is not
+   * required — i.e. when nothing else is holding the bed. */
+  if (!o.bedPresent && voice.flavour && TEXTURE_FLAVOUR[voice.flavour]) {
+    pool.push(...TEXTURE_FLAVOUR[voice.flavour]);
+  }
+
+  const slot = o.slot || 0;
+  const used = o.used || [];
+  let text = '';
+  for (let step = 0; step < pool.length; step++) {
+    const cand = pool[(hash(o.seed || 0, slot) + step) % pool.length].replace('{n}', voice.name);
+    if (!used.includes(cand)) { text = cand; break; }
+    text = cand;
+  }
+  return text;
+}
+
+/* renderTextureClauses — the whole texture contribution for one build.
+ * Order is stable (selector order after merging) so the prompt is reproducible.
+ */
+function renderTextureClauses(voices, ctx) {
+  const out = [];
+  (voices || []).forEach((v, i) => {
+    const text = renderTextureClause(v, Object.assign({}, ctx, { slot: i, used: out }));
+    if (text) out.push(text);
+  });
+  return out;
+}
+
+/* Cast candidates. Deliberately carries NO prose: core/cast.js reconciles data,
+ * and the clause is chosen afterwards from the survivor list. Cast is data
+ * before prose — the same rule that moved composer placement onto the cast. */
+function textureCastEntries(voices) {
+  return (voices || []).map(v => ({
+    instrument: v.name, family: v.family, kind: v.kind, ids: v.ids,
+  }));
+}
+
+Object.assign(window.__ATMOS, { textureList, resolveTexturePicks, renderTextureClause, renderTextureClauses, textureCastEntries, TEXTURE_VOICES, TEXTURE_IDS, TEXTURE_PROSE, TEXTURE_FLAVOUR, statesRelationship });
+})();
+
+/* core/resolver.js */
+(function(){
+const {ALWAYS_BAN, BEATLESS_BAN, MASTERING, CHAR_LIMIT, rng, filterPalette} = window.__ATMOS;
+const {NEGATIVE_CAP, capNegativesOrdered, vocalRestraintCandidates} = window.__ATMOS;
+const {compactPart} = window.__ATMOS;
+const {slotFamily} = window.__ATMOS;
+const {pickTail, guardTail} = window.__ATMOS;
+const {reconcileArrangement, isBedSlot} = window.__ATMOS;
+const {renderTextureClauses} = window.__ATMOS;
+
+/* Which slots can hold the arrangement's harmonic bed — the same three
+ * core/resolver-cast.js contests, read here to decide support-vs-replace. */
+const BED_SLOTS = ['pads', 'harmony', 'color'];
+
+/* ---- HARMONY BRIGHTNESS WEIGHTING (John, 2026-08-13) ----------------------
+ * "Music played in a Major Key sounds too happy and sugary sweet... this key
+ * use must be controlled somehow, but not eliminated entirely... don't make
+ * it the only lever." Two levers, both scoped to the harmony role only —
+ * pads/bass/lead/etc. are instrument choices, not a tonality concern.
+ *
+ * Every harmony pool entry across the 4 resolver engines was read and hand-
+ * classified by its own text (not guessed from the key name) into one of 5
+ * brightness tags: minor, modal, neutral, resolves (the "minor-to-relative-
+ * major" entries — John's own suggested mechanism, which turned out to
+ * already exist as pool vocabulary), and major.
+ *
+ * LEVER 2 (general bias): DEFAULT_HARMONY_WEIGHT favours minor/modal over
+ * resolves/major, but every tag stays reachable — nothing is eliminated.
+ *
+ * LEVER 3 (structure-aware): when the caller passes structureHint indicating
+ * the selected structure preset has a genuine earned peak (energy 5 somewhere
+ * in its shape — a real chorus/drop/climax to resolve INTO), 'resolves' and
+ * 'major' get boosted, since there's an actual payoff moment for that arc to
+ * land on. When the structure has NO such peak (e.g. Downtempo/Ambient, which
+ * tops out at energy 4 — nothing to resolve onto), they're suppressed further
+ * instead, keeping flat/ambient structures honestly flat rather than faking a
+ * resolution that has nowhere to go. Omitting structureHint entirely (no
+ * structure selected) falls back to the Lever-2-only default — this keeps
+ * every existing call site working exactly as before, additive not breaking.
+ * ========================================================================*/
+const DEFAULT_HARMONY_WEIGHT   = { minor: 3,   modal: 3,   neutral: 2, resolves: 1.5, major: 1 };
+const PEAK_HARMONY_WEIGHT      = { minor: 3,   modal: 3,   neutral: 2, resolves: 3,   major: 1.5 };
+const NO_PEAK_HARMONY_WEIGHT   = { minor: 3.5, modal: 3.5, neutral: 2, resolves: 0.5, major: 0.5 };
+
+function harmonyWeightsFor(structureHint) {
+  if (!structureHint) return DEFAULT_HARMONY_WEIGHT;
+  return structureHint.hasResolutionPoint ? PEAK_HARMONY_WEIGHT : NO_PEAK_HARMONY_WEIGHT;
+}
+
+// Weighted pick over a pool using each item's `.bright` tag (unset/unknown
+// tags fall back to the 'neutral' weight). Same rand() stream as everything
+// else here, so a given seed still deterministically produces one answer —
+// weighting changes the DISTRIBUTION across seeds, not the determinism of
+// any single seed.
+function weightedPick(pool, weights, rand) {
+  const withWeights = pool.map(item => ({ item, w: weights[item.bright] ?? weights.neutral ?? 1 }));
+  const total = withWeights.reduce((sum, x) => sum + x.w, 0);
+  if (total <= 0) return pool[Math.floor(rand() * pool.length)]; // safety net, should not happen
+  let r = rand() * total;
+  for (const x of withWeights) {
+    if (r < x.w) return x.item;
+    r -= x.w;
+  }
+  return withWeights[withWeights.length - 1].item; // floating-point rounding safety
+}
+
+// opts: { characterId, palette:'electronic'|'acoustic'|'blend', locks:{role:text}, seed,
+//         structureHint:{hasResolutionPoint:boolean}|null }
+// locks drive all three control levels:
+//   randomize all  = locks {}
+//   lock some      = locks {pads:'...'}
+//   full manual    = every role locked
+function resolveArrangement(engine, opts) {
+  const { characterId, palette = 'electronic', locks = {}, seed = Date.now(), structureHint = null } = opts;
+  const c = engine.characters[characterId];
+  if (!c) throw new Error(`unknown character ${characterId}`);
+  const rand = rng(seed);
+  const pick = (role) => {
+    if (locks[role] != null) return locks[role];
+    const pool = filterPalette(c.pools[role] || [], palette);
+    if (!pool.length) return null;
+    if (role === 'harmony') {
+      return weightedPick(pool, harmonyWeightsFor(structureHint), rand).t;
+    }
+    return pool[Math.floor(rand() * pool.length)].t;
+  };
+
+  const arr = {
+    engine: engine.id,
+    /* characterId (not just the display label) so renderStyle can reach this
+     * character's interplay pool for the render-time guard below. */
+    characterId,
+    character: c.label,
+    genre: c.genre,
+    beatless: !!c.beatless,
+    bpm: c.bpm || null,
+    energy: c.energy,
+    pads: pick('pads'),
+    harmony: pick('harmony'),
+    bass: pick('bass'),
+    voice: pick('voice'),
+    lead: pick('lead'),
+    movement: pick('movement'),
+    color: null,
+    drums: null,
+    negative: c.negative || null,   // optional per-character bans (e.g. Era Driving Epic: no rock/metal)
+    tempoLock: c.tempoLock || null, // optional tempo-stability directive (stops Suno double-timing)
+  };
+
+  // drums (skip when beatless)
+  if (!c.beatless && c.drums.primary) {
+    const fam = engine.drums[c.drums.primary];
+    arr.drums = fam[Math.floor(rand() * fam.length)];
+  }
+  // colour fires occasionally
+  if (rand() < c.colorChance) arr.color = pick('color');
+
+  // interplay / arrangement layer — WOVEN into the style string (per John's Suno test).
+  // role-generic tails that hang off already-named instruments (never re-name one).
+  //
+  // CONDITIONAL since 2026-08-17: the pool is filtered to tails whose references
+  // are satisfied by THIS arrangement before the draw, so a tail can no longer
+  // name a voice the build does not contain. See core/interplay.js. Still exactly
+  // one rng call per dimension, so seed behaviour is unchanged in shape (the
+  // phrase chosen for a given seed does change — that is the fix).
+  const ipPool = (engine.interplay && engine.interplay[characterId]) || {};
+  const one = (dim) => (ipPool[dim] && ipPool[dim].length)
+    ? pickTail(ipPool[dim], arr, dim, rand) : null;
+  arr.ip = {
+    foundation:   one('foundation'),
+    conversation: one('conversation'),
+    arc:          one('arc'),
+    voiceRel:     one('voiceRel'),
+    colorRel:     one('colorRel'),
+  };
+
+  return arr;
+}
+
+// STYLE STRING = full woven cast (the approved gold-standard format). Instruments are
+// threaded with their interplay inline, in musical layers, not a flat tag list:
+//   genre -> tempo -> [drums+bass+foundation] -> [pads+lead+conversation] -> harmony
+//         -> [voice+voiceRel] -> [colour+colourRel if it fires] -> [movement+arc] -> mastering
+function renderStyle(engine, arr) {
+  /* RENDER-TIME INTERPLAY GUARD (2026-08-17). Pick-time filtering is not enough
+   * on its own: applyOverlay() rewrites arr.bass / arr.lead / arr.color / arr.pads
+   * AFTER the tails were chosen, and injects its own arc straight into arr.ip
+   * without passing any gate at all. Re-checking here means a tail is legal
+   * against the arrangement AS RENDERED, which is the only state that reaches
+   * Suno. Deterministic re-pick, no fresh randomness — see core/interplay.js. */
+  const ipPool = (engine && engine.interplay && engine.interplay[arr.characterId]) || {};
+  const ip = {};
+  for (const [dim, sel] of Object.entries(arr.ip || {})) {
+    ip[dim] = guardTail(ipPool[dim] || [], arr, dim, sel);
+  }
+  const clauses = [arr.genre];
+
+  // tempo + energy
+  clauses.push(arr.beatless
+    ? `beatless, ${arr.energy} energy`
+    : `${arr.bpm[0]}-${arr.bpm[1]} BPM, ${arr.energy} energy`);
+  if (arr.tempoLock) clauses.push(arr.tempoLock);
+
+  // LEVER 1 — OVERLAY FRONT-LOADING. Suno front-weights descriptors and renders
+  // only a bounded number of them, so an overlay's defining traits must sit right
+  // after the genre+tempo anchor (not buried at the back where they get dropped).
+  // The signature carriers (thematic motif, counter-melody, harmonic language) are
+  // hoisted here; they are then skipped in their old mid-list positions so nothing
+  // renders twice. When no overlay is active none of these exist and the order is
+  // unchanged (no-overlay output stays byte-identical — asserted in validation).
+  if (arr.ovMotif) clauses.push(arr.ovMotif);
+  if (arr.ovCounter) clauses.push(arr.ovCounter);
+  if (arr.ovHarmony && arr.harmony) clauses.push(arr.harmony);
+
+  // foundation: drums(+)bass + how they lock/float (+ remixer groove treatment)
+  const drumText = arr.drums ? (arr.groove ? `${arr.drums} ${arr.groove}` : arr.drums) : null;
+  if (arr.bass) {
+    const low = drumText ? `${drumText} and ${arr.bass}` : arr.bass;
+    clauses.push(ip.foundation ? `${low} ${ip.foundation}` : low);
+  } else if (drumText) {
+    clauses.push(ip.foundation ? `${drumText} ${ip.foundation}` : drumText);
+  }
+
+  // conversation: pads + lead + how they relate
+  if (arr.pads && arr.lead) {
+    clauses.push(ip.conversation ? `${arr.pads} with ${arr.lead} ${ip.conversation}`
+                                 : `${arr.pads} with ${arr.lead}`);
+  } else if (arr.pads) {
+    clauses.push(arr.pads);
+  } else if (arr.lead) {
+    clauses.push(arr.lead);
+  }
+
+  // harmony (musicality slot — its own clause). An OVERLAY harmony was already
+  // front-loaded above; only an ENGINE harmony renders here.
+  if (arr.harmony && !arr.ovHarmony) clauses.push(arr.harmony);
+
+  // overlay: secondary sustained layer
+  if (arr.ovTexture) clauses.push(arr.ovTexture);
+
+  /* TEXTURE MODIFIER (John, 2026-08-18). Inside the body, straight after the
+   * bed and harmony clauses it talks about — never appended after MASTERING,
+   * which is terminal by design and is where the composer clause used to land
+   * on 342/342 builds. */
+  if (arr.tex && arr.tex.length) clauses.push(...arr.tex);
+
+  // voice + how it sits
+  if (arr.voice) clauses.push(ip.voiceRel ? `${arr.voice} ${ip.voiceRel}` : arr.voice);
+
+  // colour (only when it fired) + how it sits
+  if (arr.color) clauses.push(ip.colorRel ? `${arr.color} ${ip.colorRel}` : arr.color);
+
+  // overlay: remixer edit treatment + producer mix treatment
+  if (arr.ovEdit) clauses.push(arr.ovEdit);
+  if (arr.ovTreat) clauses.push(arr.ovTreat);
+
+  // production movement + the arc of the whole arrangement
+  if (arr.movement) clauses.push(ip.arc ? `${arr.movement} and ${ip.arc}` : arr.movement);
+  else if (ip.arc) clauses.push(ip.arc);
+
+  return clauses.join(', ') + '. ' + MASTERING;
+}
+
+function renderNegative(engine, arr, opts) {
+  const o = opts || {};
+  // Priority order, capped at NEGATIVE_CAP: the engine's OWN declared
+  // negatives are the primary, deliberately-authored genre defense and get
+  // first claim on the cap. Beatless-ban and vocal-restraint are situational
+  // additions layered on top — each reserved exactly ONE representative slot
+  // (not their full term lists) so a triggered mechanism can't silently
+  // crowd out the engine's real defense entirely. 2026-08-13 first attempt
+  // reserved all of BEATLESS_BAN + all 4 vocal-restraint terms ahead of
+  // everything else and a real Delerium build came back as 5 vocal/beatless
+  // terms and ZERO of the engine's own negatives — worse than the uncapped
+  // bug this was fixing. This is the corrected allocation.
+  const beatlessNeg = arr.beatless ? BEATLESS_BAN.slice(0, 1) : []; // "drums" — the single most critical term
+  const descriptiveText = [arr.character, arr.genre].filter(Boolean).join(' ');
+  const vocalNeg = vocalRestraintCandidates(descriptiveText, !!o.vocalActive).slice(0, 1);
+  const bans = [...beatlessNeg, ...vocalNeg, ...engine.sourceNegative, ...(arr.negative || []), ...ALWAYS_BAN];
+  return capNegativesOrdered(bans, NEGATIVE_CAP).join(', ');
+}
+
+/* ---- MODIFIER OVERLAYS ---------------------------------------------------
+ * ov = { roles:{harmony,motif,counter,texture,color,movement,arc,groove,edit,treat},
+ *        negative:[...] } — already resolved by core/overlays.js.
+ * Overlays WRITE INTO existing slots (they do not append a second prompt), a
+ * USER-LOCKED slot always wins, and the engine's genre / tempo / drum family /
+ * bass family are never touched.
+ * engine.signatureLead (Deep Forest, Sacred Spirit): the lead pool carries the
+ * engine's ethnic signature instrument, so a composer's melodic trait is demoted
+ * to a second melodic voice instead of replacing it — the standing rule that the
+ * signature instrument must persist beats the overlay.
+ * ------------------------------------------------------------------------*/
+function applyOverlay(engine, arr, ov, locks = {}) {
+  if (!ov || !ov.roles) return arr;
+  const r = ov.roles;
+  const fam = ov.roleFamily || {};
+  const free = role => locks[role] == null || locks[role] === '';
+
+  // Which instrument families has the ENGINE already put on the track? A slot the
+  // user locked counts too (never silently displace a locked instrument).
+  const present = new Set();
+  for (const k of ['bass', 'lead', 'pads', 'color']) {
+    const f = slotFamily(arr[k]); if (f) present.add(f);
+  }
+
+  // Decide what to do when an overlay trait names an instrument family the engine
+  // already carries:
+  //   foundational (e.g. Moroder's arp-bass) -> DISPLACE the engine's slot in that
+  //     family, so there is exactly one instrument in that role.
+  //   otherwise -> the overlay YIELDS: its instrument mention is dropped so it does
+  //     not duplicate what is already there.
+  const resolveTrait = (role, text) => {
+    const meta = fam[role];
+    if (!meta || !meta.family) return { text, displace: null };
+    const clash = present.has(meta.family);
+    if (!clash) { present.add(meta.family); return { text, displace: null }; }
+    if (meta.foundational) return { text, displace: meta.family };   // overlay wins the role
+    return { text: null, displace: null };                           // overlay drops the mention
+  };
+
+  if (r.harmony && free('harmony')) { arr.harmony = r.harmony; arr.ovHarmony = true; }
+  if (r.movement && free('movement')) arr.movement = r.movement;
+  if (r.arc) arr.ip = Object.assign({}, arr.ip, { arc: r.arc });
+
+  // LEVER 1 — DEMOTE OVERLAY COLOUR. Colour is the lowest-priority, occasional
+  // decoration slot. When the overlay already carries a foreground melodic voice
+  // (motif or counter), its colour trait is SUPPRESSED — it competes for attention
+  // and over-renders (John's test: an overlay trumpet came through too strong). An
+  // overlay whose only melodic contribution IS colour (e.g. a producer's sampled
+  // choir hits) keeps it.
+  const overlayHasForeground = !!(r.motif || r.counter);
+  if (r.color && free('color') && !overlayHasForeground) {
+    const t = resolveTrait('color', r.color);
+    if (t.text) { arr.color = t.text; arr.colorFromOverlay = true; }
+  }
+
+  // motif = the composer's melodic/thematic hand
+  if (r.motif) {
+    const t = resolveTrait('motif', r.motif);
+    if (t.displace === 'bass' && free('bass')) {
+      // foundational bass motif (Moroder) OWNS the low end: it replaces the drawn
+      // bass in the foundation clause; no second bass elsewhere.
+      arr.bass = t.text; arr.ovMotifIsBass = true;
+    } else if (t.text) {
+      if (engine.signatureLead || !free('lead')) arr.ovMotif = t.text; // keep engine lead
+      else arr.lead = t.text;
+    }
+  }
+
+  if (r.counter) { const t = resolveTrait('counter', r.counter); if (t.text) arr.ovCounter = t.text; }
+  if (r.texture) { const t = resolveTrait('texture', r.texture); if (t.text) arr.ovTexture = t.text; }
+  if (r.groove && arr.drums) arr.groove = r.groove;
+  if (r.edit) arr.ovEdit = r.edit;
+  if (r.treat) arr.ovTreat = r.treat;
+
+  if (ov.negative && ov.negative.length)
+    arr.negative = [...(arr.negative || []), ...ov.negative];
+
+  return arr;
+}
+
+/* Compression: shrink PHRASING before shedding CONTENT (see core/compress.js).
+ * Bands are compacted in priority order — decorative layers first, core last —
+ * and only as far as the budget actually requires. */
+const CORE_KEYS = ['genre', 'tempoClause'];
+function compressStyle(engine, arr, limit, locks = {}) {
+  const roleOf = { pads: 'pads', harmony: 'harmony', bass: 'bass', voice: 'voice', lead: 'lead', movement: 'movement', color: 'color' };
+  const lockedKey = k => { const r = roleOf[k]; return r && locks[r] != null && locks[r] !== ''; };
+  let style = renderStyle(engine, arr);
+  if (style.length <= limit) return style;
+  const bands = [
+    ['color', 'ovTexture', 'ovCounter', 'ovEdit', 'ovTreat'],   // decorative / overlay extras
+    ['movement', 'ovMotif'],                                     // production + secondary melodic
+    ['pads', 'harmony', 'voice', 'lead', 'bass', 'drums', 'groove'], // core, last resort
+  ];
+  const work = Object.assign({}, arr, { ip: Object.assign({}, arr.ip) });
+  for (const level of [1, 2]) {
+    for (const band of bands) {
+      for (const k of band) if (work[k] && !lockedKey(k)) work[k] = compactPart(work[k], level);   // a locked slot is never reworded
+      if (level === 2) for (const k of Object.keys(work.ip || {}))
+        if (work.ip[k]) work.ip[k] = compactPart(work.ip[k], level);
+      style = renderStyle(engine, work);
+      if (style.length <= limit) return style;
+    }
+  }
+
+  // last resort (only reachable when several overlays are stacked on an already
+  // dense character): shed decoration, never an instrument, never the genre/tempo.
+  // Order: interplay tails -> the engine's own gap-filler colour -> overlay extras.
+  const shed = [
+    () => { if (work.ip) work.ip.colorRel = null; },
+    () => { if (!work.colorFromOverlay && !lockedKey('color')) work.color = null; },
+    () => { if (work.ip) work.ip.voiceRel = null; },
+    () => { work.ovEdit = null; },
+    () => { work.ovTexture = null; },
+    () => { work.ovTreat = null; },
+    () => { if (!lockedKey('color')) work.color = null; },
+  ];
+  for (const cut of shed) {
+    cut();
+    style = renderStyle(engine, work);
+    if (style.length <= limit) return style;
+  }
+  return style;
+}
+
+function build(engine, opts) {
+  const arr = resolveArrangement(engine, opts);
+  applyOverlay(engine, arr, opts.overlay, opts.locks || {});
+  /* ENSEMBLE RECONCILIATION (2026-08-17). AFTER the overlay, because the overlay
+   * rewrites bass / lead / colour / pads and reconciling before it would judge
+   * an arrangement Suno never receives. BEFORE the style is rendered, so the
+   * render-time interplay guard in renderStyle() catches any tail that referred
+   * to a voice dropped here — the two were built to compose in this order. */
+  /* TEXTURE MODIFIER enters BEFORE reconciliation so the duplicate-voice rule
+   * can see it, and its prose is written AFTER, off the reconciled slots — the
+   * support-or-replace context has to be read from what actually survives, not
+   * from what was resolved. arr.tex therefore holds the bare NAMES while the
+   * reconciler runs (it compares slots as strings) and is swapped for the
+   * rendered clause array afterwards. A collision nulls the slot and nothing is
+   * emitted. */
+  if (opts.texture && opts.texture.length) arr.tex = opts.texture.map(v => v.instrument).join(', ');
+  reconcileArrangement(arr);
+  if (opts.texture && opts.texture.length && arr.tex) {
+    const bedPresent = BED_SLOTS.some(s => isBedSlot(s, arr[s]));
+    arr.tex = renderTextureClauses(
+      opts.texture.map(v => ({ name: v.instrument, family: v.family, kind: v.kind,
+                               flavour: (v.ids || []).length === 1 ? v.ids[0] : null })),
+      { seed: opts.seed || 0, bedPresent });
+  } else if (arr.tex) arr.tex = null;
+  const style = compressStyle(engine, arr, CHAR_LIMIT, opts.locks || {});
+  return { arrangement: arr, style, negative: renderNegative(engine, arr, { vocalActive: opts.vocalActive }), length: style.length,
+           overLimit: style.length > CHAR_LIMIT };
+}
+
+Object.assign(window.__ATMOS, { resolveArrangement, renderStyle, renderNegative, build, DEFAULT_HARMONY_WEIGHT, PEAK_HARMONY_WEIGHT, NO_PEAK_HARMONY_WEIGHT });
+})();
+
 /* core/cast.js */
 (function(){
 /* ==========================================================================
@@ -5752,7 +6205,7 @@ const VOICE_BUDGET = null;   // DEFERRED_TEST — see above. Do not guess.
  * decorative voice (weight 2) still outranks a composer core one (weight 20).
  * Signature is the sole exception and outranks everything, which is the whole
  * point of signatureLead protection. */
-const SOURCE_WEIGHT = { engine: 0, overlay: 1, composer: 2 };
+const SOURCE_WEIGHT = { engine: 0, overlay: 1, texture: 2, composer: 2 };
 const PRIORITY_WEIGHT = { core: 0, support: 1, decorative: 2 };
 const KEEP_RANK = (v) => {
   if (v.signature) return -1;
@@ -5800,6 +6253,32 @@ function buildCast(heldAtoms, opts) {
    * classifyInstrument() is the project's existing guide-backed classifier
    * (core/linking.js, validated against the guide on disk), so this reuses the
    * one source of truth rather than adding a second keyword list. */
+  /* TEXTURE VOICES (John, 2026-08-18) enter on the same terms — as cast data,
+   * before any prose. The 2026-08-17 session close flagged, while this feature
+   * was still unspecified, that content arriving "outside the predetermined
+   * cast" would bypass bed budget, one-voice-one-mention, foundation collision
+   * and placement. It does not, because it arrives here.
+   *
+   * Family is taken from the pool rather than re-derived: core/texture.js
+   * already knows a merged entry's family, and classifyInstrument() on a merged
+   * name ("a soft French horn and trombone section") would match the first
+   * pattern it hits rather than the family the merge was performed under.
+   *
+   * NOT PLACED BY RULE 6. Composer instruments arrive as bare names and need a
+   * plane assigned; texture voices carry their own relational clause from the
+   * guide-sourced library, so assigning them a second placement would stack two
+   * position statements on one voice. */
+  for (const t of (o.textureVoices || [])) {
+    if (!t || !t.instrument) continue;
+    cast.push({
+      key: `texture:${(t.ids || []).join('+') || t.instrument}`, role: 'texture',
+      family: t.family || classifyInstrument(t.instrument), instrument: t.instrument,
+      behaviour: null, mix: null, density: null, timbre: [],
+      priority: 'decorative', signature: false, source: 'texture',
+      textureKind: t.kind || 'colour', composite: false, atom: null,
+    });
+  }
+
   for (const name of (o.composerInstruments || [])) {
     cast.push({
       key: `composer:${name}`, role: 'composer', family: classifyInstrument(name), instrument: name,
@@ -5918,6 +6397,44 @@ function reconcileCast(cast, opts) {
     });
   }
 
+  /* 0c. TEXTURE FAMILY COLLISION — texture content only (John, 2026-08-18).
+   *
+   * Found by inspecting real output rather than by reasoning, which is why it
+   * is worth writing down: on the acoustic Balearic character the engine draws
+   * "soft layered strings" into its own middle-plane slot, and a texture string
+   * ensemble landed alongside it. Two string sections in one prompt. That is
+   * the round-4 finding recorded in core/knowledge.js — naming one instrument
+   * more than once tells Suno to render more than one of it — and nothing
+   * caught it, because SINGLETON_INSTRUMENT_WORDS deliberately holds only nine
+   * bare headwords and 'strings' is not among them.
+   *
+   * NOT FIXED BY EXTENDING THAT LIST. The 2026-08-17 session close already
+   * flagged the list's narrowness (choir, chant, organ, guitar, harp, drone are
+   * all undetected) and recorded that widening it is an EVIDENCE question for
+   * John, not a reasoning one. Widening it here to serve one feature would
+   * change behaviour on every proven path at the same time.
+   *
+   * So this is scoped to texture content and matched on the guide FAMILY, which
+   * is the level the texture pool is organised at anyway. Engine content claims
+   * first, exactly as it does in every other contest in this module: the
+   * character's song is the genre and a texture voice decorates it. The drop is
+   * recorded with its reason so the UI can say "already in the arrangement"
+   * rather than appearing to have ignored the selection.
+   *
+   * CONSEQUENCE JOHN SHOULD KNOW ABOUT: on the orchestral engines this fires
+   * often, because Era and Sacred Spirit already carry strings and brass. That
+   * is the correct answer under his own rule and not a bug — but it does mean
+   * the texture modifier is most useful on the engines that have no orchestral
+   * content of their own, which is where he asked for it. */
+  {
+    const engineFamilies = new Set(kept.filter(v => v.source === 'engine' && v.family).map(v => v.family));
+    kept = kept.filter(v => {
+      if (v.source !== 'texture') return true;
+      if (v.family && engineFamilies.has(v.family)) { drop(v, 'family-already-present'); return false; }
+      return true;
+    });
+  }
+
   // 1. Genre policy. Runs first: a genre-breaking voice should never survive
   //    long enough to win a budget contest against a legitimate one.
   kept = kept.filter(v => {
@@ -5966,10 +6483,32 @@ function reconcileCast(cast, opts) {
    * It also matches his own modifier model: the composer "adds a sustained bed
    * plus a solo or two" ON TOP OF the character's song, rather than replacing
    * what the character already brought. */
-  const beds = kept.filter(v => isSustainedBed(v) && !v.signature)
+  /* A TEXTURE BED LAYERS AGAINST THE EXISTING BED RATHER THAN CONTESTING IT
+   * (John, 2026-08-18). His words: the string ensemble is "intended to either
+   * support the existing bed or replace".
+   *
+   * The budget's reason for existing is that two beds mud the harmony — and
+   * that is true of two beds that say nothing about each other. John's own
+   * example prose is the counter-case: "soft layered strings blended underneath
+   * the pads for depth" is not a second bed competing for the same function, it
+   * is one bed placed under another, which is orchestration. The standing
+   * interaction-language rule is what makes the difference, so the exemption is
+   * CONDITIONAL ON IT rather than granted outright: core/texture.js's withBed
+   * library is written to state the relationship, statesRelationship() is the
+   * predicate, and the renderer asserts it. If we cannot say how the second bed
+   * sits against the first, it is mud and the budget applies normally.
+   *
+   * "Replace" needs no separate handling and no mode switch. With no surviving
+   * bed the texture strings ARE the bed, and the alone-context prose reads them
+   * as the foundation. Same pick, context decides — which is what John meant by
+   * "depending on the prose used to introduce the strings".
+   *
+   * At most one texture bed can reach this point: core/texture.js merges two
+   * string picks into a single named source before the cast is built. */
+  const beds = kept.filter(v => isSustainedBed(v) && !v.signature && v.source !== 'texture')
     .sort((a, b) => (isPadRole(b) - isPadRole(a)) || (KEEP_RANK(a) - KEEP_RANK(b)));
   const bedKeep = new Set(beds.slice(0, BED_BUDGET));
-  kept.forEach(v => { if (v.signature) bedKeep.add(v); });
+  kept.forEach(v => { if (v.signature || v.source === 'texture') bedKeep.add(v); });
   kept = kept.filter(v => {
     if (!isSustainedBed(v)) return true;
     if (bedKeep.has(v)) return true;
@@ -6113,7 +6652,8 @@ const {evaluateCongruence} = window.__ATMOS;
 const {bedAtom, bedAllowed} = window.__ATMOS;
 const {selectNegatives, vocalRestraintCandidates, ORCHESTRAL_NEGATIVES, SINGLETON_INSTRUMENT_WORDS} = window.__ATMOS;
 const {classifyInstrument, planePhrase, pairLink, decorationPlane, familyType, PLANE_VARIANTS_BY_TYPE} = window.__ATMOS;
-const {buildCast, reconcileCast} = window.__ATMOS;
+const {renderTextureClauses} = window.__ATMOS;
+const {buildCast, reconcileCast, isSustainedBed} = window.__ATMOS;
 const {modifierList} = window.__ATMOS;
 const {ATOM_COMPOSERS} = window.__ATMOS;
 const {ATOM_PRODUCERS} = window.__ATMOS;
@@ -6428,6 +6968,23 @@ function compose(held, mastering, o){
     if(harm && !sigHarm) h=(h?`${h}, moving through `:'')+ (harm.text||harm.instrument);
     if(h) cl.push(h); }
 
+  /* TEXTURE VOICES (John, 2026-08-18) — rendered HERE, immediately after the
+   * bed, and NOT appended at the end.
+   *
+   * Position is a deliberate correction of the composer defect measured at
+   * 08212c9, where 342/342 builds placed modifier content after the Dolby Atmos
+   * mastering tail, which is terminal by design. It matters more for texture
+   * than it did for the composer: POSITION_IS_PROMINENCE says last-named is
+   * what Suno drops, this feature deliberately pushes the named-source count
+   * up, so an appended texture voice would be the first thing discarded — the
+   * feature would fail precisely in the builds it was added for.
+   *
+   * Directly after the bed because that is what the prose talks about. John's
+   * own example is "soft layered strings blended underneath the pads for
+   * depth"; a clause that names the pad belongs next to the pad, not six
+   * clauses downstream of it. */
+  if(o.textureClauses && o.textureClauses.length) cl.push(...o.textureClauses);
+
   // MIDDLE PLANE (guide §13). John, round 4 A1: 'Couldn't hear the marimba, cello
   // nor the French Horn (Might be too deep in the prompt)'. These are the
   // character's own supporting voices — the genre's identity — and 'under the
@@ -6526,7 +7083,13 @@ function buildAtoms(char, opts){
    * understands, so this is a FILTER on the existing pipeline rather than a
    * parallel one — no clause in compose() has to learn a new shape, and any
    * build where nothing violates a rule is byte-identical to before. */
-  const cast = buildCast(kept, { composerInstruments: o.composerInstruments || [] });
+  /* Callers pass ALREADY-RESOLVED cast entries (js/generate.js runs
+   * resolveTexturePicks + textureCastEntries once, so the merge decision is
+   * made in one place). Re-wrapping them here silently produced entries with
+   * no instrument, which buildCast skipped — the feature rendered on 0/40
+   * builds and the validator's floor check is what caught it. */
+  const textureVoices = o.textureVoices || [];
+  const cast = buildCast(kept, { composerInstruments: o.composerInstruments || [], textureVoices });
   const recon = reconcileCast(cast, {
     genre: (char.atoms && char.atoms.genre && char.atoms.genre.text) || char.label || '',
     voiceBudget: o.voiceBudget,
@@ -6539,7 +7102,22 @@ function buildAtoms(char, opts){
   // compose needs to know whether the character is genuinely beatless (Bug A);
   // o is the caller's options object, so copy rather than mutate it.
   const modifierVoices = recon.kept.filter(v => v.source === "composer").map(v => ({ instrument: v.instrument, placement: v.placement || null }));
-  let style = compose(castKept, char.mastering, Object.assign({}, o, { beatless: !!char.beatless, modifierVoices }));
+
+  /* SUPPORT-OR-REPLACE IS DECIDED HERE, off the RECONCILED cast, not off the
+   * raw arrangement. A pad that lost the bed contest is not in the prompt, and
+   * writing "blended underneath the pads for depth" about a pad Suno was never
+   * told to render is the dangling-reference fault core/interplay.js exists to
+   * catch. Texture beds are excluded from the test: a texture bed asking
+   * whether a bed is present must not answer yes because of itself. */
+  const bedPresent = recon.kept.some(v => v.source !== 'texture' && isSustainedBed(v));
+  const survivingTexture = recon.kept.filter(v => v.source === 'texture')
+    .map(v => ({ name: v.instrument, family: v.family, kind: v.textureKind,
+                 flavour: (o.textureVoices || []).find(t => t.instrument === v.instrument)
+                          && ((o.textureVoices || []).find(t => t.instrument === v.instrument).ids || []).length === 1
+                          ? (o.textureVoices || []).find(t => t.instrument === v.instrument).ids[0] : null }));
+  const textureClauses = renderTextureClauses(survivingTexture, { seed: o.seed || 0, bedPresent });
+
+  let style = compose(castKept, char.mastering, Object.assign({}, o, { beatless: !!char.beatless, modifierVoices, textureClauses }));
   const over = style.length > CHAR_LIMIT;
   if (o.maxMode) { /* atom path is already budget-safe; Max is a legacy-only directive */ }
   // overlay-specific negatives merge in only when the overlay actually APPLIED
@@ -14165,6 +14743,17 @@ function initState() {
   // pipeline reorder that consumes it.
   const S = { engineId: 'Delerium', seed: newSeed(), maxMode: false,
               ov: { composer: '', producer: '', remixer: '' }, res: null, leg: null, atom: null,
+              // TEXTURE MODIFIER (John, 2026-08-18): two independent selectors,
+              // each None or one entry from core/texture.js's nine-voice pool.
+              // GLOBAL like maxMode and ov — a texture is a hand applied on top
+              // of whichever engine is selected, not a property of one engine.
+              // LEGACY ENGINES ARE OUT (John's call, 2026-08-18): Balearic
+              // Legacy and Enigma run the proven byte-identical builder, so
+              // generate() ignores this on that path and js/ui.js does not
+              // render the control there. Empty strings mean the feature is a
+              // no-op by default, so an untouched app is byte-identical to the
+              // build before it existed.
+              texture: { a: '', b: '' },
               songType: 'vocal', structurePresetId: presetsForType('vocal')[0].id,
               // P7 (2026-08-12) + provider choice (2026-08-13, John: "Gemini
               // pro is the model I'd like to use for Lyrics, but I think
@@ -14330,6 +14919,7 @@ const {runLyricEngine} = window.__ATMOS;
 const {needsSourceResearch, runSourceResearch} = window.__ATMOS;
 const {runMetatagEngine} = window.__ATMOS;
 const {COMPOSER_LAYERS, composerStyleLayer} = window.__ATMOS;
+const {resolveTexturePicks, textureCastEntries} = window.__ATMOS;
 const {atomCharacterForPalette} = window.__ATMOS;
 const {build} = window.__ATMOS;
 const {CHAR_LIMIT, rng} = window.__ATMOS;
@@ -14412,6 +15002,15 @@ function lyricStructure(S) {
 // A beatless character cannot take a club/rhythm-derived overlay trait.
 const BEATLESS_BAN_TAGS = ['four-on-floor', 'club', 'house'];
 
+/* TEXTURE MODIFIER (John, 2026-08-18). The two selector values resolved into
+ * one or two cast candidates — same-family picks merge into a single named
+ * source inside resolveTexturePicks(), which is what stops "low strings" plus
+ * "high strings" naming strings twice and rendering two sections. */
+function textureFor(S) {
+  const t = S.texture || {};
+  return textureCastEntries(resolveTexturePicks([t.a, t.b]));
+}
+
 function overlayFor(S, beatless) {
   const ctx = { beatless, banTags: beatless ? BEATLESS_BAN_TAGS : [] };
   return resolveOverlays(S.ov || {}, ctx);
@@ -14448,7 +15047,7 @@ function generate(S) {
      * clause order, before mastering. */
     const composerInstruments = composerLayerId ? (COMPOSER_LAYERS[composerLayerId].instruments || []) : [];
 
-    const out = buildAtoms(char, { seed: S.seed, overlayDef: a.overlayId ? resolveModifier(a.overlayId, null, null, palette) : null, maxMode: S.maxMode, vocalActive: S.songType !== 'instrumental', composerInstruments });
+    const out = buildAtoms(char, { seed: S.seed, overlayDef: a.overlayId ? resolveModifier(a.overlayId, null, null, palette) : null, maxMode: S.maxMode, vocalActive: S.songType !== 'instrumental', composerInstruments, textureVoices: textureFor(S) });
     let style = out.style;
     style = applyMax(style, S.maxMode);
 
@@ -14485,6 +15084,14 @@ function generate(S) {
         /* RECONCILED survivors, not the layer's declared list. A composer
          * instrument dropped by the cast (second bass, kit component, no legal
          * placement left) must not be directed by a metatag — Path B. */
+        /* TEXTURE VOICES ARE DELIBERATELY ABSENT (John, 2026-08-18: "Textured
+         * voice don't get a Metatag direction"). Path B would ALLOW it — they
+         * are named in the style field, so directing them would not invent a
+         * voice — but John's call is that they stay a continuous texture rather
+         * than something told to enter and leave per section. Filtering on
+         * source === 'composer' already excludes them; stated here because the
+         * omission is a decision, not an oversight, and validate-texture.mjs
+         * asserts it. */
         composerInstruments: (out.cast || []).filter(v => v.source === 'composer').map(v => v.instrument),
       }).block;
     } catch (e) { metatags = ''; }
@@ -14533,6 +15140,7 @@ function generate(S) {
       characterId: r.characterId, palette: r.palette, locks, seed: S.seed,
       overlay: overlayFor(S, !!ch.beatless),
       structureHint, vocalActive: S.songType !== 'instrumental',
+      texture: textureFor(S),
     });
     const style = applyMax(out.style, S.maxMode);
     return {
@@ -14850,6 +15458,7 @@ const {generate, generateLyricsLive} = window.__ATMOS;
 const {overlayList} = window.__ATMOS;
 const {favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll} = window.__ATMOS;
 const {composerLayerList} = window.__ATMOS;
+const {textureList} = window.__ATMOS;
 const {SONG_TYPES, presetsForType, resolveStructure} = window.__ATMOS;
 const {CONTROL_OPTIONS} = window.__ATMOS;
 const {isResearchableSourceType} = window.__ATMOS;
@@ -14992,6 +15601,7 @@ function renderAll() {
   else if (eng.kind === 'legacy') renderLegacyControls(controls, eng);
   else renderStub(controls, eng);
   if (eng.kind !== 'stub' && eng.kind !== 'atom') overlayPanel(controls);
+  if (eng.kind === 'atom' || eng.kind === 'resolver') texturePanel(controls);
   if (eng.kind !== 'stub') favouritesPanel(controls);
 
   refreshOutput();
@@ -15519,6 +16129,32 @@ function renderStub(root, eng) {
 // Engine-agnostic: an overlay is a hand applied on top of whichever engine is
 // selected. It writes into the engine's existing slots (harmony / motif / counter
 // / texture / colour / movement / arc), never the genre anchor, tempo or drums.
+/* TEXTURE MODIFIER PANEL (John, 2026-08-18). Two identical selectors — his own
+ * design: "two modifier selectors (Duplicated) based on these individual
+ * instruments should suffice. This would allow me to add any 2 into the prompt."
+ *
+ * NOT RENDERED ON LEGACY ENGINES. John's call the same day ("Legacy Out"):
+ * Balearic Legacy and Enigma run the proven byte-identical builder and nothing
+ * ships to a proven path without his sign-off. The control is hidden rather
+ * than disabled so there is no inert dropdown implying it might work.
+ *
+ * Picking the same family twice is legal and merges into one named source (see
+ * core/texture.js) — the note below says so, because a user who picks low and
+ * high strings and then sees one string clause needs to know that was the
+ * design and not a dropped selection. */
+function texturePanel(root) {
+  const box = el('div', { class: 'overlays' });
+  box.appendChild(el('h4', { text: 'Texture' }));
+  const opts = [{ value: '', label: 'none' }]
+    .concat(textureList().map(t => ({ value: t.id, label: t.label })));
+  [['a', 'Texture 1'], ['b', 'Texture 2']].forEach(([slot, label]) => {
+    box.appendChild(field(label, select(opts, S.texture[slot],
+      v => { S.texture[slot] = v; refreshOutput(); })));
+  });
+  box.appendChild(el('p', { class: 'note', text: 'Sustaining and plucked voices added to the cast. Two picks from the same family merge into one named section. Strings support the existing bed, or become it when the build has none.' }));
+  root.appendChild(box);
+}
+
 function overlayPanel(root) {
   const box = el('div', { class: 'overlays' });
   box.appendChild(el('h4', { text: 'Modifier overlays' }));

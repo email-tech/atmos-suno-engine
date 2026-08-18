@@ -87,6 +87,7 @@ const files = [
    * the bundler refused to build core/interplay.js for the same reason. The
    * guard did its job; nothing else would have caught it, because
    * validate-ui-boot loads the COMMITTED bundle and that older bundle boots fine. */
+  'core/texture.js',
   'core/cast.js',
   'core/atoms.js',
   'core/instruments.js',      // must precede atom-characters.js, which imports eligible()

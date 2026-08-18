@@ -38,6 +38,7 @@
  * renders two of it, and that is recorded in core/knowledge.js.
  * ------------------------------------------------------------------------- */
 import { SINGLETON_INSTRUMENT_WORDS } from './knowledge.js';
+import { classifyInstrument } from './linking.js';
 
 /* Same definition as core/cast.js. Duplicated deliberately rather than
  * exported across: these describe what a bed IS, and if a future session
@@ -57,12 +58,23 @@ const BED_BEHAVIOUR_RE  = /\b(sustain|sustained|sustains|held|holding|swell|swel
  * colour and movement are decorative and optional; colour does not even fire on
  * every build. They lose every contest, which is why the common case costs the
  * arrangement nothing. */
-const SLOT_PRIORITY = Object.freeze(['bass', 'drums', 'lead', 'voice', 'pads', 'harmony', 'color', 'movement']);
+/* 'tex' is the TEXTURE MODIFIER slot (John, 2026-08-18) and sits LAST on
+ * purpose. Engine content is the character's own song and claims every word
+ * first; a texture pick that duplicates a voice the character already drew —
+ * Era and Sacred Spirit both draw cello, so a string pick there is a genuine
+ * duplicate — loses and is reported through castDropped rather than doubling
+ * the instrument. */
+const SLOT_PRIORITY = Object.freeze(['bass', 'drums', 'lead', 'voice', 'pads', 'harmony', 'color', 'movement', 'tex']);
 
 /* Never dropped, whatever collides. Losing either of these would break the
  * groove, and a duplicate involving them is better solved by fixing the pool. */
 const PROTECTED = Object.freeze(['bass', 'drums', 'lead']);
 
+/* 'tex' is deliberately ABSENT. A texture bed layers against the existing bed
+ * rather than contesting it — the same decision core/cast.js documents on the
+ * atom path, for the same reason: John's prose relates the second bed to the
+ * first, and a related second bed is orchestration rather than the mud the
+ * budget exists to prevent. */
 const BED_CANDIDATES = Object.freeze(['pads', 'harmony', 'color']);
 
 const rank = (slot) => {
@@ -131,6 +143,20 @@ export function reconcileArrangement(arr) {
       }
       drop(loser, 'duplicate-voice', `${word} already in ${keeper}`);
     }
+  }
+
+  /* RULE 1b — TEXTURE FAMILY COLLISION (John, 2026-08-18), texture slot only.
+   * Same rule and same reasoning as core/cast.js rule 0c: SINGLETON_INSTRUMENT_
+   * WORDS holds nine bare headwords and cannot see that "a low string ensemble"
+   * beside an engine's own string writing is one instrument named twice. Matched
+   * on the guide family instead, and only against the character's own slots —
+   * engine content claims first. Fires often on Era and Sacred Spirit, which
+   * already carry strings and brass; that is the correct answer, not a fault. */
+  if (arr.tex) {
+    const texFam = classifyInstrument(String(arr.tex));
+    const clash = texFam && SLOT_PRIORITY.some(s2 =>
+      s2 !== 'tex' && arr[s2] && classifyInstrument(String(arr[s2])) === texFam);
+    if (clash) drop('tex', 'family-already-present', texFam);
   }
 
   /* RULE 2 — ONE HARMONIC BED.

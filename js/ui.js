@@ -8,6 +8,7 @@ import { generate, generateLyricsLive } from './generate.js';
 import { overlayList } from '../core/overlays.js';
 import { favStorageAvailable, favList, favSave, favRemove, favRecall, favExportAll, favImportAll } from '../core/favourites.js';
 import { composerLayerList } from '../core/composer-layers.js';
+import { textureList } from '../core/texture.js';
 import { SONG_TYPES, presetsForType, resolveStructure } from '../core/structure.js';
 import { CONTROL_OPTIONS } from '../core/lyric-controls.js';
 import { isResearchableSourceType } from '../core/source-research.js';
@@ -150,6 +151,7 @@ function renderAll() {
   else if (eng.kind === 'legacy') renderLegacyControls(controls, eng);
   else renderStub(controls, eng);
   if (eng.kind !== 'stub' && eng.kind !== 'atom') overlayPanel(controls);
+  if (eng.kind === 'atom' || eng.kind === 'resolver') texturePanel(controls);
   if (eng.kind !== 'stub') favouritesPanel(controls);
 
   refreshOutput();
@@ -677,6 +679,32 @@ function renderStub(root, eng) {
 // Engine-agnostic: an overlay is a hand applied on top of whichever engine is
 // selected. It writes into the engine's existing slots (harmony / motif / counter
 // / texture / colour / movement / arc), never the genre anchor, tempo or drums.
+/* TEXTURE MODIFIER PANEL (John, 2026-08-18). Two identical selectors — his own
+ * design: "two modifier selectors (Duplicated) based on these individual
+ * instruments should suffice. This would allow me to add any 2 into the prompt."
+ *
+ * NOT RENDERED ON LEGACY ENGINES. John's call the same day ("Legacy Out"):
+ * Balearic Legacy and Enigma run the proven byte-identical builder and nothing
+ * ships to a proven path without his sign-off. The control is hidden rather
+ * than disabled so there is no inert dropdown implying it might work.
+ *
+ * Picking the same family twice is legal and merges into one named source (see
+ * core/texture.js) — the note below says so, because a user who picks low and
+ * high strings and then sees one string clause needs to know that was the
+ * design and not a dropped selection. */
+function texturePanel(root) {
+  const box = el('div', { class: 'overlays' });
+  box.appendChild(el('h4', { text: 'Texture' }));
+  const opts = [{ value: '', label: 'none' }]
+    .concat(textureList().map(t => ({ value: t.id, label: t.label })));
+  [['a', 'Texture 1'], ['b', 'Texture 2']].forEach(([slot, label]) => {
+    box.appendChild(field(label, select(opts, S.texture[slot],
+      v => { S.texture[slot] = v; refreshOutput(); })));
+  });
+  box.appendChild(el('p', { class: 'note', text: 'Sustaining and plucked voices added to the cast. Two picks from the same family merge into one named section. Strings support the existing bed, or become it when the build has none.' }));
+  root.appendChild(box);
+}
+
 function overlayPanel(root) {
   const box = el('div', { class: 'overlays' });
   box.appendChild(el('h4', { text: 'Modifier overlays' }));

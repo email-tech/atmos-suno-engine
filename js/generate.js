@@ -14,6 +14,7 @@ import { runLyricEngine } from '../core/lyric.js';
 import { needsSourceResearch, runSourceResearch } from '../core/source-research.js';
 import { runMetatagEngine } from '../core/metatag.js';
 import { COMPOSER_LAYERS, composerStyleLayer } from '../core/composer-layers.js';
+import { resolveTexturePicks, textureCastEntries } from '../core/texture.js';
 import { atomCharacterForPalette } from '../engines/atom-characters.js';
 import { build } from '../core/resolver.js';
 import { CHAR_LIMIT, rng } from '../core/constants.js';
@@ -96,6 +97,15 @@ function lyricStructure(S) {
 // A beatless character cannot take a club/rhythm-derived overlay trait.
 const BEATLESS_BAN_TAGS = ['four-on-floor', 'club', 'house'];
 
+/* TEXTURE MODIFIER (John, 2026-08-18). The two selector values resolved into
+ * one or two cast candidates — same-family picks merge into a single named
+ * source inside resolveTexturePicks(), which is what stops "low strings" plus
+ * "high strings" naming strings twice and rendering two sections. */
+function textureFor(S) {
+  const t = S.texture || {};
+  return textureCastEntries(resolveTexturePicks([t.a, t.b]));
+}
+
 function overlayFor(S, beatless) {
   const ctx = { beatless, banTags: beatless ? BEATLESS_BAN_TAGS : [] };
   return resolveOverlays(S.ov || {}, ctx);
@@ -132,7 +142,7 @@ export function generate(S) {
      * clause order, before mastering. */
     const composerInstruments = composerLayerId ? (COMPOSER_LAYERS[composerLayerId].instruments || []) : [];
 
-    const out = buildAtoms(char, { seed: S.seed, overlayDef: a.overlayId ? resolveModifier(a.overlayId, null, null, palette) : null, maxMode: S.maxMode, vocalActive: S.songType !== 'instrumental', composerInstruments });
+    const out = buildAtoms(char, { seed: S.seed, overlayDef: a.overlayId ? resolveModifier(a.overlayId, null, null, palette) : null, maxMode: S.maxMode, vocalActive: S.songType !== 'instrumental', composerInstruments, textureVoices: textureFor(S) });
     let style = out.style;
     style = applyMax(style, S.maxMode);
 
@@ -169,6 +179,14 @@ export function generate(S) {
         /* RECONCILED survivors, not the layer's declared list. A composer
          * instrument dropped by the cast (second bass, kit component, no legal
          * placement left) must not be directed by a metatag — Path B. */
+        /* TEXTURE VOICES ARE DELIBERATELY ABSENT (John, 2026-08-18: "Textured
+         * voice don't get a Metatag direction"). Path B would ALLOW it — they
+         * are named in the style field, so directing them would not invent a
+         * voice — but John's call is that they stay a continuous texture rather
+         * than something told to enter and leave per section. Filtering on
+         * source === 'composer' already excludes them; stated here because the
+         * omission is a decision, not an oversight, and validate-texture.mjs
+         * asserts it. */
         composerInstruments: (out.cast || []).filter(v => v.source === 'composer').map(v => v.instrument),
       }).block;
     } catch (e) { metatags = ''; }
@@ -217,6 +235,7 @@ export function generate(S) {
       characterId: r.characterId, palette: r.palette, locks, seed: S.seed,
       overlay: overlayFor(S, !!ch.beatless),
       structureHint, vocalActive: S.songType !== 'instrumental',
+      texture: textureFor(S),
     });
     const style = applyMax(out.style, S.maxMode);
     return {

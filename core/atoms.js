@@ -25,7 +25,8 @@ import { evaluateCongruence } from './rules.js';
 import { bedAtom, bedAllowed } from './beds.js';
 import { selectNegatives, vocalRestraintCandidates, ORCHESTRAL_NEGATIVES, SINGLETON_INSTRUMENT_WORDS } from './knowledge.js';
 import { classifyInstrument, planePhrase, pairLink, decorationPlane, familyType, PLANE_VARIANTS_BY_TYPE } from './linking.js';
-import { buildCast, reconcileCast } from './cast.js';
+import { renderTextureClauses } from './texture.js';
+import { buildCast, reconcileCast, isSustainedBed } from './cast.js';
 import { modifierList } from './atom-modifiers.js';
 import { ATOM_COMPOSERS } from './atom-composers.js';
 import { ATOM_PRODUCERS } from './atom-producers.js';
@@ -340,6 +341,23 @@ function compose(held, mastering, o){
     if(harm && !sigHarm) h=(h?`${h}, moving through `:'')+ (harm.text||harm.instrument);
     if(h) cl.push(h); }
 
+  /* TEXTURE VOICES (John, 2026-08-18) — rendered HERE, immediately after the
+   * bed, and NOT appended at the end.
+   *
+   * Position is a deliberate correction of the composer defect measured at
+   * 08212c9, where 342/342 builds placed modifier content after the Dolby Atmos
+   * mastering tail, which is terminal by design. It matters more for texture
+   * than it did for the composer: POSITION_IS_PROMINENCE says last-named is
+   * what Suno drops, this feature deliberately pushes the named-source count
+   * up, so an appended texture voice would be the first thing discarded — the
+   * feature would fail precisely in the builds it was added for.
+   *
+   * Directly after the bed because that is what the prose talks about. John's
+   * own example is "soft layered strings blended underneath the pads for
+   * depth"; a clause that names the pad belongs next to the pad, not six
+   * clauses downstream of it. */
+  if(o.textureClauses && o.textureClauses.length) cl.push(...o.textureClauses);
+
   // MIDDLE PLANE (guide §13). John, round 4 A1: 'Couldn't hear the marimba, cello
   // nor the French Horn (Might be too deep in the prompt)'. These are the
   // character's own supporting voices — the genre's identity — and 'under the
@@ -438,7 +456,13 @@ export function buildAtoms(char, opts){
    * understands, so this is a FILTER on the existing pipeline rather than a
    * parallel one — no clause in compose() has to learn a new shape, and any
    * build where nothing violates a rule is byte-identical to before. */
-  const cast = buildCast(kept, { composerInstruments: o.composerInstruments || [] });
+  /* Callers pass ALREADY-RESOLVED cast entries (js/generate.js runs
+   * resolveTexturePicks + textureCastEntries once, so the merge decision is
+   * made in one place). Re-wrapping them here silently produced entries with
+   * no instrument, which buildCast skipped — the feature rendered on 0/40
+   * builds and the validator's floor check is what caught it. */
+  const textureVoices = o.textureVoices || [];
+  const cast = buildCast(kept, { composerInstruments: o.composerInstruments || [], textureVoices });
   const recon = reconcileCast(cast, {
     genre: (char.atoms && char.atoms.genre && char.atoms.genre.text) || char.label || '',
     voiceBudget: o.voiceBudget,
@@ -451,7 +475,22 @@ export function buildAtoms(char, opts){
   // compose needs to know whether the character is genuinely beatless (Bug A);
   // o is the caller's options object, so copy rather than mutate it.
   const modifierVoices = recon.kept.filter(v => v.source === "composer").map(v => ({ instrument: v.instrument, placement: v.placement || null }));
-  let style = compose(castKept, char.mastering, Object.assign({}, o, { beatless: !!char.beatless, modifierVoices }));
+
+  /* SUPPORT-OR-REPLACE IS DECIDED HERE, off the RECONCILED cast, not off the
+   * raw arrangement. A pad that lost the bed contest is not in the prompt, and
+   * writing "blended underneath the pads for depth" about a pad Suno was never
+   * told to render is the dangling-reference fault core/interplay.js exists to
+   * catch. Texture beds are excluded from the test: a texture bed asking
+   * whether a bed is present must not answer yes because of itself. */
+  const bedPresent = recon.kept.some(v => v.source !== 'texture' && isSustainedBed(v));
+  const survivingTexture = recon.kept.filter(v => v.source === 'texture')
+    .map(v => ({ name: v.instrument, family: v.family, kind: v.textureKind,
+                 flavour: (o.textureVoices || []).find(t => t.instrument === v.instrument)
+                          && ((o.textureVoices || []).find(t => t.instrument === v.instrument).ids || []).length === 1
+                          ? (o.textureVoices || []).find(t => t.instrument === v.instrument).ids[0] : null }));
+  const textureClauses = renderTextureClauses(survivingTexture, { seed: o.seed || 0, bedPresent });
+
+  let style = compose(castKept, char.mastering, Object.assign({}, o, { beatless: !!char.beatless, modifierVoices, textureClauses }));
   const over = style.length > CHAR_LIMIT;
   if (o.maxMode) { /* atom path is already budget-safe; Max is a legacy-only directive */ }
   // overlay-specific negatives merge in only when the overlay actually APPLIED

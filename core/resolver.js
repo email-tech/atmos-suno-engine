@@ -3,7 +3,12 @@ import { NEGATIVE_CAP, capNegativesOrdered, vocalRestraintCandidates } from './k
 import { compactPart } from './compress.js';
 import { slotFamily } from './overlays.js';
 import { pickTail, guardTail } from './interplay.js';
-import { reconcileArrangement } from './resolver-cast.js';
+import { reconcileArrangement, isBedSlot } from './resolver-cast.js';
+import { renderTextureClauses } from './texture.js';
+
+/* Which slots can hold the arrangement's harmonic bed — the same three
+ * core/resolver-cast.js contests, read here to decide support-vs-replace. */
+const BED_SLOTS = ['pads', 'harmony', 'color'];
 
 /* ---- HARMONY BRIGHTNESS WEIGHTING (John, 2026-08-13) ----------------------
  * "Music played in a Major Key sounds too happy and sugary sweet... this key
@@ -191,6 +196,12 @@ export function renderStyle(engine, arr) {
   // overlay: secondary sustained layer
   if (arr.ovTexture) clauses.push(arr.ovTexture);
 
+  /* TEXTURE MODIFIER (John, 2026-08-18). Inside the body, straight after the
+   * bed and harmony clauses it talks about — never appended after MASTERING,
+   * which is terminal by design and is where the composer clause used to land
+   * on 342/342 builds. */
+  if (arr.tex && arr.tex.length) clauses.push(...arr.tex);
+
   // voice + how it sits
   if (arr.voice) clauses.push(ip.voiceRel ? `${arr.voice} ${ip.voiceRel}` : arr.voice);
 
@@ -360,7 +371,22 @@ export function build(engine, opts) {
    * an arrangement Suno never receives. BEFORE the style is rendered, so the
    * render-time interplay guard in renderStyle() catches any tail that referred
    * to a voice dropped here — the two were built to compose in this order. */
+  /* TEXTURE MODIFIER enters BEFORE reconciliation so the duplicate-voice rule
+   * can see it, and its prose is written AFTER, off the reconciled slots — the
+   * support-or-replace context has to be read from what actually survives, not
+   * from what was resolved. arr.tex therefore holds the bare NAMES while the
+   * reconciler runs (it compares slots as strings) and is swapped for the
+   * rendered clause array afterwards. A collision nulls the slot and nothing is
+   * emitted. */
+  if (opts.texture && opts.texture.length) arr.tex = opts.texture.map(v => v.instrument).join(', ');
   reconcileArrangement(arr);
+  if (opts.texture && opts.texture.length && arr.tex) {
+    const bedPresent = BED_SLOTS.some(s => isBedSlot(s, arr[s]));
+    arr.tex = renderTextureClauses(
+      opts.texture.map(v => ({ name: v.instrument, family: v.family, kind: v.kind,
+                               flavour: (v.ids || []).length === 1 ? v.ids[0] : null })),
+      { seed: opts.seed || 0, bedPresent });
+  } else if (arr.tex) arr.tex = null;
   const style = compressStyle(engine, arr, CHAR_LIMIT, opts.locks || {});
   return { arrangement: arr, style, negative: renderNegative(engine, arr, { vocalActive: opts.vocalActive }), length: style.length,
            overLimit: style.length > CHAR_LIMIT };

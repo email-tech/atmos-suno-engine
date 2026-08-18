@@ -268,7 +268,7 @@ export const VOICE_BUDGET = null;   // DEFERRED_TEST — see above. Do not guess
  * decorative voice (weight 2) still outranks a composer core one (weight 20).
  * Signature is the sole exception and outranks everything, which is the whole
  * point of signatureLead protection. */
-const SOURCE_WEIGHT = { engine: 0, overlay: 1, composer: 2 };
+const SOURCE_WEIGHT = { engine: 0, overlay: 1, texture: 2, composer: 2 };
 const PRIORITY_WEIGHT = { core: 0, support: 1, decorative: 2 };
 const KEEP_RANK = (v) => {
   if (v.signature) return -1;
@@ -316,6 +316,32 @@ export function buildCast(heldAtoms, opts) {
    * classifyInstrument() is the project's existing guide-backed classifier
    * (core/linking.js, validated against the guide on disk), so this reuses the
    * one source of truth rather than adding a second keyword list. */
+  /* TEXTURE VOICES (John, 2026-08-18) enter on the same terms — as cast data,
+   * before any prose. The 2026-08-17 session close flagged, while this feature
+   * was still unspecified, that content arriving "outside the predetermined
+   * cast" would bypass bed budget, one-voice-one-mention, foundation collision
+   * and placement. It does not, because it arrives here.
+   *
+   * Family is taken from the pool rather than re-derived: core/texture.js
+   * already knows a merged entry's family, and classifyInstrument() on a merged
+   * name ("a soft French horn and trombone section") would match the first
+   * pattern it hits rather than the family the merge was performed under.
+   *
+   * NOT PLACED BY RULE 6. Composer instruments arrive as bare names and need a
+   * plane assigned; texture voices carry their own relational clause from the
+   * guide-sourced library, so assigning them a second placement would stack two
+   * position statements on one voice. */
+  for (const t of (o.textureVoices || [])) {
+    if (!t || !t.instrument) continue;
+    cast.push({
+      key: `texture:${(t.ids || []).join('+') || t.instrument}`, role: 'texture',
+      family: t.family || classifyInstrument(t.instrument), instrument: t.instrument,
+      behaviour: null, mix: null, density: null, timbre: [],
+      priority: 'decorative', signature: false, source: 'texture',
+      textureKind: t.kind || 'colour', composite: false, atom: null,
+    });
+  }
+
   for (const name of (o.composerInstruments || [])) {
     cast.push({
       key: `composer:${name}`, role: 'composer', family: classifyInstrument(name), instrument: name,
@@ -434,6 +460,44 @@ export function reconcileCast(cast, opts) {
     });
   }
 
+  /* 0c. TEXTURE FAMILY COLLISION — texture content only (John, 2026-08-18).
+   *
+   * Found by inspecting real output rather than by reasoning, which is why it
+   * is worth writing down: on the acoustic Balearic character the engine draws
+   * "soft layered strings" into its own middle-plane slot, and a texture string
+   * ensemble landed alongside it. Two string sections in one prompt. That is
+   * the round-4 finding recorded in core/knowledge.js — naming one instrument
+   * more than once tells Suno to render more than one of it — and nothing
+   * caught it, because SINGLETON_INSTRUMENT_WORDS deliberately holds only nine
+   * bare headwords and 'strings' is not among them.
+   *
+   * NOT FIXED BY EXTENDING THAT LIST. The 2026-08-17 session close already
+   * flagged the list's narrowness (choir, chant, organ, guitar, harp, drone are
+   * all undetected) and recorded that widening it is an EVIDENCE question for
+   * John, not a reasoning one. Widening it here to serve one feature would
+   * change behaviour on every proven path at the same time.
+   *
+   * So this is scoped to texture content and matched on the guide FAMILY, which
+   * is the level the texture pool is organised at anyway. Engine content claims
+   * first, exactly as it does in every other contest in this module: the
+   * character's song is the genre and a texture voice decorates it. The drop is
+   * recorded with its reason so the UI can say "already in the arrangement"
+   * rather than appearing to have ignored the selection.
+   *
+   * CONSEQUENCE JOHN SHOULD KNOW ABOUT: on the orchestral engines this fires
+   * often, because Era and Sacred Spirit already carry strings and brass. That
+   * is the correct answer under his own rule and not a bug — but it does mean
+   * the texture modifier is most useful on the engines that have no orchestral
+   * content of their own, which is where he asked for it. */
+  {
+    const engineFamilies = new Set(kept.filter(v => v.source === 'engine' && v.family).map(v => v.family));
+    kept = kept.filter(v => {
+      if (v.source !== 'texture') return true;
+      if (v.family && engineFamilies.has(v.family)) { drop(v, 'family-already-present'); return false; }
+      return true;
+    });
+  }
+
   // 1. Genre policy. Runs first: a genre-breaking voice should never survive
   //    long enough to win a budget contest against a legitimate one.
   kept = kept.filter(v => {
@@ -482,10 +546,32 @@ export function reconcileCast(cast, opts) {
    * It also matches his own modifier model: the composer "adds a sustained bed
    * plus a solo or two" ON TOP OF the character's song, rather than replacing
    * what the character already brought. */
-  const beds = kept.filter(v => isSustainedBed(v) && !v.signature)
+  /* A TEXTURE BED LAYERS AGAINST THE EXISTING BED RATHER THAN CONTESTING IT
+   * (John, 2026-08-18). His words: the string ensemble is "intended to either
+   * support the existing bed or replace".
+   *
+   * The budget's reason for existing is that two beds mud the harmony — and
+   * that is true of two beds that say nothing about each other. John's own
+   * example prose is the counter-case: "soft layered strings blended underneath
+   * the pads for depth" is not a second bed competing for the same function, it
+   * is one bed placed under another, which is orchestration. The standing
+   * interaction-language rule is what makes the difference, so the exemption is
+   * CONDITIONAL ON IT rather than granted outright: core/texture.js's withBed
+   * library is written to state the relationship, statesRelationship() is the
+   * predicate, and the renderer asserts it. If we cannot say how the second bed
+   * sits against the first, it is mud and the budget applies normally.
+   *
+   * "Replace" needs no separate handling and no mode switch. With no surviving
+   * bed the texture strings ARE the bed, and the alone-context prose reads them
+   * as the foundation. Same pick, context decides — which is what John meant by
+   * "depending on the prose used to introduce the strings".
+   *
+   * At most one texture bed can reach this point: core/texture.js merges two
+   * string picks into a single named source before the cast is built. */
+  const beds = kept.filter(v => isSustainedBed(v) && !v.signature && v.source !== 'texture')
     .sort((a, b) => (isPadRole(b) - isPadRole(a)) || (KEEP_RANK(a) - KEEP_RANK(b)));
   const bedKeep = new Set(beds.slice(0, BED_BUDGET));
-  kept.forEach(v => { if (v.signature) bedKeep.add(v); });
+  kept.forEach(v => { if (v.signature || v.source === 'texture') bedKeep.add(v); });
   kept = kept.filter(v => {
     if (!isSustainedBed(v)) return true;
     if (bedKeep.has(v)) return true;
