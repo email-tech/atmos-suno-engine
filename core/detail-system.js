@@ -41,6 +41,7 @@
  * fact in core/knowledge.js on the strength of sounding right.
  * ------------------------------------------------------------------------- */
 import { rngFor, stablePick, SEED_LABELS } from './detail-seed.js';
+import { resolveVocalTreatmentFull } from './detail-vocal.js';
 
 /* ---- STATE (§15) ------------------------------------------------------
  * UI INTENT AND RESOLVED RESULT ARE KEPT SEPARATE, deliberately. A resolver
@@ -118,8 +119,9 @@ const noOp = (reason) => ({ noOp: true, reason, rendered: null, semanticTags: []
  * emitting half-designed prose into a prompt. */
 export function resolveVocalTreatment(ctx) {
   if (isOff(ctx.uiIntent.vocalTreatment)) return null;
-  if (!ctx.vocalSources.length) return noOp('no-vocal-source');
-  return noOp('vocal-treatment-library-pending');
+  /* IMPLEMENTED — core/detail-vocal.js carries the §8 taxonomy, protection
+   * rules and the canonical prose library transcribed verbatim. */
+  return resolveVocalTreatmentFull(ctx, ctx.enginePolicy && ctx.enginePolicy.vocalTreatment);
 }
 
 export function resolveSpaceMovement(ctx, vocalResult) {

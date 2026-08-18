@@ -63,6 +63,7 @@ const files = [
   'core/overlays.js',
   'core/interplay.js',
   'core/detail-seed.js',
+  'core/detail-vocal.js',
   'core/detail-system.js',
   'core/articulation.js',
   'core/resolver-cast.js',
