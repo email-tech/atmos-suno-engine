@@ -145,19 +145,11 @@ export function reconcileArrangement(arr) {
     }
   }
 
-  /* RULE 1b — TEXTURE FAMILY COLLISION (John, 2026-08-18), texture slot only.
-   * Same rule and same reasoning as core/cast.js rule 0c: SINGLETON_INSTRUMENT_
-   * WORDS holds nine bare headwords and cannot see that "a low string ensemble"
-   * beside an engine's own string writing is one instrument named twice. Matched
-   * on the guide family instead, and only against the character's own slots —
-   * engine content claims first. Fires often on Era and Sacred Spirit, which
-   * already carry strings and brass; that is the correct answer, not a fault. */
-  if (arr.tex) {
-    const texFam = classifyInstrument(String(arr.tex));
-    const clash = texFam && SLOT_PRIORITY.some(s2 =>
-      s2 !== 'tex' && arr[s2] && classifyInstrument(String(arr[s2])) === texFam);
-    if (clash) drop('tex', 'family-already-present', texFam);
-  }
+  /* NOTE: the texture family-collision rule lives in core/resolver.js build(),
+   * upstream of here, because it has to test each pick SEPARATELY and arr.tex
+   * is one slot — filtering it at this level made two picks all-or-nothing.
+   * 'tex' stays last in SLOT_PRIORITY so the exact-word duplicate rule above
+   * still applies to whatever survived. */
 
   /* RULE 2 — ONE HARMONIC BED.
    * Measured over 6,300 seeded builds: Sacred Spirit 22.9%, Era 17.6%, Deep

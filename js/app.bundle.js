@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"66cb623","date":"2026-08-18"};
+window.__ATMOS_BUILD__ = {"commit":"9f6a84c","date":"2026-08-18"};
 
 /* core/constants.js */
 (function(){
@@ -3758,19 +3758,11 @@ function reconcileArrangement(arr) {
     }
   }
 
-  /* RULE 1b — TEXTURE FAMILY COLLISION (John, 2026-08-18), texture slot only.
-   * Same rule and same reasoning as core/cast.js rule 0c: SINGLETON_INSTRUMENT_
-   * WORDS holds nine bare headwords and cannot see that "a low string ensemble"
-   * beside an engine's own string writing is one instrument named twice. Matched
-   * on the guide family instead, and only against the character's own slots —
-   * engine content claims first. Fires often on Era and Sacred Spirit, which
-   * already carry strings and brass; that is the correct answer, not a fault. */
-  if (arr.tex) {
-    const texFam = classifyInstrument(String(arr.tex));
-    const clash = texFam && SLOT_PRIORITY.some(s2 =>
-      s2 !== 'tex' && arr[s2] && classifyInstrument(String(arr[s2])) === texFam);
-    if (clash) drop('tex', 'family-already-present', texFam);
-  }
+  /* NOTE: the texture family-collision rule lives in core/resolver.js build(),
+   * upstream of here, because it has to test each pick SEPARATELY and arr.tex
+   * is one slot — filtering it at this level made two picks all-or-nothing.
+   * 'tex' stays last in SLOT_PRIORITY so the exact-word duplicate rule above
+   * still applies to whatever survived. */
 
   /* RULE 2 — ONE HARMONIC BED.
    * Measured over 6,300 seeded builds: Sacred Spirit 22.9%, Era 17.6%, Deep
@@ -5593,6 +5585,7 @@ const {compactPart} = window.__ATMOS;
 const {slotFamily} = window.__ATMOS;
 const {pickTail, guardTail} = window.__ATMOS;
 const {reconcileArrangement, isBedSlot} = window.__ATMOS;
+const {classifyInstrument} = window.__ATMOS;
 const {renderTextureClauses} = window.__ATMOS;
 
 /* Which slots can hold the arrangement's harmonic bed — the same three
@@ -5995,7 +5988,26 @@ function build(engine, opts) {
    * reconciler runs (it compares slots as strings) and is swapped for the
    * rendered clause array afterwards. A collision nulls the slot and nothing is
    * emitted. */
-  if (opts.texture && opts.texture.length) arr.tex = opts.texture.map(v => v.instrument).join(', ');
+  /* FILTERED PER VOICE, not as one blob. arr.tex is a single slot, so joining
+   * two picks into it made the family check all-or-nothing: an Era ethereal
+   * ballad with strings + trombones lost BOTH, because the joined string
+   * classified as strings and collided with the character's Mellotron string
+   * pad. The trombones had nothing to collide with and should have survived.
+   * Each pick is therefore tested on its own against the resolved slots, and
+   * only the survivors are joined for the slot. Same rule as core/cast.js 3b,
+   * same reason: engine content is the character's own song and claims first. */
+  if (opts.texture && opts.texture.length) {
+    const engineFams = new Set(['pads', 'harmony', 'bass', 'lead', 'voice', 'color', 'movement']
+      .map(k => arr[k] && classifyInstrument(String(arr[k]))).filter(Boolean));
+    const survivors = opts.texture.filter(v => !(v.family && engineFams.has(v.family)));
+    for (const v of opts.texture) {
+      if (survivors.includes(v)) continue;
+      (arr.castDropped = arr.castDropped || []).push(
+        { instrument: v.instrument, source: 'texture', reason: 'family-already-present' });
+    }
+    opts = Object.assign({}, opts, { texture: survivors });
+    if (survivors.length) arr.tex = survivors.map(v => v.instrument).join(', ');
+  }
   reconcileArrangement(arr);
   if (opts.texture && opts.texture.length && arr.tex) {
     const bedPresent = BED_SLOTS.some(s => isBedSlot(s, arr[s]));
@@ -6476,44 +6488,6 @@ function reconcileCast(cast, opts) {
     });
   }
 
-  /* 0c. TEXTURE FAMILY COLLISION — texture content only (John, 2026-08-18).
-   *
-   * Found by inspecting real output rather than by reasoning, which is why it
-   * is worth writing down: on the acoustic Balearic character the engine draws
-   * "soft layered strings" into its own middle-plane slot, and a texture string
-   * ensemble landed alongside it. Two string sections in one prompt. That is
-   * the round-4 finding recorded in core/knowledge.js — naming one instrument
-   * more than once tells Suno to render more than one of it — and nothing
-   * caught it, because SINGLETON_INSTRUMENT_WORDS deliberately holds only nine
-   * bare headwords and 'strings' is not among them.
-   *
-   * NOT FIXED BY EXTENDING THAT LIST. The 2026-08-17 session close already
-   * flagged the list's narrowness (choir, chant, organ, guitar, harp, drone are
-   * all undetected) and recorded that widening it is an EVIDENCE question for
-   * John, not a reasoning one. Widening it here to serve one feature would
-   * change behaviour on every proven path at the same time.
-   *
-   * So this is scoped to texture content and matched on the guide FAMILY, which
-   * is the level the texture pool is organised at anyway. Engine content claims
-   * first, exactly as it does in every other contest in this module: the
-   * character's song is the genre and a texture voice decorates it. The drop is
-   * recorded with its reason so the UI can say "already in the arrangement"
-   * rather than appearing to have ignored the selection.
-   *
-   * CONSEQUENCE JOHN SHOULD KNOW ABOUT: on the orchestral engines this fires
-   * often, because Era and Sacred Spirit already carry strings and brass. That
-   * is the correct answer under his own rule and not a bug — but it does mean
-   * the texture modifier is most useful on the engines that have no orchestral
-   * content of their own, which is where he asked for it. */
-  {
-    const engineFamilies = new Set(kept.filter(v => v.source === 'engine' && v.family).map(v => v.family));
-    kept = kept.filter(v => {
-      if (v.source !== 'texture') return true;
-      if (v.family && engineFamilies.has(v.family)) { drop(v, 'family-already-present'); return false; }
-      return true;
-    });
-  }
-
   // 1. Genre policy. Runs first: a genre-breaking voice should never survive
   //    long enough to win a budget contest against a legitimate one.
   kept = kept.filter(v => {
@@ -6593,6 +6567,55 @@ function reconcileCast(cast, opts) {
     if (bedKeep.has(v)) return true;
     drop(v, 'bed-budget'); return false;
   });
+
+  /* 3b. TEXTURE FAMILY COLLISION — texture content only (John, 2026-08-18).
+   *
+   * Found by inspecting real output rather than by reasoning, which is why it
+   * is worth writing down: on the acoustic Balearic character the engine draws
+   * "soft layered strings" into its own middle-plane slot, and a texture string
+   * ensemble landed alongside it. Two string sections in one prompt. That is
+   * the round-4 finding recorded in core/knowledge.js — naming one instrument
+   * more than once tells Suno to render more than one of it — and nothing
+   * caught it, because SINGLETON_INSTRUMENT_WORDS deliberately holds only nine
+   * bare headwords and 'strings' is not among them.
+   *
+   * NOT FIXED BY EXTENDING THAT LIST. The 2026-08-17 session close already
+   * flagged the list's narrowness (choir, chant, organ, guitar, harp, drone are
+   * all undetected) and recorded that widening it is an EVIDENCE question for
+   * John, not a reasoning one. Widening it here to serve one feature would
+   * change behaviour on every proven path at the same time.
+   *
+   * So this is scoped to texture content and matched on the guide FAMILY, which
+   * is the level the texture pool is organised at anyway. Engine content claims
+   * first, exactly as it does in every other contest in this module: the
+   * character's song is the genre and a texture voice decorates it. The drop is
+   * recorded with its reason so the UI can say "already in the arrangement"
+   * rather than appearing to have ignored the selection.
+   *
+   * CONSEQUENCE JOHN SHOULD KNOW ABOUT: on the orchestral engines this fires
+   * often, because Era and Sacred Spirit already carry strings and brass. That
+   * is the correct answer under his own rule and not a bug — but it does mean
+   * the texture modifier is most useful on the engines that have no orchestral
+   * content of their own, which is where he asked for it.
+   *
+   * RUNS AFTER THE BUDGETS, NOT BEFORE — and it was written in the wrong place
+   * first. Sitting ahead of genre policy, slot waste and the bed budget, it
+   * compared John's pick against engine voices that had not yet been dropped.
+   * On the electronic Balearic character at seed 4242 that meant the texture
+   * ensemble was refused for colliding with "a cello counter-melody" and "a
+   * sweeping string bed" — both of which the very next two rules deleted, for
+   * slot waste and bed budget. The pick was killed by voices that never reached
+   * the prompt. Comparing against SURVIVORS is the only version of this rule
+   * that means anything, so it sits here, after every rule that can remove an
+   * engine voice and before placement. */
+  {
+    const engineFamilies = new Set(kept.filter(v => v.source === 'engine' && v.family).map(v => v.family));
+    kept = kept.filter(v => {
+      if (v.source !== 'texture') return true;
+      if (v.family && engineFamilies.has(v.family)) { drop(v, 'family-already-present'); return false; }
+      return true;
+    });
+  }
 
   // 4. Lead budget.
   /* THE LEAD ROLE WINS ITS OWN SLOT, for the same reason the pad does — and

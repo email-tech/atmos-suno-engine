@@ -4,6 +4,7 @@ import { compactPart } from './compress.js';
 import { slotFamily } from './overlays.js';
 import { pickTail, guardTail } from './interplay.js';
 import { reconcileArrangement, isBedSlot } from './resolver-cast.js';
+import { classifyInstrument } from './linking.js';
 import { renderTextureClauses } from './texture.js';
 
 /* Which slots can hold the arrangement's harmonic bed — the same three
@@ -406,7 +407,26 @@ export function build(engine, opts) {
    * reconciler runs (it compares slots as strings) and is swapped for the
    * rendered clause array afterwards. A collision nulls the slot and nothing is
    * emitted. */
-  if (opts.texture && opts.texture.length) arr.tex = opts.texture.map(v => v.instrument).join(', ');
+  /* FILTERED PER VOICE, not as one blob. arr.tex is a single slot, so joining
+   * two picks into it made the family check all-or-nothing: an Era ethereal
+   * ballad with strings + trombones lost BOTH, because the joined string
+   * classified as strings and collided with the character's Mellotron string
+   * pad. The trombones had nothing to collide with and should have survived.
+   * Each pick is therefore tested on its own against the resolved slots, and
+   * only the survivors are joined for the slot. Same rule as core/cast.js 3b,
+   * same reason: engine content is the character's own song and claims first. */
+  if (opts.texture && opts.texture.length) {
+    const engineFams = new Set(['pads', 'harmony', 'bass', 'lead', 'voice', 'color', 'movement']
+      .map(k => arr[k] && classifyInstrument(String(arr[k]))).filter(Boolean));
+    const survivors = opts.texture.filter(v => !(v.family && engineFams.has(v.family)));
+    for (const v of opts.texture) {
+      if (survivors.includes(v)) continue;
+      (arr.castDropped = arr.castDropped || []).push(
+        { instrument: v.instrument, source: 'texture', reason: 'family-already-present' });
+    }
+    opts = Object.assign({}, opts, { texture: survivors });
+    if (survivors.length) arr.tex = survivors.map(v => v.instrument).join(', ');
+  }
   reconcileArrangement(arr);
   if (opts.texture && opts.texture.length && arr.tex) {
     const bedPresent = BED_SLOTS.some(s => isBedSlot(s, arr[s]));
