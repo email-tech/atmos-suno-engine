@@ -14,7 +14,8 @@ import { ERA } from './engines/era.js';
 import { DELERIUM } from './engines/delerium.js';
 import { DEEPFOREST } from './engines/deepforest.js';
 import { SACREDSPIRIT } from './engines/sacredspirit.js';
-import { articulationFault, padWidthFault, isSustaining, isStruckOrPlucked } from './core/articulation.js';
+import { articulationFault, padWidthFault, isSustaining, isStruckOrPlucked,
+         GENRE_ARTICULATION_EXCEPTIONS, isGenreException } from './core/articulation.js';
 
 let failures = 0, checks = 0;
 const bad = (m) => { console.error(`  FAIL: ${m}`); failures++; };
@@ -26,17 +27,11 @@ const ok = (c, m) => { if (!c) bad(m); };
  * An allowlist that is not printed is a hidden failure; this one is printed
  * every run. */
 const AWAITING_JOHN = [
-  ['Era/drivingEpic+cinematicMass', 'a driving sixteenth-note string ostinato',
-   'RULE 1 contradicts (ostinato is also globally banned by FACT 2). But it IS drivingEpic\'s identity — the character notes say propulsion comes from it instead of rock guitars. Removing it changes what the character is, so it needs John, not a find-and-replace. Proposed: "driving repeated sixteenth-note strings".'],
-  ['Sacred Spirit/ceremonialPrelude + winterCeremony', 'a sustained bowed-cello drone',
+    ['Sacred Spirit/ceremonialPrelude + winterCeremony', 'a sustained bowed-cello drone',
    'RULE 2 single-voice. One cello cannot be a pad, however sustained. Proposed: "a sustained bowed low-string section". Overlaps the separate cello-in-bass-and-lead pool collision already flagged (111 builds), so both are one decision.'],
   ['Delerium/gothicAmbient', 'bowed metallic drone',
    'RULE 2 single-voice as written. May not be orchestral at all — a bowed cymbal or waterphone is a texture, not a pitched pad. Needs John to say which it is before it is either widened or moved out of the pads slot.'],
-  ['Era/drivingEpic', 'a staccato cello-and-contrabass ostinato',
-   'RULE 1 contradicts, twice over (staccato AND ostinato, both globally banned by FACT 2). Same decision as the string ostinato above: it is what makes drivingEpic drive.'],
-  ['Deep Forest/comparsaCarnival', 'a punchy Latin brass line',
-   'RULE 1 contradicts. But punchy IS Latin carnival brass — comparsa brass is not legato and making it so would remove the genre. Strong candidate for an explicit genre exception rather than a fix.'],
-  ['Era/cathedralOverture + etherealBallad', 'a pizzicato string accent',
+      ['Era/cathedralOverture + etherealBallad', 'a pizzicato string accent',
    'Plucked strings. John\'s refinement puts plucked technique with the percussive group, which this validator follows — flagged only because pizzicato on a bowed instrument is the boundary case of that refinement.'],
 ];
 
@@ -67,7 +62,10 @@ const isAllowed = (t) => [...allow].some(a => String(t).toLowerCase().includes(a
       for (const [slot, pool] of Object.entries(c.pools || {}))
         for (const entry of pool) {
           const t = typeof entry === 'string' ? entry : entry.t;
-          if (articulationFault(t) === 'contradicts' && !isAllowed(t)) {
+          /* An approved genre exception is not a failure. It is still PRINTED
+           * below with its reason, so an exception can never quietly become
+           * invisible — the same discipline the awaiting-John list follows. */
+          if (articulationFault(t) === 'contradicts' && !isAllowed(t) && !isGenreException(t)) {
             found.push(`${e.id}/${cid}/${slot}: "${t}"`);
           }
         }
@@ -112,6 +110,9 @@ const isAllowed = (t) => [...allow].some(a => String(t).toLowerCase().includes(a
   checks++;
 }
 
+console.log('  approved genre exceptions (John, 2026-08-18) — the articulation IS the genre:');
+for (const e of GENRE_ARTICULATION_EXCEPTIONS)
+  console.log(`    ${e.engine}/${e.characters.join('+')} — "${e.text}"\n      ${e.reason}`);
 console.log('  awaiting John:');
 for (const [where, what, why] of AWAITING_JOHN) console.log(`    ${where} — "${what}"\n      ${why}`);
 

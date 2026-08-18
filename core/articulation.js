@@ -86,3 +86,54 @@ export function padWidthFault(text) {
   if (isStruckOrPlucked(t)) return 'not-sustaining';
   return null;
 }
+
+/* --------------------------------------------------------------------------
+ * GENRE EXCEPTIONS (John, 2026-08-18)
+ *
+ * Rule 1 says a sustaining orchestral instrument plays long legato notes.
+ * Three pool entries break it, and in all three the articulation IS the genre —
+ * removing it would not fix the prompt, it would change what the character is.
+ * John's call: "Use Genre exceptions for ERA and Deep Forest."
+ *
+ * WHY THIS IS DATA AND NOT A SUPPRESSED WARNING. An allowlist that lives in a
+ * validator is invisible to the app: the engine would still be shipping text
+ * the rules module considers a fault, and the next session would have no way to
+ * tell an approved exception from an unfixed one. Kept here, next to the rule
+ * it excepts, so both are read together — the same reasoning that put every
+ * Suno fact in core/knowledge.js rather than in a log entry.
+ *
+ * DELIBERATELY NARROW. Matched on the EXACT pool text, not on a pattern. A
+ * pattern would except every staccato string line in the project on the
+ * strength of two characters that earned it; an exact match excepts exactly
+ * what John approved and lets the next offender surface normally.
+ *
+ * NOT A LICENCE FOR THE GLOBAL BAN. core/knowledge.js still bans ostinato,
+ * staccato and stabs everywhere else, and FACT 2 is unchanged. These are
+ * character-identity carve-outs on two resolver engines, nothing wider.
+ * ------------------------------------------------------------------------*/
+export const GENRE_ARTICULATION_EXCEPTIONS = Object.freeze([
+  {
+    engine: 'Era', characters: ['drivingEpic', 'cinematicMass'],
+    text: 'a driving sixteenth-note string ostinato', rule: 1,
+    reason: 'drivingEpic\'s propulsion comes from this line instead of rock guitars. The character notes say so explicitly; legato strings would leave the character with nothing driving it.',
+    approvedBy: 'John, 2026-08-18',
+  },
+  {
+    engine: 'Era', characters: ['drivingEpic'],
+    text: 'a staccato contrabass ostinato', rule: 1,
+    reason: 'Same identity as the string ostinato above, in the bass. Renamed the same day to drop the word cello (it collided with the lead\'s solo cello on 111 builds); the articulation is what makes drivingEpic drive and stays.',
+    approvedBy: 'John, 2026-08-18',
+  },
+  {
+    engine: 'Deep Forest', characters: ['comparsaCarnival'],
+    text: 'a punchy Latin brass line', rule: 1,
+    reason: 'Comparsa carnival brass is not legato. Making it legato would remove the genre, which is the opposite of what rule 1 is for.',
+    approvedBy: 'John, 2026-08-18',
+  },
+]);
+
+const EXCEPTED_TEXT = new Set(GENRE_ARTICULATION_EXCEPTIONS.map(e => e.text.toLowerCase()));
+
+/* Is this exact pool text an approved genre exception? Exact-match by design —
+ * see the note above on why a pattern would be too broad. */
+export const isGenreException = (t) => EXCEPTED_TEXT.has(String(t || '').trim().toLowerCase());

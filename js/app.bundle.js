@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"681ea3e","date":"2026-08-18"};
+window.__ATMOS_BUILD__ = {"commit":"66cb623","date":"2026-08-18"};
 
 /* core/constants.js */
 (function(){
@@ -1428,7 +1428,58 @@ function padWidthFault(text) {
   return null;
 }
 
-Object.assign(window.__ATMOS, { articulationFault, padWidthFault, SUSTAINING_RE, STRUCK_OR_PLUCKED_RE, ATTACK_RE, LEGATO_RE, isSustaining, isStruckOrPlucked });
+/* --------------------------------------------------------------------------
+ * GENRE EXCEPTIONS (John, 2026-08-18)
+ *
+ * Rule 1 says a sustaining orchestral instrument plays long legato notes.
+ * Three pool entries break it, and in all three the articulation IS the genre —
+ * removing it would not fix the prompt, it would change what the character is.
+ * John's call: "Use Genre exceptions for ERA and Deep Forest."
+ *
+ * WHY THIS IS DATA AND NOT A SUPPRESSED WARNING. An allowlist that lives in a
+ * validator is invisible to the app: the engine would still be shipping text
+ * the rules module considers a fault, and the next session would have no way to
+ * tell an approved exception from an unfixed one. Kept here, next to the rule
+ * it excepts, so both are read together — the same reasoning that put every
+ * Suno fact in core/knowledge.js rather than in a log entry.
+ *
+ * DELIBERATELY NARROW. Matched on the EXACT pool text, not on a pattern. A
+ * pattern would except every staccato string line in the project on the
+ * strength of two characters that earned it; an exact match excepts exactly
+ * what John approved and lets the next offender surface normally.
+ *
+ * NOT A LICENCE FOR THE GLOBAL BAN. core/knowledge.js still bans ostinato,
+ * staccato and stabs everywhere else, and FACT 2 is unchanged. These are
+ * character-identity carve-outs on two resolver engines, nothing wider.
+ * ------------------------------------------------------------------------*/
+const GENRE_ARTICULATION_EXCEPTIONS = Object.freeze([
+  {
+    engine: 'Era', characters: ['drivingEpic', 'cinematicMass'],
+    text: 'a driving sixteenth-note string ostinato', rule: 1,
+    reason: 'drivingEpic\'s propulsion comes from this line instead of rock guitars. The character notes say so explicitly; legato strings would leave the character with nothing driving it.',
+    approvedBy: 'John, 2026-08-18',
+  },
+  {
+    engine: 'Era', characters: ['drivingEpic'],
+    text: 'a staccato contrabass ostinato', rule: 1,
+    reason: 'Same identity as the string ostinato above, in the bass. Renamed the same day to drop the word cello (it collided with the lead\'s solo cello on 111 builds); the articulation is what makes drivingEpic drive and stays.',
+    approvedBy: 'John, 2026-08-18',
+  },
+  {
+    engine: 'Deep Forest', characters: ['comparsaCarnival'],
+    text: 'a punchy Latin brass line', rule: 1,
+    reason: 'Comparsa carnival brass is not legato. Making it legato would remove the genre, which is the opposite of what rule 1 is for.',
+    approvedBy: 'John, 2026-08-18',
+  },
+]);
+
+const EXCEPTED_TEXT = new Set(GENRE_ARTICULATION_EXCEPTIONS.map(e => e.text.toLowerCase()));
+
+/* Is this exact pool text an approved genre exception? Exact-match by design —
+ * see the note above on why a pattern would be too broad. */
+const isGenreException = (t) => EXCEPTED_TEXT.has(String(t || '').trim().toLowerCase());
+
+Object.assign(window.__ATMOS, { articulationFault, padWidthFault, SUSTAINING_RE, STRUCK_OR_PLUCKED_RE, ATTACK_RE, LEGATO_RE, isSustaining, isStruckOrPlucked, GENRE_ARTICULATION_EXCEPTIONS, isGenreException });
 })();
 
 /* core/atom-composers.js */
@@ -5634,7 +5685,35 @@ function resolveArrangement(engine, opts) {
     pads: pick('pads'),
     harmony: pick('harmony'),
     bass: pick('bass'),
-    voice: pick('voice'),
+    /* SONG-TYPE GATE ON THE RESOLVER PATH (fixed 2026-08-18). This slot used to
+     * be drawn unconditionally, and opts.vocalActive reached only
+     * renderNegative() — so selecting song type Instrumental on Era, Delerium,
+     * Deep Forest or Sacred Spirit still put a vocal clause in the STYLE field.
+     * A verified example: Era instrumental, seed 5, rendered "an ethereal
+     * female aria in an invented sacred language".
+     *
+     * Song type is decision #1 in the structure-first pipeline and is already
+     * authoritative on the atom and legacy paths (js/generate.js's
+     * songTypeLyrics and toLegacyState). This is the resolver path catching up.
+     * It has to happen HERE rather than at render time: the voice slot feeds
+     * interplay tail gating, reconciliation and buildResolverDNA, all of which
+     * would otherwise reason about a singer the prompt does not have.
+     *
+     * DROPPING IT IS SAFE. renderStyle() builds every clause conditionally, and
+     * the interplay layer has gated tails against the resolved arrangement
+     * since 84effaa, so a voiceRel tail simply does not fire when there is no
+     * voice. Default stays TRUE, so any caller that omits the flag — every
+     * existing validator and the legacy call sites — behaves exactly as before.
+     *
+     * THE DRAW STILL HAPPENS AND THE RESULT IS DISCARDED. Skipping pick('voice')
+     * outright would leave one fewer number consumed from the seeded RNG, so
+     * every slot drawn after it would shift and an instrumental build would
+     * differ from the vocal build at the same seed in its LEAD and MOVEMENT
+     * too. That would quietly break John's identical-seed before/after gate,
+     * which is the project's whole comparison method. Drawing and discarding
+     * keeps the two builds identical apart from the one thing song type is
+     * supposed to change. */
+    voice: (() => { const v = pick('voice'); return opts.vocalActive === false ? null : v; })(),
     lead: pick('lead'),
     movement: pick('movement'),
     color: null,
@@ -11082,7 +11161,7 @@ const P = {
     airVocalPad:     { t: 'an airy layered vocal-synth pad', d: 'E' },
   },
   bass: {
-    orchestralCello: { t: 'a deep orchestral cello-and-contrabass foundation', d: 'A' },
+    orchestralCello: { t: 'a deep orchestral contrabass foundation', d: 'A' },
     synthSubBass:    { t: 'a deep sustained synth sub-bass', d: 'E' },
     electricBass:    { t: 'a driving electric bass', d: 'B' },
     seqBass:         { t: 'a sequenced synth bass pulsing eighth notes', d: 'E' },
@@ -11092,7 +11171,7 @@ const P = {
     filterBass:      { t: 'a warm filtered analog bassline', d: 'E' },
     organPedal:      { t: 'a low organ pedal tone', d: 'A' },
     oudLow:          { t: 'a low oud register', d: 'A' },
-    pulseCello:      { t: 'a staccato cello-and-contrabass ostinato', d: 'A' },
+    pulseCello:      { t: 'a staccato contrabass ostinato', d: 'A' },
     driveSub:        { t: 'a hard-edged driving synth bass', d: 'E' },
   },
   lead: {
@@ -11735,7 +11814,7 @@ const P = {
   },
   bass: {
     subBass:     { t: 'a deep round synth sub-bass', d: 'E' },
-    celloBass:   { t: 'a low bowed cello foundation', d: 'A' },
+    celloBass:   { t: 'a low bowed contrabass foundation', d: 'A' },
     fretlessBass:{ t: 'a singing fretless bass', d: 'B' },
     dubBass:     { t: 'a deep dub bassline', d: 'E' },
     pluckedBass: { t: 'a plucked synth bass', d: 'E' },

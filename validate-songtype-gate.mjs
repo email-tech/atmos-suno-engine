@@ -14,6 +14,11 @@
  */
 import { initState, syncEngineDefaults, setSongType } from './js/state.js';
 import { generate } from './js/generate.js';
+import { build as resolverBuild } from './core/resolver.js';
+import { ERA } from './engines/era.js';
+import { DELERIUM } from './engines/delerium.js';
+import { DEEPFOREST } from './engines/deepforest.js';
+import { SACREDSPIRIT } from './engines/sacredspirit.js';
 
 let checks = 0, fails = 0;
 const bad = (m) => { fails++; console.log('  FAIL: ' + m); };
@@ -134,6 +139,49 @@ const ENGINE_BY_KIND = { atom: 'Balearic Atom', resolver: 'Delerium', legacy: 'B
       `${kind} engine "${engineId}": style prompt contains vocal-delivery language under songType=instrumental: "${out.style.slice(0, 160)}"`);
   }
   console.log('  atom/resolver: no vocal-delivery language present under instrumental songType (regression guard).');
+}
+
+/* 6. THE RESOLVER VOICE SLOT ITSELF (added 2026-08-18, fixing a bug the check
+ *    above could not see).
+ *
+ *    Check 5 looks for vocal-DELIVERY wording and found nothing, because the
+ *    resolver voice pools are written as descriptions rather than as delivery
+ *    verbs. So an Era instrumental build at seed 5 was shipping "an ethereal
+ *    female aria in an invented sacred language" in the style field and every
+ *    validator passed. The slot was drawn unconditionally and opts.vocalActive
+ *    reached only renderNegative().
+ *
+ *    Tested at the ARRANGEMENT level rather than by pattern-matching the style
+ *    string: the voice slot must be null, full stop. A pattern would have to
+ *    anticipate the wording of every voice entry across four engines, which is
+ *    the mistake that let this through in the first place.
+ *
+ *    SEED PARITY IS ASSERTED TOO. The fix draws the voice and discards it, so
+ *    the seeded RNG stays in step and an instrumental build differs from the
+ *    vocal build at the same seed in the voice ONLY. Skipping the draw would
+ *    shift lead and movement as well and quietly break John's identical-seed
+ *    before/after comparison, which is how every result in this project is
+ *    read. */
+{
+  const engines = [['Era', ERA], ['Delerium', DELERIUM], ['Deep Forest', DEEPFOREST], ['Sacred Spirit', SACREDSPIRIT]];
+  for (const [name, eng] of engines) {
+    for (const cid of Object.keys(eng.characters)) {
+      for (const seed of [1, 5, 23, 97]) {
+        const base = { characterId: cid, palette: 'acoustic', seed };
+        const vocal = resolverBuild(eng, Object.assign({}, base, { vocalActive: true }));
+        const instr = resolverBuild(eng, Object.assign({}, base, { vocalActive: false }));
+        ok(instr.arrangement.voice === null,
+          `${name}/${cid}/${seed}: instrumental build still resolved a voice — "${instr.arrangement.voice}"`);
+        ok(vocal.arrangement.lead === instr.arrangement.lead &&
+           vocal.arrangement.movement === instr.arrangement.movement &&
+           vocal.arrangement.bass === instr.arrangement.bass,
+          `${name}/${cid}/${seed}: song type shifted slots other than the voice — seed parity lost`);
+        ok(vocal.arrangement.voice !== null,
+          `${name}/${cid}/${seed}: vocal build resolved no voice`);
+      }
+    }
+  }
+  console.log('  resolver voice slot is null under instrumental song type, with seed parity preserved.');
 }
 
 console.log(`validate-songtype-gate: ${checks} checks, ${fails} failures.`);

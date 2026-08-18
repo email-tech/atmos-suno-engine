@@ -96,7 +96,35 @@ export function resolveArrangement(engine, opts) {
     pads: pick('pads'),
     harmony: pick('harmony'),
     bass: pick('bass'),
-    voice: pick('voice'),
+    /* SONG-TYPE GATE ON THE RESOLVER PATH (fixed 2026-08-18). This slot used to
+     * be drawn unconditionally, and opts.vocalActive reached only
+     * renderNegative() — so selecting song type Instrumental on Era, Delerium,
+     * Deep Forest or Sacred Spirit still put a vocal clause in the STYLE field.
+     * A verified example: Era instrumental, seed 5, rendered "an ethereal
+     * female aria in an invented sacred language".
+     *
+     * Song type is decision #1 in the structure-first pipeline and is already
+     * authoritative on the atom and legacy paths (js/generate.js's
+     * songTypeLyrics and toLegacyState). This is the resolver path catching up.
+     * It has to happen HERE rather than at render time: the voice slot feeds
+     * interplay tail gating, reconciliation and buildResolverDNA, all of which
+     * would otherwise reason about a singer the prompt does not have.
+     *
+     * DROPPING IT IS SAFE. renderStyle() builds every clause conditionally, and
+     * the interplay layer has gated tails against the resolved arrangement
+     * since 84effaa, so a voiceRel tail simply does not fire when there is no
+     * voice. Default stays TRUE, so any caller that omits the flag — every
+     * existing validator and the legacy call sites — behaves exactly as before.
+     *
+     * THE DRAW STILL HAPPENS AND THE RESULT IS DISCARDED. Skipping pick('voice')
+     * outright would leave one fewer number consumed from the seeded RNG, so
+     * every slot drawn after it would shift and an instrumental build would
+     * differ from the vocal build at the same seed in its LEAD and MOVEMENT
+     * too. That would quietly break John's identical-seed before/after gate,
+     * which is the project's whole comparison method. Drawing and discarding
+     * keeps the two builds identical apart from the one thing song type is
+     * supposed to change. */
+    voice: (() => { const v = pick('voice'); return opts.vocalActive === false ? null : v; })(),
     lead: pick('lead'),
     movement: pick('movement'),
     color: null,

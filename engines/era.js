@@ -27,7 +27,7 @@ const P = {
     airVocalPad:     { t: 'an airy layered vocal-synth pad', d: 'E' },
   },
   bass: {
-    orchestralCello: { t: 'a deep orchestral cello-and-contrabass foundation', d: 'A' },
+    orchestralCello: { t: 'a deep orchestral contrabass foundation', d: 'A' },
     synthSubBass:    { t: 'a deep sustained synth sub-bass', d: 'E' },
     electricBass:    { t: 'a driving electric bass', d: 'B' },
     seqBass:         { t: 'a sequenced synth bass pulsing eighth notes', d: 'E' },
@@ -37,7 +37,7 @@ const P = {
     filterBass:      { t: 'a warm filtered analog bassline', d: 'E' },
     organPedal:      { t: 'a low organ pedal tone', d: 'A' },
     oudLow:          { t: 'a low oud register', d: 'A' },
-    pulseCello:      { t: 'a staccato cello-and-contrabass ostinato', d: 'A' },
+    pulseCello:      { t: 'a staccato contrabass ostinato', d: 'A' },
     driveSub:        { t: 'a hard-edged driving synth bass', d: 'E' },
   },
   lead: {

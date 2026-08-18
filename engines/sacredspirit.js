@@ -52,7 +52,7 @@ const P = {
   },
   bass: {
     subBass:     { t: 'a deep round synth sub-bass', d: 'E' },
-    celloBass:   { t: 'a low bowed cello foundation', d: 'A' },
+    celloBass:   { t: 'a low bowed contrabass foundation', d: 'A' },
     fretlessBass:{ t: 'a singing fretless bass', d: 'B' },
     dubBass:     { t: 'a deep dub bassline', d: 'E' },
     pluckedBass: { t: 'a plucked synth bass', d: 'E' },
