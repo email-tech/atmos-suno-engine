@@ -3,6 +3,7 @@ import { NEGATIVE_CAP, capNegativesOrdered, vocalRestraintCandidates } from './k
 import { compactPart } from './compress.js';
 import { slotFamily } from './overlays.js';
 import { pickTail, guardTail } from './interplay.js';
+import { reconcileArrangement } from './resolver-cast.js';
 
 /* ---- HARMONY BRIGHTNESS WEIGHTING (John, 2026-08-13) ----------------------
  * "Music played in a Major Key sounds too happy and sugary sweet... this key
@@ -354,6 +355,12 @@ function compressStyle(engine, arr, limit, locks = {}) {
 export function build(engine, opts) {
   const arr = resolveArrangement(engine, opts);
   applyOverlay(engine, arr, opts.overlay, opts.locks || {});
+  /* ENSEMBLE RECONCILIATION (2026-08-17). AFTER the overlay, because the overlay
+   * rewrites bass / lead / colour / pads and reconciling before it would judge
+   * an arrangement Suno never receives. BEFORE the style is rendered, so the
+   * render-time interplay guard in renderStyle() catches any tail that referred
+   * to a voice dropped here — the two were built to compose in this order. */
+  reconcileArrangement(arr);
   const style = compressStyle(engine, arr, CHAR_LIMIT, opts.locks || {});
   return { arrangement: arr, style, negative: renderNegative(engine, arr, { vocalActive: opts.vocalActive }), length: style.length,
            overLimit: style.length > CHAR_LIMIT };

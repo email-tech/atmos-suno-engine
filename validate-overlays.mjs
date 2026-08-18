@@ -19,6 +19,7 @@ import { ERA } from './engines/era.js';
 import { DEEPFOREST } from './engines/deepforest.js';
 import { SACREDSPIRIT } from './engines/sacredspirit.js';
 import { build, resolveArrangement, renderStyle } from './core/resolver.js';
+import { reconcileArrangement } from './core/resolver-cast.js';
 import { OVERLAYS, resolveOverlays, overlayList } from './core/overlays.js';
 import { compactPart, lostWords } from './core/compress.js';
 import { slotFamily } from './core/overlays.js';
@@ -136,7 +137,15 @@ for (const eng of ENGINES) {
       for (let n = 0; n < 60; n++) {
         const seed = (n * 40503 + 7) >>> 0;
         const arr = resolveArrangement(eng, { characterId: cid, palette, locks: {}, seed });
-        const beforeStyle = renderStyle(eng, arr);            // untouched render path
+        /* REFERENCE UPDATED 2026-08-17. This check exists to prove that
+         * applyOverlay with overlay:null is a NO-OP, so the reference has to be
+         * everything build() does APART from the overlay. Ensemble
+         * reconciliation is now part of that, and it changes output on purpose
+         * (one bed, one mention of each voice), so comparing against an
+         * un-reconciled render made all 671 of these fail for the one reason
+         * they are not meant to catch. */
+        reconcileArrangement(arr);
+        const beforeStyle = renderStyle(eng, arr);            // untouched render path, reconciled
         const out = build(eng, { characterId: cid, palette, locks: {}, seed, overlay: null });
         if (out.style !== beforeStyle) fail(`no-overlay output changed on ${eng.id}/${cid}`);
       }
