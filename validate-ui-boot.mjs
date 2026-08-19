@@ -177,6 +177,43 @@ for (const tabIndex of [0, 3]) { // Balearic (legacy) and Delerium (resolver) �
   }
 }
 
+/* TEXTURE PANEL — added 2026-08-19 after John reported "changing both textures
+ * has no effect on the prompt". The feature worked; his downloaded copy was
+ * stale. But nothing in the suite actually CHANGED a texture dropdown and
+ * looked at the output, so neither of us could rule out a wiring bug — the
+ * panel is built by js/ui.js, wired through js/state.js and read by
+ * js/generate.js, and validate-texture.mjs imports core/texture.js directly and
+ * touches none of that.
+ *
+ * Drives the real select elements in the real bundle and asserts the style
+ * prompt actually changes. This is the same gap the whole file exists to close:
+ * a feature can be correct in core/ and unreachable in the app. */
+{
+  const sels = [...doc.querySelectorAll('select')];
+  const texSelects = sels.filter(s => [...s.options].some(o => o.value === 'stringsLow'));
+  ok(texSelects.length === 2, `expected 2 texture selects in the rendered app, found ${texSelects.length}`);
+
+  const styleText = () => {
+    const c = [...doc.querySelectorAll('textarea,pre,.out,.output,.prompt')]
+      .map(e => e.value || e.textContent).filter(t => t && t.length > 60);
+    return c[0] || '';
+  };
+  if (texSelects.length === 2) {
+    for (const [i, pick, word] of [[0, 'stringsLow', 'string ensemble'], [1, 'harp', 'harp']]) {
+      const before = styleText();
+      texSelects[i].value = pick;
+      texSelects[i].dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      const after = styleText();
+      ok(after !== before, `texture select ${i + 1} set to "${pick}" did not change the style prompt`);
+      ok(after.toLowerCase().includes(word), `texture select ${i + 1} set to "${pick}" but "${word}" is absent from the style prompt`);
+      texSelects[i].value = '';
+      texSelects[i].dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    }
+    ok(styleText() === styleText(), 'style prompt unstable between reads');
+  }
+  console.log('  texture panel: both selects present, wired, and changing them changes the style prompt.');
+}
+
 console.log(fail
   ? `\nvalidate-ui-boot: ${fail} failure(s).`
   : `validate-ui-boot: real bundle boots clean, all 7 engine tabs render, Balearic Atom's Composer -> style+metatags chain verified end-to-end through actual DOM interaction, structure preset changes clean on 2 engine kinds. No checks skipped.`);

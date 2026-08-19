@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
@@ -188,7 +189,7 @@ if (JSON.stringify(orderedFiles) !== JSON.stringify(files)) {
   console.log('build.mjs: computed order differs from the file list above (dependency-driven, not alphabetical/manual) — this is expected and fine.');
 }
 
-let out = `// GENERATED — do not edit. Build with: node build.mjs\nwindow.__ATMOS = window.__ATMOS || {};\nwindow.__ATMOS_BUILD__ = ${JSON.stringify(BUILD)};\n`;
+let out = `// GENERATED — do not edit. Build with: node build.mjs\nwindow.__ATMOS = window.__ATMOS || {};\nwindow.__ATMOS_BUILD__ = ${JSON.stringify(Object.assign({}, BUILD, { src: '__SRC_HASH__' }))};\n`;
 
 for (const f of orderedFiles) {
   let src = fs.readFileSync(path.join(root, f), 'utf8');
@@ -227,5 +228,19 @@ for (const f of orderedFiles) {
   out += `\n/* ${f} */\n(function(){\n${src}${assign}\n})();\n`;
 }
 
+/* CONTENT FINGERPRINT (2026-08-19). The commit marker above is stamped from
+ * HEAD at BUILD time, which is one step before the commit that ships the
+ * bundle — so it always reads one commit behind and can never confirm whether
+ * a downloaded copy is current. That is not a cosmetic problem: John reported
+ * "changing both textures has no effect on the prompt" on a build where the
+ * feature demonstrably worked, and there was no way for either of us to tell
+ * from the app whether his copy contained the code at all.
+ *
+ * A hash of the bundle's own bytes has no such lag. It is exact, it is printed
+ * here at build time, and it is shown in the header — so "does your copy match"
+ * becomes a single string comparison instead of a guess about ZIP freshness. */
+const srcHash = createHash('sha256').update(out).digest('hex').slice(0, 8);
+out = out.replace('"__SRC_HASH__"', JSON.stringify(srcHash));
 fs.writeFileSync(path.join(root, 'js/app.bundle.js'), out);
+console.log(`build.mjs: bundle fingerprint ${srcHash} — this is what the app header should show.`);
 console.log('bundled', files.length, 'modules -> js/app.bundle.js');

@@ -10,7 +10,12 @@ function renderBuildMarker() {
   if (!sub) return;
   const b = window.__ATMOS_BUILD__;
   if (!b) return;
-  sub.textContent = `multi-engine shell · build ${b.commit} · ${b.date}`;
+  /* The fingerprint is the useful half. See build.mjs: the commit is stamped
+   * one step before the commit that ships, so it can never confirm a copy is
+   * current; the hash of the bundle's own bytes can. */
+  sub.textContent = b.src
+    ? `multi-engine shell · build ${b.commit} · ${b.date} · src ${b.src}`
+    : `multi-engine shell · build ${b.commit} · ${b.date}`;
   sub.title = 'This marker is generated when the bundle is built, one step before the commit that ships it — so it will almost always show the PREVIOUS commit on GitHub, not this exact one. Treat it as "at least this recent," not exact. If it looks like it\'s from more than a few commits back, download a fresh ZIP — refreshing the page only reloads the files already on disk.';
 }
 
