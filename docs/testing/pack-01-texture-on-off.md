@@ -25,6 +25,38 @@ something you already had?**
 `VOICE_BUDGET` in the app is deliberately set to `null` and stays that way until
 this pack gives a real number. It must not be guessed.
 
+## Vocal or instrumental?
+
+**Pairs 1 to 5 are VOCAL builds with lyrics.** Song type = Vocal, lyrics
+generated in the app as normal. A test is not valid otherwise — the standing
+rule is that a complete build means style field, negative field, app-generated
+metatags, lyrics and vocals together, because that is how the app is actually
+used. The three old packs were thrown out largely for being instrumental-only.
+
+**Pair 6 is the only instrumental one**, and it is a bug check rather than a
+texture check.
+
+### The one thing to be careful about with lyrics
+
+Lyrics come from the language model, so generating them twice gives you two
+different sets of words. That would change two things between A and B instead of
+one.
+
+**Generate the lyrics once for build A, then paste the exact same lyrics into
+build B.** Do not re-generate them.
+
+Metatags are safe to re-generate — they are worked out from the character and
+the seed, not from the language model, and texture voices are deliberately kept
+out of them. I have checked: metatags come out byte-identical between A and B.
+If you ever see them differ, that is a bug worth reporting.
+
+So for each pair the four fields behave like this:
+
+- Style field — differs (this is the thing being tested)
+- Negative field — identical
+- Metatags — identical
+- Lyrics — identical, because you are reusing A's
+
 ## How to run it
 
 Six pairs. Each pair is two Suno generations. Twelve generations total.
@@ -32,30 +64,42 @@ Six pairs. Each pair is two Suno generations. Twelve generations total.
 For each pair:
 
 1. Set the engine, character, palette and seed exactly as listed.
-2. Leave every other control at its default. Do not touch Detail & Movement.
-3. Generate build A (texture off), copy all four fields into Suno, render.
-4. Change **only** the texture selectors to build B's setting. Re-generate.
-5. Copy all four fields into Suno, render.
-6. Answer the three questions below for that pair.
+2. Song type = Vocal (except pair 6). Leave every other control at its default.
+   Do not touch Detail & Movement.
+3. Generate build A with texture off. Generate lyrics. Keep them.
+4. Copy all four fields into Suno, render.
+5. Change **only** the texture selectors to build B's setting. Re-generate the
+   style field. Paste A's lyrics back in.
+6. Copy all four fields into Suno, render.
+7. Answer the three questions below.
 
-The seed is the same in both halves of a pair, so everything except the texture
-clause is identical. If anything else differs, stop — that is a bug and worth
-more than the test.
+The seed is the same in both halves, so everything except the texture clause is
+identical. If anything else differs, stop — that is a bug and worth more than
+the test.
 
 ---
 
-## Pair 1 — does a string bed arrive at all?
+## Pair 1 — the important one: real strings against synth strings
 
-Balearic Atom · balearic-lush-cinematic · electronic · seed 4242
+Balearic Atom · Lush Cinematic Chillout · electronic · seed 4242
 
 - **A:** Texture 1 = none, Texture 2 = none
 - **B:** Texture 1 = String ensemble — low, Texture 2 = String ensemble — high
 
 Both picks are strings, so the app merges them into one section spanning both
-registers. That is deliberate — naming strings twice would tell Suno to render
-two string sections.
+registers. Naming strings twice would tell Suno to render two string sections.
 
-B adds, after the pads clause:
+This build already contains **synth strings**. Until today the app refused a real
+string ensemble here, treating the two as the same instrument — which killed the
+feature on 11 of the 12 characters on the electronic palette, the main Balearic
+use and exactly what your spec asked for. A Solina-style synth pad and an
+orchestral section are two different sources and layering them is ordinary
+practice, so the refusal was removed.
+
+**That decision is reasoned, not tested. This pair is the test.** If Suno muds
+the two string layers together, the refusal goes back in.
+
+B adds, after the harmony clause:
 
 > a soft string ensemble spanning low and high registers blended into the
 > background plane with quiet, sustained timbres
@@ -66,7 +110,7 @@ Named sources: 5 → 6.
 
 ## Pair 2 — two different families at once
 
-Balearic Atom · balearic-lush-cinematic · acoustic · seed 4242
+Balearic Atom · Lush Cinematic Chillout · acoustic · seed 4242
 
 - **A:** none / none
 - **B:** Texture 1 = String ensemble — mid, Texture 2 = French horns
@@ -77,14 +121,14 @@ B adds two clauses:
 > sustained timbres, a soft French horn section adding quiet harmonic
 > reinforcement beneath the bed in slow sustained swells
 
-Named sources: 5 → 7. This is the highest-count build in the pack and the most
-likely to show dropout.
+Named sources: 5 → 7. Joint highest count in the pack and the most likely to
+show dropout.
 
 ---
 
 ## Pair 3 — plucked plus reed
 
-Balearic Atom · balearic-lush-cinematic · acoustic · seed 4242
+Balearic Atom · Deep Nocturnal Balearic · electronic · seed 4242
 
 - **A:** none / none
 - **B:** Texture 1 = Harp, Texture 2 = Alto saxophone
@@ -100,39 +144,40 @@ the pluck-and-swell or flattens it into a pad.
 
 ---
 
-## Pair 4 — texture on an engine that already has orchestral content
+## Pair 4 — texture on an engine that already has real orchestral content
 
 Era · Ethereal Ballad · acoustic · seed 4242
 
 - **A:** none / none
 - **B:** Texture 1 = String ensemble — low, Texture 2 = Trombones
 
-**The string pick will be refused.** Era's ethereal ballad already draws a
-Mellotron string-and-choir pad, and the app will not name strings twice. The
-trombones land:
+**The string pick will be refused and the trombones will land.** Era's ethereal
+ballad already draws a Mellotron string-and-choir pad, which is a real string
+sound rather than a synth emulation, so the app will not name strings twice
+here. The trombones have nothing to collide with:
 
 > a soft trombone section restrained in the background with quiet, sustained
 > tone
 
-This pair is here to confirm the refusal is the right call. If Suno would have
-handled two string layers fine, that changes the rule.
+This pair and pair 1 are two halves of the same question — pair 1 allows the
+layering, pair 4 refuses it. Comparing them tells us whether the line is drawn
+in the right place.
 
 ---
 
 ## Pair 5 — support vs foundation
 
-Balearic Atom · balearic-lush-cinematic · electronic · seed 91
+Balearic Atom · Ambient Beatless Atmospheric · acoustic · seed 91
 
-- **A:** Texture 1 = String ensemble — mid, Texture 2 = none
-- **B:** same pick, but lock the pads slot off if the engine offers it; otherwise
-  run this pair on a seed where the build has no pad
+- **A:** none / none
+- **B:** Texture 1 = String ensemble — mid, Texture 2 = none
 
-The prose changes depending on whether a pad survives. With a pad, the strings
-are described as sitting under it. With no pad, they are described as the
-foundation. This checks that the difference is audible and not just wording.
+The prose changes depending on whether a pad survives in the build. With a pad,
+the strings are described as sitting under it. With no pad, they are described
+as the foundation. This checks the difference is audible and not just wording.
 
-If you cannot easily produce a no-pad build, skip this pair and say so — it is
-the least important of the six.
+Beatless character chosen on purpose — with no drums there is nowhere for a
+weak string layer to hide.
 
 ---
 
@@ -143,9 +188,10 @@ Era · Ethereal Ballad · acoustic · seed 4242 · **song type = Instrumental**
 - **A:** none / none
 - **B:** Texture 1 = Oboes, Texture 2 = none
 
-This one is a bug check, not a texture check. Until today, choosing Instrumental
-on Era, Delerium, Deep Forest or Sacred Spirit still put a singer into the style
-field. That is fixed. Confirm no vocal appears in either build.
+A bug check, not a texture check. Until today, choosing Instrumental on Era,
+Delerium, Deep Forest or Sacred Spirit still put a singer into the style field.
+That is fixed. Confirm no vocal appears in either build, and that the lyrics
+field reads `[Instrumental]`.
 
 ---
 

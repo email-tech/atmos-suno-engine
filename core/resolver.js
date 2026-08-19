@@ -416,8 +416,13 @@ export function build(engine, opts) {
    * only the survivors are joined for the slot. Same rule as core/cast.js 3b,
    * same reason: engine content is the character's own song and claims first. */
   if (opts.texture && opts.texture.length) {
+    /* Synth emulations do not block the real instrument — same rule and same
+     * reasoning as core/cast.js 3b. "synth strings" is not a string section. */
+    const SYNTHETIC_SOURCE_RE = /\b(synth|synthesi[sz]ed|synthetic|analogue?|digital|fm|sampled|solina|string machine|virtual)\b/i;
     const engineFams = new Set(['pads', 'harmony', 'bass', 'lead', 'voice', 'color', 'movement']
-      .map(k => arr[k] && classifyInstrument(String(arr[k]))).filter(Boolean));
+      .map(k => arr[k])
+      .filter(t => t && !SYNTHETIC_SOURCE_RE.test(String(t)))
+      .map(t => classifyInstrument(String(t))).filter(Boolean));
     const survivors = opts.texture.filter(v => !(v.family && engineFams.has(v.family)));
     for (const v of opts.texture) {
       if (survivors.includes(v)) continue;

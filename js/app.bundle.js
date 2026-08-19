@@ -1,6 +1,6 @@
 // GENERATED — do not edit. Build with: node build.mjs
 window.__ATMOS = window.__ATMOS || {};
-window.__ATMOS_BUILD__ = {"commit":"9f6a84c","date":"2026-08-18"};
+window.__ATMOS_BUILD__ = {"commit":"a157c0e","date":"2026-08-18"};
 
 /* core/constants.js */
 (function(){
@@ -5997,8 +5997,13 @@ function build(engine, opts) {
    * only the survivors are joined for the slot. Same rule as core/cast.js 3b,
    * same reason: engine content is the character's own song and claims first. */
   if (opts.texture && opts.texture.length) {
+    /* Synth emulations do not block the real instrument — same rule and same
+     * reasoning as core/cast.js 3b. "synth strings" is not a string section. */
+    const SYNTHETIC_SOURCE_RE = /\b(synth|synthesi[sz]ed|synthetic|analogue?|digital|fm|sampled|solina|string machine|virtual)\b/i;
     const engineFams = new Set(['pads', 'harmony', 'bass', 'lead', 'voice', 'color', 'movement']
-      .map(k => arr[k] && classifyInstrument(String(arr[k]))).filter(Boolean));
+      .map(k => arr[k])
+      .filter(t => t && !SYNTHETIC_SOURCE_RE.test(String(t)))
+      .map(t => classifyInstrument(String(t))).filter(Boolean));
     const survivors = opts.texture.filter(v => !(v.family && engineFams.has(v.family)));
     for (const v of opts.texture) {
       if (survivors.includes(v)) continue;
@@ -6609,7 +6614,34 @@ function reconcileCast(cast, opts) {
    * that means anything, so it sits here, after every rule that can remove an
    * engine voice and before placement. */
   {
-    const engineFamilies = new Set(kept.filter(v => v.source === 'engine' && v.family).map(v => v.family));
+    /* A SYNTH EMULATION DOES NOT BLOCK THE REAL INSTRUMENT (2026-08-18).
+     *
+     * Matching on family alone was far too blunt and nearly killed the feature
+     * where John most wants it. classifyInstrument() reads the word "strings"
+     * and returns the strings family for "synth strings" — an electronic-palette
+     * engine voice present on 11 of the 12 atom characters. The result: a real
+     * string ensemble was refused on 11/12 characters on the ELECTRONIC palette,
+     * which is the main Balearic use and precisely the case his spec describes,
+     * "add slow soft legato string ensembles as a pad/bed to EXISTING tracks".
+     *
+     * A Solina-style synth string pad and an orchestral string section are not
+     * one instrument named twice. They are two different sources, and layering
+     * them is ordinary Balearic practice rather than a fault. The rule the
+     * collision check is enforcing is one-voice-one-mention, and these are two
+     * voices.
+     *
+     * REASONED, NOT MEASURED, and deliberately the narrower of the two risks:
+     * blocking is silent and total, while allowing is audible and shows up in a
+     * test. Whether Suno muds a synth string pad against a named string section
+     * is exactly what test pack 01 pair 1 now measures. If it muds, this
+     * exception is the thing to remove.
+     *
+     * Mellotron is not listed because it does not classify as strings at all;
+     * it is here in the comment so the next session does not go looking. */
+    const SYNTHETIC_SOURCE_RE = /\b(synth|synthesi[sz]ed|synthetic|analogue?|digital|fm|sampled|solina|string machine|virtual)\b/i;
+    const engineFamilies = new Set(kept
+      .filter(v => v.source === 'engine' && v.family && !SYNTHETIC_SOURCE_RE.test(v.instrument || ''))
+      .map(v => v.family));
     kept = kept.filter(v => {
       if (v.source !== 'texture') return true;
       if (v.family && engineFamilies.has(v.family)) { drop(v, 'family-already-present'); return false; }
