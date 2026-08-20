@@ -8,6 +8,25 @@ Last updated: 2026-08-19 · HEAD at time of writing: `d394efd`
 
 ---
 
+## Read these three, in this order
+
+1. `docs/architecture/project-definition-v2.md` — what the tool is and is not,
+   what is kept, what is rebuilt. **Awaiting John's mark-up.**
+2. `docs/architecture/prose-architecture-v1.md` — how prose gets generated once
+   the data is trustworthy. **Awaiting John's mark-up.**
+3. `docs/research/engine-identity-briefs.md` — the research that everything
+   else stands on. **With John.**
+
+### Which document is for whom
+
+| Document | Audience |
+|---|---|
+| `project-definition-v2.md` | Claude (chat), then Claude Code to implement |
+| `prose-architecture-v1.md` | Claude (chat), then Claude Code to implement |
+| `engine-identity-briefs.md` | **an outside LLM, or John's own research** |
+| `research-briefs.md` | **an outside LLM, or John's own research** |
+| `PROJECT_STATE.md` | everyone, every session, first thing |
+
 ## Where the project is right now
 
 **Testing is suspended.** John ran 10 Suno tests on 2026-08-19 and stopped. His
@@ -16,12 +35,25 @@ style prompts has no real grounding in music. He will not test further until
 that is fixed. That is the correct call — testing a prompt generator whose
 prompts are wrong measures nothing.
 
-**Current work: rebuilding the prose layer.** Architecture sketched at
-`docs/architecture/prose-architecture-v1.md`, awaiting John's review. Nothing
-built. Research briefs at `docs/research/research-briefs.md` are with John.
+**The project is being restarted at the data layer.** John, 2026-08-19:
 
-**Do not build any part of the prose architecture until John has reviewed the
-sketch and answered its section 7 decision points.**
+> "I think we need to take a massive step back and redefine the project. We need
+> to decide what the tool is and isn't. I think we need to start all over again
+> from scratch rather than inherit poor information."
+
+He is right, and he identified the part the prose architecture had missed:
+**nothing has ever established what each engine actually is.** The instrument
+pools, character definitions and genre anchors were never derived from anything.
+They are inference presented as data, and every reconciliation rule in the app
+operates on top of them. Fixing the prose without fixing this would produce
+well-written descriptions of the wrong music.
+
+**Restart scope: the DATA is rebuilt from nothing, the MACHINERY is kept.** The
+reconciliation logic, the bundler, the DOM validator and John's own Suno test
+findings are sound and expensive to replace. Everything that describes music —
+pools, characters, anchors, all prose — goes.
+
+**Nothing may be built until John has marked up both architecture documents.**
 
 ---
 
@@ -104,11 +136,24 @@ palette through `js/generate.js` the way the app does.** Needs John's go-ahead.
 
 ## Open items needing John
 
-**Blocking the prose rebuild:**
+**Blocking everything:**
 
-- Review `docs/architecture/prose-architecture-v1.md` and answer its five
+- Mark up `docs/architecture/project-definition-v2.md`. It is written as
+  assertions to strike through rather than questions to answer. Note especially
+  section 6: a proposal to collapse the three build paths into one, which John
+  has not asked for and should rule on.
+- Mark up `docs/architecture/prose-architecture-v1.md` and answer its five
   decision points.
-- Return research briefs 1–4 (briefs 1–3 block layer 2, brief 4 blocks layer 3).
+- Run the engine identity briefs. **These are the foundation — one engine per
+  session, twice on different models, disagreements brought back as well as
+  agreements.**
+- For each engine, decide which ERA or MODE it targets. Only John can answer
+  this and it must be settled before any pool is built.
+
+**After the identity research is in:**
+
+- General research briefs 1–4 (`docs/research/research-briefs.md`). Brief 2,
+  register and masking, is the highest-value one.
 
 **Engine questions, unchanged from 2026-08-18:**
 
@@ -130,6 +175,18 @@ palette through `js/generate.js` the way the app does.** Needs John's go-ahead.
   control surface is final, but it is now on the record as a real complaint.
 
 ---
+
+## The provenance rule (new, and the point of the restart)
+
+**Every piece of musical data carries a source or it does not ship.** One of:
+`john` (his statement or his own Suno test), `cite:<work>` , `derived:<rule>`,
+or `candidate` — an inference, which **ships disabled** and is excluded from
+output until John confirms it.
+
+There is no fourth option, and this is enforced by a validator rather than by
+discipline. Every instrument pool in the repo today is `candidate` in reality
+and treated as fact in practice, because there was never a field to record the
+difference. That is the whole failure in one sentence.
 
 ## What is built and working
 
